@@ -1374,7 +1374,7 @@ const Sidebar = ({ isOpen, toggle, onNewSigning, onNewExpense, onExpenseTypes, o
         initial={false}
         animate={{ x: isOpen ? 0 : -280 }}
         className={cn(
-          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#0f172a] text-[#b8b8b8] z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
+          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#0f172a] text-amber-400/70 z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
           !isOpen && "lg:w-[80px]"
         )}
       >
@@ -1383,10 +1383,10 @@ const Sidebar = ({ isOpen, toggle, onNewSigning, onNewExpense, onExpenseTypes, o
           <div className="h-16 flex items-center px-6 border-b border-white/5">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <FileText className="w-5 h-5 text-white" />
+                <FileText className="w-5 h-5 text-amber-400" />
               </div>
               {isOpen && (
-                <span className="font-bold text-xl text-white tracking-tight">NotaryAssist</span>
+                <span className="font-bold text-xl text-amber-400 tracking-tight">NotaryPro App</span>
               )}
             </div>
           </div>
@@ -1412,13 +1412,13 @@ const Sidebar = ({ isOpen, toggle, onNewSigning, onNewExpense, onExpenseTypes, o
                     className={cn(
                       "flex items-center gap-4 px-4 py-3 transition-all duration-200 group relative",
                       isActive && !hasSubItems
-                        ? "bg-white/5 text-white" 
-                        : "hover:bg-white/5 hover:text-white"
+                        ? "bg-white/5 text-amber-400" 
+                        : "hover:bg-white/5 hover:text-amber-400 text-amber-400/70"
                     )}
                   >
                     <item.icon className={cn(
                       "w-6 h-6 transition-colors",
-                      isActive ? "text-white" : "text-[#b8b8b8] group-hover:text-white"
+                      isActive ? "text-amber-400" : "text-amber-400/60 group-hover:text-amber-400"
                     )} />
                     {isOpen && (
                       <div className="flex-1 flex items-center justify-between">
@@ -1453,7 +1453,7 @@ const Sidebar = ({ isOpen, toggle, onNewSigning, onNewExpense, onExpenseTypes, o
                                 onClick={sub.onClick}
                                 className={cn(
                                   "w-full flex items-center gap-4 pl-14 pr-4 py-2.5 transition-all duration-200 group relative",
-                                  "text-[#b8b8b8] hover:text-white hover:bg-white/5"
+                                  "text-amber-400/70 hover:text-amber-400 hover:bg-white/5"
                                 )}
                               >
                                 <span className="text-[14px] font-medium">{sub.name}</span>
@@ -1463,7 +1463,7 @@ const Sidebar = ({ isOpen, toggle, onNewSigning, onNewExpense, onExpenseTypes, o
                                 to={sub.path}
                                 className={cn(
                                   "flex items-center gap-4 pl-14 pr-4 py-2.5 transition-all duration-200 group relative",
-                                  isSubActive ? "text-white bg-white/5" : "text-[#b8b8b8] hover:text-white hover:bg-white/5"
+                                  isSubActive ? "text-amber-400 bg-white/5" : "text-amber-400/70 hover:text-amber-400 hover:bg-white/5"
                                 )}
                               >
                                 <span className="text-[14px] font-medium">{sub.name}</span>
@@ -1493,8 +1493,8 @@ const Sidebar = ({ isOpen, toggle, onNewSigning, onNewExpense, onExpenseTypes, o
               </div>
               {isOpen && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">Frank Cox</p>
-                  <p className="text-xs text-slate-500 truncate">Pro Plan</p>
+                  <p className="text-sm font-semibold text-amber-400 truncate">Frank Cox</p>
+                  <p className="text-xs text-amber-400/50 truncate">Pro Plan</p>
                 </div>
               )}
             </div>
@@ -2283,7 +2283,7 @@ export default function App() {
           </main>
 
           <footer className="py-6 px-8 border-t border-slate-200 text-center text-slate-400 text-sm">
-            &copy; {new Date().getFullYear()} NotaryAssist Pro. All rights reserved.
+            &copy; {new Date().getFullYear()} NotaryPro App. All rights reserved.
           </footer>
         </div>
       </div>
