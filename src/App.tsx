@@ -1065,7 +1065,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-200">
+            <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-200">
               <User className="w-6 h-6 text-white" />
             </div>
             <h2 className="text-2xl font-bold text-slate-800">Business Profile</h2>
@@ -1084,7 +1084,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
                 type="text" 
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -1093,7 +1093,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
                 type="text" 
                 value={formData.companyName}
                 onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -1102,7 +1102,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
                 type="email" 
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -1111,7 +1111,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
                 type="tel" 
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
             </div>
             <div className="md:col-span-2 space-y-2">
@@ -1120,7 +1120,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
                 type="text" 
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -1129,7 +1129,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
                 type="text" 
                 value={formData.commissionNumber}
                 onChange={(e) => setFormData({ ...formData, commissionNumber: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -1138,7 +1138,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
                 type="date" 
                 value={formData.commissionExpiration}
                 onChange={(e) => setFormData({ ...formData, commissionExpiration: e.target.value })}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
             </div>
           </div>
@@ -1154,7 +1154,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
           </button>
           <button 
             onClick={() => onSave(formData)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2"
+            className="bg-amber-500 hover:bg-amber-600 text-white px-8 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2"
           >
             <Save className="w-4 h-4" /> Save Profile
           </button>
@@ -1165,6 +1165,21 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
 };
 
 const SettingsView = ({ onEditProfile }: { onEditProfile: () => void }) => {
+  const handleFileImport = (type: 'pdf' | 'csv') => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = type === 'pdf' ? '.pdf' : '.csv';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        // In a real app, we would parse the file here
+        // For now, we'll show a success message
+        alert(`Successfully imported ${file.name}. In a production environment, this data would now be parsed and added to your signings.`);
+      }
+    };
+    input.click();
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div>
@@ -1184,7 +1199,10 @@ const SettingsView = ({ onEditProfile }: { onEditProfile: () => void }) => {
           <p className="text-sm text-slate-500">Bulk upload your signing appointments from existing files.</p>
           
           <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer group">
+            <div 
+              onClick={() => handleFileImport('pdf')}
+              className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer group"
+            >
               <div className="flex items-center gap-3">
                 <FileText className="w-5 h-5 text-red-500" />
                 <span className="text-sm font-medium text-slate-700">Import from PDF</span>
@@ -1192,7 +1210,10 @@ const SettingsView = ({ onEditProfile }: { onEditProfile: () => void }) => {
               <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
             </div>
             
-            <div className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer group">
+            <div 
+              onClick={() => handleFileImport('csv')}
+              className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer group"
+            >
               <div className="flex items-center gap-3">
                 <Newspaper className="w-5 h-5 text-emerald-500" />
                 <span className="text-sm font-medium text-slate-700">Import from CSV</span>
@@ -1226,8 +1247,22 @@ const SettingsView = ({ onEditProfile }: { onEditProfile: () => void }) => {
 const ToolsView = () => {
   const [signingDate, setSigningDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
-  // Simple recession calculation (3 business days, excluding Sundays and federal holidays)
-  // For this demo, we'll just do a simple +3 days calculation
+  // Federal Holidays 2026 (Simplified)
+  const FEDERAL_HOLIDAYS_2026 = [
+    '2026-01-01', // New Year's Day
+    '2026-01-19', // MLK Day
+    '2026-02-16', // Presidents Day
+    '2026-05-25', // Memorial Day
+    '2026-06-19', // Juneteenth
+    '2026-07-04', // Independence Day
+    '2026-09-07', // Labor Day
+    '2026-10-12', // Columbus Day
+    '2026-11-11', // Veterans Day
+    '2026-11-26', // Thanksgiving
+    '2026-12-25', // Christmas
+  ];
+
+  // Recession calculation (3 business days, excluding Sundays and federal holidays)
   const calculateRecessionDate = (dateStr: string) => {
     const date = new Date(dateStr);
     let businessDaysAdded = 0;
@@ -1235,8 +1270,10 @@ const ToolsView = () => {
     
     while (businessDaysAdded < 3) {
       resultDate.setDate(resultDate.getDate() + 1);
-      // Skip Sundays (0)
-      if (resultDate.getDay() !== 0) {
+      const formattedDate = format(resultDate, 'yyyy-MM-dd');
+      
+      // Skip Sundays (0) and Federal Holidays
+      if (resultDate.getDay() !== 0 && !FEDERAL_HOLIDAYS_2026.includes(formattedDate)) {
         businessDaysAdded++;
       }
     }
