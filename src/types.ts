@@ -20,6 +20,7 @@ export interface Appointment {
   email?: string;
   customer?: string;
   orderNumber?: string;
+  invoiceNumber?: string;
   loanNumber?: string;
   durationHours?: string;
   durationMinutes?: string;

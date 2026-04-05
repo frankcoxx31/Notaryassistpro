@@ -156,6 +156,7 @@ const parsePDFWithAI = async (file: File): Promise<Appointment[]> => {
             - time: The time of the signing (e.g., "10:00 AM").
             - fee: The numeric amount being paid to the notary.
             - orderNumber: The order or reference number for the signing.
+            - invoiceNumber: The invoice number for the signing.
             - loanNumber: The loan number associated with the signing.
             - phone: The phone number of the signer.
             - email: The email address of the signer.
@@ -192,6 +193,7 @@ const parsePDFWithAI = async (file: File): Promise<Appointment[]> => {
             email: { type: Type.STRING },
             customer: { type: Type.STRING },
             orderNumber: { type: Type.STRING },
+            invoiceNumber: { type: Type.STRING },
             loanNumber: { type: Type.STRING }
           },
           required: ["date", "time", "clientName", "signingType", "location", "fee", "status"]
@@ -360,6 +362,8 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     location: '123 Maple St, Springfield',
     fee: 150,
     status: 'Scheduled',
+    orderNumber: '75787410',
+    invoiceNumber: 'INV-1001',
     notes: 'Borrower needs to sign with blue ink.'
   },
   {
@@ -370,7 +374,9 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     signingType: 'Purchase',
     location: '456 Oak Ave, Shelbyville',
     fee: 125,
-    status: 'Scheduled'
+    status: 'Scheduled',
+    orderNumber: '75787411',
+    invoiceNumber: 'INV-1002'
   },
   {
     id: '3',
@@ -380,7 +386,9 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     signingType: 'HELOC',
     location: '789 Pine Rd, Capital City',
     fee: 100,
-    status: 'Completed'
+    status: 'Completed',
+    orderNumber: '75787412',
+    invoiceNumber: 'INV-1003'
   },
   {
     id: '4',
@@ -390,7 +398,9 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     signingType: 'Seller Package',
     location: '321 Elm Blvd, Springfield',
     fee: 90,
-    status: 'Scheduled'
+    status: 'Scheduled',
+    orderNumber: '75787413',
+    invoiceNumber: 'INV-1004'
   },
   {
     id: '5',
@@ -408,6 +418,7 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     fee: 65,
     status: 'Scheduled',
     orderNumber: '75785626',
+    invoiceNumber: 'INV-1005',
     loanNumber: '3582834992',
     durationHours: '1 hour',
     durationMinutes: '0 mins',
@@ -805,6 +816,16 @@ const NewSigningModal = ({ isOpen, onClose, appointment, onSave, initialTab = 'S
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-slate-500 text-xs mb-1">Invoice Number</p>
+                        <input 
+                          type="text" 
+                          value={formData.invoiceNumber || ""}
+                          onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
+                          className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                          placeholder="INV-000"
+                        />
+                      </div>
                       <div>
                         <p className="text-slate-500 text-xs mb-1">Fee Amount</p>
                         <p className="font-bold text-slate-900">${formData.fee?.toFixed(2)}</p>
@@ -3115,7 +3136,6 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                 <th className="px-3 py-3">Invoice Number <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Mileage</th>
                 <th className="px-3 py-3">Order No.</th>
-                <th className="px-3 py-3">Docs / Notarial Acts</th>
                 <th className="px-3 py-3"></th>
               </tr>
             </thead>
@@ -3181,12 +3201,11 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                       onClick={() => onViewSigning(app, 'Invoice')}
                       className="text-sky-600 hover:underline"
                     >
-                      {45 + idx}
+                      {app.invoiceNumber || "N/A"}
                     </button>
                   </td>
                   <td className="px-3 py-3 text-slate-600">{10 + idx * 8}</td>
-                  <td className="px-3 py-3 text-slate-600">75787{410 + idx}</td>
-                  <td className="px-3 py-3 text-slate-600">0 / 0</td>
+                  <td className="px-3 py-3 text-slate-600">{app.orderNumber || "N/A"}</td>
                   <td className="px-3 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button 
