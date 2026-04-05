@@ -1937,6 +1937,49 @@ const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
 };
 
 const Appointments = ({ appointments, onNewSigning }: { appointments: Appointment[]; onNewSigning: () => void }) => {
+  const [activeTab, setActiveTab] = useState('All Signings');
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExport = () => {
+    const headers = ["Date", "Time", "Client", "Type", "Location", "Fee", "Status"];
+    const csvData = appointments.map(app => [
+      app.date,
+      app.time,
+      app.clientName,
+      app.signingType,
+      app.location,
+      app.fee,
+      app.status
+    ]);
+    
+    const csvContent = [headers, ...csvData].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "signings_export.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        alert(`Importing ${file.name}... (In a real app, this would parse the CSV and update state)`);
+      }
+    };
+    input.click();
+  };
+
   const stats = [
     { label: 'SIGNINGS', value: '51', color: 'text-sky-600', help: true },
     { label: 'INCOME', value: '$1,795.00', color: 'text-sky-600', help: true },
@@ -1955,16 +1998,25 @@ const Appointments = ({ appointments, onNewSigning }: { appointments: Appointmen
           >
             <PlusCircle className="w-4 h-4 text-sky-600" /> Add Signing
           </button>
-          <button className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200">
+          <button 
+            onClick={handlePrint}
+            className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200"
+          >
             <Printer className="w-4 h-4 text-sky-600" /> Print
           </button>
-          <button className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200">
+          <button 
+            onClick={handleExport}
+            className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200"
+          >
             <Download className="w-4 h-4 text-sky-600" /> Export
           </button>
           <button className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200">
             Batch Actions <ChevronDown className="w-3 h-3" />
           </button>
-          <button className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2">
+          <button 
+            onClick={handleImport}
+            className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2"
+          >
             <Upload className="w-4 h-4 text-sky-600" /> Import <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px]">0</span>
           </button>
         </div>
@@ -1979,6 +2031,28 @@ const Appointments = ({ appointments, onNewSigning }: { appointments: Appointmen
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200">
+        {['All Signings', 'Locations'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              "px-6 py-3 text-sm font-medium transition-colors relative",
+              activeTab === tab ? "text-sky-600" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            {tab}
+            {activeTab === tab && (
+              <motion.div 
+                layoutId="activeTab"
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600"
+              />
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Filter Bar */}
@@ -2042,7 +2116,11 @@ const Appointments = ({ appointments, onNewSigning }: { appointments: Appointmen
                   </td>
                   <td className="px-3 py-3 text-slate-600">{app.signingType}</td>
                   <td className="px-3 py-3">
-                    <button className="text-sky-600 hover:underline">{app.location.split(',')[0]}</button>
+                    <button className="text-sky-600 hover:underline">
+                      {activeTab === 'Locations' 
+                        ? (app.location.split(',')[1]?.trim() || app.location)
+                        : app.location.split(',')[0]}
+                    </button>
                   </td>
                   <td className="px-3 py-3 text-slate-600">Rocket Close</td>
                   <td className="px-3 py-3 font-medium text-rose-700">${app.fee.toFixed(2)}</td>
