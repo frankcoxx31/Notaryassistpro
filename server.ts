@@ -11,9 +11,16 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
   // API routes go here
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  app.get("/health", (req, res) => {
+    res.send("Server is up and running");
   });
 
   try {
@@ -23,8 +30,10 @@ async function startServer() {
       const vite = await createViteServer({
         server: { 
           middlewareMode: true,
-          host: '0.0.0.0',
-          port: 3000
+          watch: {
+            usePolling: true,
+            interval: 100
+          }
         },
         appType: "spa",
       });
