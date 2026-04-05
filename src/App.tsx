@@ -1975,8 +1975,25 @@ const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
   );
 };
 
-const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment) => void }) => {
+const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment) => void; onDelete: (ids: string[]) => void }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === appointments.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(appointments.map(a => a.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(i => i !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
@@ -2149,8 +2166,13 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
   };
 
   const handleDelete = () => {
-    if (confirm("Are you sure you want to delete the selected signings?")) {
-      alert("Selected signings deleted (In a real app, this would update state)");
+    if (selectedIds.length === 0) {
+      alert("Please select at least one signing to delete.");
+      return;
+    }
+    if (confirm(`Are you sure you want to delete ${selectedIds.length} selected signing(s)?`)) {
+      onDelete(selectedIds);
+      setSelectedIds([]);
     }
   };
 
@@ -2276,7 +2298,14 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-tight">
-                <th className="px-3 py-3 w-10"><input type="checkbox" className="rounded" /></th>
+                <th className="px-3 py-3 w-10">
+                  <input 
+                    type="checkbox" 
+                    className="rounded" 
+                    checked={selectedIds.length === appointments.length && appointments.length > 0}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th className="px-3 py-3 w-10"></th>
                 <th className="px-3 py-3">Date / Time <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Name <ChevronDown className="inline w-3 h-3" /></th>
@@ -2295,8 +2324,15 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
             </thead>
             <tbody className="text-[13px] divide-y divide-slate-100">
               {appointments.map((app, idx) => (
-                <tr key={app.id} className="hover:bg-sky-50/30 transition-colors group">
-                  <td className="px-3 py-3"><input type="checkbox" className="rounded" /></td>
+                <tr key={app.id} className={cn("hover:bg-sky-50/30 transition-colors group", selectedIds.includes(app.id) && "bg-sky-50")}>
+                  <td className="px-3 py-3">
+                    <input 
+                      type="checkbox" 
+                      className="rounded" 
+                      checked={selectedIds.includes(app.id)}
+                      onChange={() => toggleSelect(app.id)}
+                    />
+                  </td>
                   <td className="px-3 py-3">
                     {app.status === 'Completed' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
                   </td>
@@ -2350,6 +2386,17 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
                         title="Print Job"
                       >
                         <Printer className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (confirm("Are you sure you want to delete this signing?")) {
+                            onDelete([app.id]);
+                          }
+                        }}
+                        className="p-1 hover:bg-rose-50 rounded text-slate-300 hover:text-rose-600 transition-colors"
+                        title="Delete Signing"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                       <button className="p-1 hover:bg-slate-100 rounded text-slate-300 group-hover:text-slate-400">
                         <MoreVertical className="w-4 h-4" />
@@ -2565,6 +2612,10 @@ export default function App() {
   const [mileage, setMileage] = useState<Mileage[]>(MOCK_MILEAGE);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile>(MOCK_PROFILE);
 
+  const handleDeleteAppointments = (ids: string[]) => {
+    setAppointments(prev => prev.filter(app => !ids.includes(app.id)));
+  };
+
   // Responsive sidebar
   useEffect(() => {
     const handleResize = () => {
@@ -2614,6 +2665,7 @@ export default function App() {
                       setSelectedAppointment(app);
                       setIsNewSigningModalOpen(true);
                     }}
+                    onDelete={handleDeleteAppointments}
                   />
                 } 
               />
