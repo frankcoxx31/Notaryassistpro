@@ -142,7 +142,27 @@ const parsePDFWithAI = async (file: File): Promise<Appointment[]> => {
             }
           },
           {
-            text: "Extract all notary signing appointments from this PDF. Return them as a JSON array of objects with the following fields: date (YYYY-MM-DD), time (HH:MM AM/PM), clientName, signingType, location, fee (number), status (Scheduled, Completed, Cancelled, or No Show), and notes. If a field is missing, use an empty string or a sensible default. Ensure the output is ONLY the JSON array."
+            text: `Extract all notary signing appointments from this PDF. 
+            
+            IMPORTANT FIELD DEFINITIONS:
+            - clientName: The name of the person signing the documents (the Signer).
+            - customer: The company or agency hiring the notary (e.g., "Rocket Close", "Snapdocs", "Title Company").
+            - location: The full address of the signing.
+            - address: Just the street address part of the location.
+            - city: Just the city name.
+            - state: The state (e.g., "NC").
+            - zip: The 5-digit zip code.
+            - date: The date of the signing in YYYY-MM-DD format.
+            - time: The time of the signing (e.g., "10:00 AM").
+            - fee: The numeric amount being paid to the notary.
+            - orderNumber: The order or reference number for the signing.
+            - loanNumber: The loan number associated with the signing.
+            - phone: The phone number of the signer.
+            - email: The email address of the signer.
+            - signingType: The type of signing (e.g., "Refinance", "Purchase", "Seller", "HELOC").
+            - notes: Any special instructions or notes.
+
+            Return them as a JSON array of objects. If a field is missing, use an empty string or a sensible default. Ensure the output is ONLY the JSON array.`
           }
         ]
       }
@@ -157,11 +177,22 @@ const parsePDFWithAI = async (file: File): Promise<Appointment[]> => {
             date: { type: Type.STRING },
             time: { type: Type.STRING },
             clientName: { type: Type.STRING },
+            firstName: { type: Type.STRING },
+            lastName: { type: Type.STRING },
             signingType: { type: Type.STRING },
             location: { type: Type.STRING },
+            address: { type: Type.STRING },
+            city: { type: Type.STRING },
+            state: { type: Type.STRING },
+            zip: { type: Type.STRING },
             fee: { type: Type.NUMBER },
             status: { type: Type.STRING },
-            notes: { type: Type.STRING }
+            notes: { type: Type.STRING },
+            phone: { type: Type.STRING },
+            email: { type: Type.STRING },
+            customer: { type: Type.STRING },
+            orderNumber: { type: Type.STRING },
+            loanNumber: { type: Type.STRING }
           },
           required: ["date", "time", "clientName", "signingType", "location", "fee", "status"]
         }
@@ -171,10 +202,67 @@ const parsePDFWithAI = async (file: File): Promise<Appointment[]> => {
 
   try {
     const data = JSON.parse(response.text || '[]');
-    return data.map((item: any) => ({
-      ...item,
-      id: Math.random().toString(36).substr(2, 9)
-    }));
+    return data.map((item: any) => {
+      const appointment = {
+        ...item,
+        id: Math.random().toString(36).substr(2, 9),
+        status: item.status || 'Scheduled'
+      };
+
+      // Ensure clientName is set if firstName/lastName are provided
+      if (!appointment.clientName && (appointment.firstName || appointment.lastName)) {
+        appointment.clientName = `${appointment.firstName || ''} ${appointment.lastName || ''}`.trim();
+      }
+      
+      // Ensure firstName/lastName are set if clientName is provided
+      if (appointment.clientName && (!appointment.firstName || !appointment.lastName)) {
+        const parts = appointment.clientName.trim().split(/\s+/);
+        if (!appointment.firstName) appointment.firstName = parts[0] || '';
+        if (!appointment.lastName) appointment.lastName = parts.slice(1).join(' ') || '';
+      }
+
+      // Ensure location is set if address/city/state/zip are provided
+      if (!appointment.location && appointment.address) {
+        appointment.location = `${appointment.address}, ${appointment.city || ''}${appointment.state ? `, ${appointment.state}` : ''}${appointment.zip ? ` ${appointment.zip}` : ''}`.trim();
+      }
+
+      // Ensure address/city/state/zip are set if location is provided
+      if (appointment.location && (!appointment.address || !appointment.city || !appointment.state || !appointment.zip)) {
+        const parts = appointment.location.split(',').map(p => p.trim());
+        if (!appointment.address) appointment.address = parts[0] || '';
+        
+        if (parts.length > 1) {
+          const cityPart = parts[1];
+          const zipMatch = cityPart.match(/\d{5}(-\d{4})?$/);
+          if (zipMatch) {
+            if (!appointment.zip) appointment.zip = zipMatch[0];
+            const withoutZip = cityPart.replace(zipMatch[0], '').trim();
+            const stateMatch = withoutZip.match(/\s([A-Z]{2})$/);
+            if (stateMatch) {
+              if (!appointment.state) appointment.state = stateMatch[1];
+              if (!appointment.city) appointment.city = withoutZip.replace(stateMatch[0], '').trim();
+            } else {
+              if (!appointment.city) appointment.city = withoutZip;
+            }
+          } else {
+            if (!appointment.city) appointment.city = cityPart;
+          }
+        }
+        
+        if (parts.length > 2 && !appointment.state) {
+          const stateZipPart = parts[2];
+          const zipMatch = stateZipPart.match(/\d{5}(-\d{4})?$/);
+          if (zipMatch) {
+            if (!appointment.zip) appointment.zip = zipMatch[0];
+            appointment.state = stateZipPart.replace(zipMatch[0], '').trim();
+          } else {
+            appointment.state = stateZipPart;
+          }
+        }
+      }
+
+      return appointment;
+    });
   } catch (e) {
     console.error("Failed to parse AI response:", e);
     return [];
@@ -373,13 +461,60 @@ const MOCK_EXPENSES: Expense[] = [
 
 // --- Components ---
 
-const NewSigningModal = ({ isOpen, onClose, appointment, onSave }: { isOpen: boolean; onClose: () => void; appointment?: Appointment | null; onSave: (app: Appointment) => void }) => {
-  const [activeTab, setActiveTab] = useState('Signer(s)');
+const NewSigningModal = ({ isOpen, onClose, appointment, onSave, initialTab = 'Signer(s)' }: { isOpen: boolean; onClose: () => void; appointment?: Appointment | null; onSave: (app: Appointment) => void; initialTab?: string }) => {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [formData, setFormData] = useState<Partial<Appointment>>({});
 
   useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab, isOpen]);
+
+  useEffect(() => {
     if (appointment) {
-      setFormData(appointment);
+      const data = { ...appointment };
+      // Derive first/last name if missing
+      if (data.clientName && (!data.firstName || !data.lastName)) {
+        const parts = data.clientName.trim().split(/\s+/);
+        if (!data.firstName) data.firstName = parts[0] || '';
+        if (!data.lastName) data.lastName = parts.slice(1).join(' ') || '';
+      }
+      // Derive address/city/state/zip if missing
+      if (data.location && (!data.address || !data.city || !data.state || !data.zip)) {
+        const parts = data.location.split(',').map(p => p.trim());
+        if (!data.address) data.address = parts[0] || '';
+        
+        if (parts.length > 1) {
+          const cityPart = parts[1];
+          // Check if cityPart contains state/zip (e.g., "Springfield NC 28079")
+          const zipMatch = cityPart.match(/\d{5}(-\d{4})?$/);
+          if (zipMatch) {
+            if (!data.zip) data.zip = zipMatch[0];
+            const withoutZip = cityPart.replace(zipMatch[0], '').trim();
+            // Check for state (e.g., "NC")
+            const stateMatch = withoutZip.match(/\s([A-Z]{2})$/);
+            if (stateMatch) {
+              if (!data.state) data.state = stateMatch[1];
+              if (!data.city) data.city = withoutZip.replace(stateMatch[0], '').trim();
+            } else {
+              if (!data.city) data.city = withoutZip;
+            }
+          } else {
+            if (!data.city) data.city = cityPart;
+          }
+        }
+        
+        if (parts.length > 2 && !data.state) {
+          const stateZipPart = parts[2];
+          const zipMatch = stateZipPart.match(/\d{5}(-\d{4})?$/);
+          if (zipMatch) {
+            if (!data.zip) data.zip = zipMatch[0];
+            data.state = stateZipPart.replace(zipMatch[0], '').trim();
+          } else {
+            data.state = stateZipPart;
+          }
+        }
+      }
+      setFormData(data);
     } else {
       setFormData({
         id: Math.random().toString(36).substr(2, 9),
@@ -561,7 +696,14 @@ const NewSigningModal = ({ isOpen, onClose, appointment, onSave }: { isOpen: boo
                     <input 
                       type="text" 
                       value={formData.address || ""}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value, location: `${e.target.value}, ${formData.city || ''}`.trim() })}
+                      onChange={(e) => {
+                        const newAddress = e.target.value;
+                        setFormData({ 
+                          ...formData, 
+                          address: newAddress, 
+                          location: `${newAddress}, ${formData.city || ''}${formData.state ? `, ${formData.state}` : ''}${formData.zip ? ` ${formData.zip}` : ''}`.trim() 
+                        });
+                      }}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
@@ -570,7 +712,14 @@ const NewSigningModal = ({ isOpen, onClose, appointment, onSave }: { isOpen: boo
                     <input 
                       type="text" 
                       value={formData.city || ""}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value, location: `${formData.address || ''}, ${e.target.value}`.trim() })}
+                      onChange={(e) => {
+                        const newCity = e.target.value;
+                        setFormData({ 
+                          ...formData, 
+                          city: newCity, 
+                          location: `${formData.address || ''}, ${newCity}${formData.state ? `, ${formData.state}` : ''}${formData.zip ? ` ${formData.zip}` : ''}`.trim() 
+                        });
+                      }}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
@@ -578,7 +727,14 @@ const NewSigningModal = ({ isOpen, onClose, appointment, onSave }: { isOpen: boo
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">State:</label>
                     <select 
                       value={formData.state || "North Carolina"}
-                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      onChange={(e) => {
+                        const newState = e.target.value;
+                        setFormData({ 
+                          ...formData, 
+                          state: newState, 
+                          location: `${formData.address || ''}, ${formData.city || ''}, ${newState}${formData.zip ? ` ${formData.zip}` : ''}`.trim() 
+                        });
+                      }}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
                     >
                       <option>North Carolina</option>
@@ -591,13 +747,105 @@ const NewSigningModal = ({ isOpen, onClose, appointment, onSave }: { isOpen: boo
                     <input 
                       type="text" 
                       value={formData.zip || ""}
-                      onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
+                      onChange={(e) => {
+                        const newZip = e.target.value;
+                        setFormData({ 
+                          ...formData, 
+                          zip: newZip, 
+                          location: `${formData.address || ''}, ${formData.city || ''}${formData.state ? `, ${formData.state}` : ''}${newZip ? ` ${newZip}` : ''}`.trim() 
+                        });
+                      }}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
                 </div>
               )}
-              {activeTab !== 'Signer(s)' && (
+              {activeTab === 'Contacts' && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Phone:</label>
+                    <input 
+                      type="tel" 
+                      value={formData.phone || ""}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                    />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Email:</label>
+                    <input 
+                      type="email" 
+                      value={formData.email || ""}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                    />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Customer:</label>
+                    <input 
+                      type="text" 
+                      value={formData.customer || ""}
+                      onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                      placeholder="e.g. Rocket Close"
+                    />
+                  </div>
+                </div>
+              )}
+              {activeTab === 'Invoice' && (
+                <div className="space-y-6">
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-slate-800">Invoice Details</h3>
+                      <span className={cn(
+                        "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider",
+                        formData.status === 'Paid' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                      )}>
+                        {formData.status}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-slate-500 text-xs mb-1">Fee Amount</p>
+                        <p className="font-bold text-slate-900">${formData.fee?.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 text-xs mb-1">Invoice Date</p>
+                        <p className="font-bold text-slate-900">{formData.date}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <label className="text-sm font-bold text-slate-700 w-24 text-right">Status:</label>
+                      <select 
+                        value={formData.status || "Scheduled"}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value as AppointmentStatus })}
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                      >
+                        <option>Scheduled</option>
+                        <option>Completed</option>
+                        <option>Paid</option>
+                        <option>Cancelled</option>
+                        <option>No Show</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {activeTab === 'Notes' && (
+                <div className="space-y-4">
+                  <label className="text-sm font-bold text-slate-700 block">Notes:</label>
+                  <textarea 
+                    value={formData.notes || ""}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Add any special instructions or notes here..."
+                    className="w-full h-48 border border-slate-300 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-none transition-all"
+                  />
+                </div>
+              )}
+              {activeTab !== 'Signer(s)' && activeTab !== 'Notes' && activeTab !== 'Contacts' && activeTab !== 'Invoice' && (
                 <div className="py-12 text-center text-slate-400 italic">
                   Content for {activeTab} tab will be implemented soon.
                 </div>
@@ -2196,7 +2444,7 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
   );
 };
 
-const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
+const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointment[]; onViewSigning: (app: Appointment) => void }) => {
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
   const [currentDate, setCurrentDate] = useState(new Date(2026, 3, 4)); // April 4, 2026 as starting point
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -2219,7 +2467,8 @@ const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
       .filter(app => app.date === dateStr)
       .map(app => ({
         time: app.time.split(' ')[0].toLowerCase() + (app.time.includes('PM') ? 'p' : 'a'),
-        name: `${app.clientName.split(' ')[1] || app.clientName} (${app.location.split(',')[1]?.trim() || app.location})`
+        name: `${app.clientName.split(' ')[1] || app.clientName} (${app.location.split(',')[1]?.trim() || app.location})`,
+        appointment: app
       }));
   };
 
@@ -2265,6 +2514,7 @@ const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
                   {events.map((event, eIdx) => (
                     <div 
                       key={eIdx} 
+                      onClick={() => onViewSigning(event.appointment)}
                       className="bg-sky-600 text-white text-[10px] py-0.5 px-1.5 rounded-sm truncate cursor-pointer hover:bg-sky-700 transition-colors"
                     >
                       <span className="font-bold mr-1">{event.time}</span>
@@ -2435,7 +2685,7 @@ const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
   );
 };
 
-const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onImport }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void }) => {
+const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onImport }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
@@ -2892,7 +3142,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                       onClick={() => onViewSigning(app)}
                       className="text-sky-600 hover:underline font-medium"
                     >
-                      {app.clientName.split(' ')[1] || app.clientName}
+                      {app.clientName}
                     </button>
                   </td>
                   <td className="px-3 py-3 text-slate-600">{app.signingType}</td>
@@ -2904,7 +3154,14 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                       {app.location.split(',')[1]?.trim() || app.location}
                     </button>
                   </td>
-                  <td className="px-3 py-3 text-slate-600">Rocket Close</td>
+                  <td className="px-3 py-3">
+                    <button 
+                      onClick={() => onViewSigning(app, 'Contacts')}
+                      className="text-slate-600 hover:text-sky-600 hover:underline"
+                    >
+                      {app.customer || "Rocket Close"}
+                    </button>
+                  </td>
                   <td className="px-3 py-3 font-medium text-rose-700">${app.fee.toFixed(2)}</td>
                   <td className="px-3 py-3">
                     <input 
@@ -2920,7 +3177,12 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                     />
                   </td>
                   <td className="px-3 py-3">
-                    <button className="text-sky-600 hover:underline">{45 + idx}</button>
+                    <button 
+                      onClick={() => onViewSigning(app, 'Invoice')}
+                      className="text-sky-600 hover:underline"
+                    >
+                      {45 + idx}
+                    </button>
                   </td>
                   <td className="px-3 py-3 text-slate-600">{10 + idx * 8}</td>
                   <td className="px-3 py-3 text-slate-600">75787{410 + idx}</td>
@@ -3286,6 +3548,7 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNewSigningModalOpen, setIsNewSigningModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [modalInitialTab, setModalInitialTab] = useState('Signer(s)');
   const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
   const [isExpenseTypesModalOpen, setIsExpenseTypesModalOpen] = useState(false);
   const [isRecurringExpenseModalOpen, setIsRecurringExpenseModalOpen] = useState(false);
@@ -3603,8 +3866,9 @@ export default function App() {
                         setSelectedAppointment(null);
                         setIsNewSigningModalOpen(true);
                       }} 
-                      onViewSigning={(app) => {
+                      onViewSigning={(app, tab = 'Signer(s)') => {
                         setSelectedAppointment(app);
+                        setModalInitialTab(tab);
                         setIsNewSigningModalOpen(true);
                       }}
                       onDelete={handleDeleteAppointments}
@@ -3612,7 +3876,10 @@ export default function App() {
                     />
                   } 
                 />
-                <Route path="/calendar" element={<CalendarView appointments={appointments} />} />
+                <Route path="/calendar" element={<CalendarView appointments={appointments} onViewSigning={(app) => {
+                  setSelectedAppointment(app);
+                  setIsNewSigningModalOpen(true);
+                }} />} />
                 <Route 
                   path="/clients" 
                   element={
@@ -3669,12 +3936,15 @@ export default function App() {
                 onClose={() => {
                   setIsNewSigningModalOpen(false);
                   setSelectedAppointment(null);
+                  setModalInitialTab('Signer(s)');
                 }} 
                 appointment={selectedAppointment}
+                initialTab={modalInitialTab}
                 onSave={(app) => {
                   handleSaveAppointment(app);
                   setIsNewSigningModalOpen(false);
                   setSelectedAppointment(null);
+                  setModalInitialTab('Signer(s)');
                 }}
               />
             )}

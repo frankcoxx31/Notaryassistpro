@@ -1,4 +1,4 @@
-export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'No Show';
+export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Paid' | 'Cancelled' | 'No Show';
 
 export interface Appointment {
   id: string;
@@ -16,6 +16,9 @@ export interface Appointment {
   fee: number;
   status: AppointmentStatus;
   notes?: string;
+  phone?: string;
+  email?: string;
+  customer?: string;
   orderNumber?: string;
   loanNumber?: string;
   durationHours?: string;
