@@ -21,30 +21,6 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       chunkSizeWarningLimit: 1000,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-                return 'vendor-react';
-              }
-              if (id.includes('recharts')) {
-                return 'vendor-charts';
-              }
-              if (id.includes('lucide-react')) {
-                return 'vendor-icons';
-              }
-              if (id.includes('motion')) {
-                return 'vendor-motion';
-              }
-              if (id.includes('@google/genai')) {
-                return 'vendor-genai';
-              }
-              return 'vendor';
-            }
-          },
-        },
-      },
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
