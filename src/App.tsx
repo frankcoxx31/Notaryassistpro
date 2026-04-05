@@ -58,6 +58,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI, Type } from "@google/genai";
 import { 
   format, 
   isAfter, 
@@ -114,6 +115,70 @@ import {
   writeBatch,
   getDocFromServer
 } from 'firebase/firestore';
+
+const parsePDFWithAI = async (file: File): Promise<Appointment[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+  
+  // Convert file to base64
+  const base64 = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: [
+      {
+        parts: [
+          {
+            inlineData: {
+              data: base64,
+              mimeType: "application/pdf"
+            }
+          },
+          {
+            text: "Extract all notary signing appointments from this PDF. Return them as a JSON array of objects with the following fields: date (YYYY-MM-DD), time (HH:MM AM/PM), clientName, signingType, location, fee (number), status (Scheduled, Completed, Cancelled, or No Show), and notes. If a field is missing, use an empty string or a sensible default. Ensure the output is ONLY the JSON array."
+          }
+        ]
+      }
+    ],
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            date: { type: Type.STRING },
+            time: { type: Type.STRING },
+            clientName: { type: Type.STRING },
+            signingType: { type: Type.STRING },
+            location: { type: Type.STRING },
+            fee: { type: Type.NUMBER },
+            status: { type: Type.STRING },
+            notes: { type: Type.STRING }
+          },
+          required: ["date", "time", "clientName", "signingType", "location", "fee", "status"]
+        }
+      }
+    }
+  });
+
+  try {
+    const data = JSON.parse(response.text || '[]');
+    return data.map((item: any) => ({
+      ...item,
+      id: Math.random().toString(36).substr(2, 9)
+    }));
+  } catch (e) {
+    console.error("Failed to parse AI response:", e);
+    return [];
+  }
+};
 
 enum OperationType {
   CREATE = 'create',
@@ -1367,41 +1432,84 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
 };
 
 const SettingsView = ({ onEditProfile, user, onSignIn, onImport }: { onEditProfile: () => void, user: FirebaseUser | null, onSignIn: () => void, onImport: (appointments: Appointment[]) => void }) => {
+  const [isImporting, setIsImporting] = useState(false);
+
   const handleFileImport = (type: 'pdf' | 'csv') => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = type === 'pdf' ? '.pdf' : '.csv';
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        // Simulate parsing the file and creating new appointments
-        const newAppointments: Appointment[] = [
-          {
-            id: Math.random().toString(36).substr(2, 9),
-            date: format(new Date(), 'yyyy-MM-dd'),
-            time: '09:00 AM',
-            clientName: 'Imported Client 1',
-            signingType: 'Refinance',
-            location: '123 Imported St, New York',
-            fee: 150,
-            status: 'Scheduled',
-            notes: `Imported from ${file.name}`
-          },
-          {
-            id: Math.random().toString(36).substr(2, 9),
-            date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-            time: '01:30 PM',
-            clientName: 'Imported Client 2',
-            signingType: 'Purchase',
-            location: '456 Imported Ave, Los Angeles',
-            fee: 200,
-            status: 'Scheduled',
-            notes: `Imported from ${file.name}`
+        if (type === 'pdf') {
+          setIsImporting(true);
+          try {
+            const newAppointments = await parsePDFWithAI(file);
+            if (newAppointments.length > 0) {
+              onImport(newAppointments);
+              alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
+            } else {
+              alert('Could not find any valid signing records in the PDF file.');
+            }
+          } catch (error) {
+            console.error("PDF Import Error:", error);
+            alert('Failed to parse PDF. Please ensure it is a valid document or try CSV.');
+          } finally {
+            setIsImporting(false);
           }
-        ];
-        
-        onImport(newAppointments);
-        alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          if (!text) return;
+
+          const lines = text.split('\n');
+          const newAppointments: Appointment[] = [];
+          
+          const headerLine = lines[0].toLowerCase();
+          const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+          
+          const dateIdx = headers.findIndex(h => h.includes('date'));
+          const timeIdx = headers.findIndex(h => h.includes('time'));
+          const clientIdx = headers.findIndex(h => h.includes('client') || h.includes('name'));
+          const typeIdx = headers.findIndex(h => h.includes('type'));
+          const locationIdx = headers.findIndex(h => h.includes('location') || h.includes('address'));
+          const feeIdx = headers.findIndex(h => h.includes('fee') || h.includes('amount'));
+          const statusIdx = headers.findIndex(h => h.includes('status'));
+          const notesIdx = headers.findIndex(h => h.includes('note'));
+
+          const startIdx = dateIdx !== -1 || clientIdx !== -1 ? 1 : 0;
+          
+          for (let i = startIdx; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
+            if (parts.length >= 3) {
+              newAppointments.push({
+                id: Math.random().toString(36).substr(2, 9),
+                date: (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd'),
+                time: (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM',
+                clientName: (clientIdx !== -1 ? parts[clientIdx] : '') || 'Unknown Client',
+                signingType: (typeIdx !== -1 ? parts[typeIdx] : '') || 'General Notary Work',
+                location: (locationIdx !== -1 ? parts[locationIdx] : '') || 'TBD',
+                fee: feeIdx !== -1 ? parseFloat(parts[feeIdx]) || 0 : 0,
+                status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
+                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`
+              });
+            }
+          }
+          
+          if (newAppointments.length > 0) {
+            onImport(newAppointments);
+            alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
+          } else {
+            alert('Could not find any valid signing records in the CSV file. Please ensure it has columns for Date, Time, Client, Type, and Location.');
+          }
+        };
+        reader.readAsText(file);
       }
     };
     input.click();
@@ -1427,12 +1535,21 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport }: { onEditProfi
           
           <div className="space-y-3 pt-2">
             <div 
-              onClick={() => handleFileImport('pdf')}
-              className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer group"
+              onClick={() => !isImporting && handleFileImport('pdf')}
+              className={cn(
+                "flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer group",
+                isImporting && "opacity-50 cursor-not-allowed"
+              )}
             >
               <div className="flex items-center gap-3">
-                <FileText className="w-5 h-5 text-red-500" />
-                <span className="text-sm font-medium text-slate-700">Import from PDF</span>
+                {isImporting ? (
+                  <RefreshCw className="w-5 h-5 text-indigo-500 animate-spin" />
+                ) : (
+                  <FileText className="w-5 h-5 text-red-500" />
+                )}
+                <span className="text-sm font-medium text-slate-700">
+                  {isImporting ? 'Parsing PDF...' : 'Import from PDF'}
+                </span>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
             </div>
@@ -2248,6 +2365,7 @@ const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
 const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onImport }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === appointments.length) {
@@ -2426,37 +2544,78 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.csv,.pdf';
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        // Simulate parsing the file and creating new appointments
-        const newAppointments: Appointment[] = [
-          {
-            id: Math.random().toString(36).substr(2, 9),
-            date: format(new Date(), 'yyyy-MM-dd'),
-            time: '09:00 AM',
-            clientName: 'Imported Client 1',
-            signingType: 'Refinance',
-            location: '123 Imported St, New York',
-            fee: 150,
-            status: 'Scheduled',
-            notes: `Imported from ${file.name}`
-          },
-          {
-            id: Math.random().toString(36).substr(2, 9),
-            date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-            time: '01:30 PM',
-            clientName: 'Imported Client 2',
-            signingType: 'Purchase',
-            location: '456 Imported Ave, Los Angeles',
-            fee: 200,
-            status: 'Scheduled',
-            notes: `Imported from ${file.name}`
+        if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+          setIsImporting(true);
+          try {
+            const newAppointments = await parsePDFWithAI(file);
+            if (newAppointments.length > 0) {
+              onImport(newAppointments);
+              alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
+            } else {
+              alert('Could not find any valid signing records in the PDF file.');
+            }
+          } catch (error) {
+            console.error("PDF Import Error:", error);
+            alert('Failed to parse PDF. Please ensure it is a valid document or try CSV.');
+          } finally {
+            setIsImporting(false);
           }
-        ];
-        
-        onImport(newAppointments);
-        alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          if (!text) return;
+
+          const lines = text.split('\n');
+          const newAppointments: Appointment[] = [];
+          
+          const headerLine = lines[0].toLowerCase();
+          const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+          
+          const dateIdx = headers.findIndex(h => h.includes('date'));
+          const timeIdx = headers.findIndex(h => h.includes('time'));
+          const clientIdx = headers.findIndex(h => h.includes('client') || h.includes('name'));
+          const typeIdx = headers.findIndex(h => h.includes('type'));
+          const locationIdx = headers.findIndex(h => h.includes('location') || h.includes('address'));
+          const feeIdx = headers.findIndex(h => h.includes('fee') || h.includes('amount'));
+          const statusIdx = headers.findIndex(h => h.includes('status'));
+          const notesIdx = headers.findIndex(h => h.includes('note'));
+
+          const startIdx = dateIdx !== -1 || clientIdx !== -1 ? 1 : 0;
+          
+          for (let i = startIdx; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
+            if (parts.length >= 3) {
+              newAppointments.push({
+                id: Math.random().toString(36).substr(2, 9),
+                date: (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd'),
+                time: (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM',
+                clientName: (clientIdx !== -1 ? parts[clientIdx] : '') || 'Unknown Client',
+                signingType: (typeIdx !== -1 ? parts[typeIdx] : '') || 'General Notary Work',
+                location: (locationIdx !== -1 ? parts[locationIdx] : '') || 'TBD',
+                fee: feeIdx !== -1 ? parseFloat(parts[feeIdx]) || 0 : 0,
+                status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
+                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`
+              });
+            }
+          }
+          
+          if (newAppointments.length > 0) {
+            onImport(newAppointments);
+            alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
+          } else {
+            alert('Could not find any valid signing records in the CSV file. Please ensure it has columns for Date, Time, Client, Type, and Location.');
+          }
+        };
+        reader.readAsText(file);
       }
     };
     input.click();
@@ -2548,9 +2707,18 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
           </div>
           <button 
             onClick={handleImport}
-            className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2"
+            disabled={isImporting}
+            className={cn(
+              "bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2",
+              isImporting && "opacity-50 cursor-not-allowed"
+            )}
           >
-            <Upload className="w-4 h-4 text-sky-600" /> Import <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px]">0</span>
+            {isImporting ? (
+              <RefreshCw className="w-4 h-4 text-sky-600 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4 text-sky-600" />
+            )}
+            {isImporting ? 'Importing...' : 'Import'} <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px]">0</span>
           </button>
         </div>
 
