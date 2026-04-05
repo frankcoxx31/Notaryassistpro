@@ -54,7 +54,8 @@ import {
   Pencil,
   Map as MapIcon,
   Mail,
-  Save
+  Save,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -1365,7 +1366,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
   );
 };
 
-const SettingsView = ({ onEditProfile }: { onEditProfile: () => void }) => {
+const SettingsView = ({ onEditProfile, user, onSignIn }: { onEditProfile: () => void, user: FirebaseUser | null, onSignIn: () => void }) => {
   const handleFileImport = (type: 'pdf' | 'csv') => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1440,6 +1441,26 @@ const SettingsView = ({ onEditProfile }: { onEditProfile: () => void }) => {
             Edit Profile
           </button>
         </div>
+
+        {/* Firestore Settings */}
+        {!user && (
+          <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg">Firestore Connection</h3>
+            </div>
+            <p className="text-sm text-slate-500">Connect to Firestore to sync your data across devices and enable real-time updates.</p>
+            <button 
+              onClick={onSignIn}
+              className="w-full py-2.5 bg-indigo-600 rounded-xl text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
+            >
+              <User className="w-4 h-4" />
+              Sign In to Firestore
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1612,7 +1633,8 @@ const Sidebar = ({
     },
     { name: 'Settings', icon: Settings, path: '/settings' },
     { name: 'Tools', icon: Wrench, path: '/tools' },
-  ];
+    !user ? { name: 'Firestore Login', icon: ShieldCheck, path: '#', onClick: onSignIn } : null,
+  ].filter(Boolean) as any[];
 
   return (
     <>
@@ -1654,7 +1676,7 @@ const Sidebar = ({
           {/* Navigation */}
           <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto custom-scrollbar">
             {navItems.map((item) => {
-              const isActive = location.pathname === item.path || item.subItems?.some(s => location.pathname === s.path);
+              const isActive = location.pathname === item.path || item.subItems?.some((s: any) => location.pathname === s.path);
               const hasSubItems = !!item.subItems;
 
               return (
@@ -1699,7 +1721,7 @@ const Sidebar = ({
                       {/* Vertical line for sub-items */}
                       <div className="absolute left-[27px] top-0 bottom-4 w-px bg-white/10" />
                       
-                      {item.subItems.map((sub) => {
+                      {item.subItems.map((sub: any) => {
                         const isSubActive = location.pathname === sub.path;
                         const isAction = !!sub.onClick;
 
@@ -1772,20 +1794,27 @@ const Sidebar = ({
                 )}
               </div>
             ) : (
-              <button 
-                onClick={onSignIn}
-                className={cn(
-                  "w-full flex items-center gap-3 p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-lg shadow-indigo-600/20",
-                  !isOpen && "justify-center px-0"
-                )}
-              >
-                <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                  <User className="w-6 h-6" />
+              <div className={cn(
+                "flex flex-col gap-2 p-2 rounded-xl bg-white/5 transition-colors group",
+                !isOpen && "items-center"
+              )}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center overflow-hidden">
+                    <User className="w-6 h-6 text-amber-400" />
+                  </div>
+                  {isOpen && (
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-amber-400 truncate">Demo User</p>
+                      <button 
+                        onClick={onSignOut}
+                        className="text-[10px] text-amber-400/50 hover:text-rose-400 transition-colors flex items-center gap-1"
+                      >
+                        <LogOut className="w-3 h-3" /> Sign Out
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {isOpen && (
-                  <span className="text-sm font-bold">Sign In with Google</span>
-                )}
-              </button>
+              </div>
             )}
           </div>
         </div>
@@ -2959,6 +2988,7 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [isDemoUser, setIsDemoUser] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -3038,6 +3068,7 @@ export default function App() {
   const handleSignOut = useCallback(async () => {
     try {
       await signOut(auth);
+      setIsDemoUser(false);
     } catch (error) {
       console.error('Sign out error:', error);
     }
@@ -3204,8 +3235,8 @@ export default function App() {
 
   return (
     <Router>
-      {!user ? (
-        <LoginPage onSignIn={handleSignIn} />
+      {!user && !isDemoUser ? (
+        <LoginPage onSignIn={handleSignIn} onDemoSignIn={() => setIsDemoUser(true)} />
       ) : (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
           <Sidebar 
@@ -3288,7 +3319,7 @@ export default function App() {
                   } 
                 />
                 <Route path="/tools" element={<ToolsView />} />
-                <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} />} />
+                <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} user={user} onSignIn={handleSignIn} />} />
               </Routes>
             </main>
 
