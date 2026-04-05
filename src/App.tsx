@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   BrowserRouter as Router, 
   Routes, 
@@ -1798,7 +1798,7 @@ const Sidebar = ({
         initial={false}
         animate={{ x: isOpen ? 0 : -280 }}
         className={cn(
-          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#334155] text-amber-400/70 z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
+          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#1e3a8a] text-amber-400/70 z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
           !isOpen && "lg:w-[80px]"
         )}
       >
@@ -2002,30 +2002,48 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
 };
 
 const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; expenses: Expense[] }) => {
-  const nextSigning = appointments
-    .filter(a => a.status === 'Scheduled' && (a.date === format(new Date(), 'yyyy-MM-dd')))
-    .sort((a, b) => a.time.localeCompare(b.time))[0];
+  const [chartType, setChartType] = useState<'signings' | 'income'>('signings');
+  const [selectedYear, setSelectedYear] = useState('2026');
 
-  const monthlyData = [
-    { name: 'January', signings: 0 },
-    { name: 'February', signings: 8 },
-    { name: 'March', signings: 34 },
-    { name: 'April', signings: 9 },
-    { name: 'May', signings: 0 },
-    { name: 'June', signings: 0 },
-    { name: 'July', signings: 0 },
-    { name: 'August', signings: 0 },
-    { name: 'September', signings: 0 },
-    { name: 'October', signings: 0 },
-    { name: 'November', signings: 0 },
-    { name: 'December', signings: 0 },
-  ];
+  const monthlyData = useMemo(() => {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    return months.map((month, index) => {
+      const monthAppointments = appointments.filter(a => {
+        const date = new Date(a.date);
+        return date.getMonth() === index && date.getFullYear().toString() === selectedYear;
+      });
+
+      const signingsCount = monthAppointments.length;
+      const totalIncome = monthAppointments.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+
+      return {
+        name: month,
+        signings: signingsCount,
+        income: totalIncome
+      };
+    });
+  }, [appointments, selectedYear]);
+
+  const totalSignings = appointments.length;
+  const totalGross = appointments.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  const totalPaid = appointments
+    .filter(a => (a.status as string) === 'Paid')
+    .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  const totalUnpaid = appointments
+    .filter(a => (a.status as string) !== 'Paid')
+    .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const netTotal = totalGross - totalExpenses;
 
   const stats = [
-    { label: 'SIGNINGS', value: '51', color: 'text-sky-600', help: true },
-    { label: 'INCOME', value: '$1,795.00', color: 'text-sky-600', help: true },
-    { label: 'UNPAID', value: '$2,835.00', color: 'text-rose-700', help: false },
-    { label: 'TOTAL', value: '$4,630.00', color: 'text-slate-900', help: false },
+    { label: 'SIGNINGS', value: totalSignings.toString(), color: 'text-sky-600', help: true },
+    { label: 'INCOME', value: `$${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-sky-600', help: true },
+    { label: 'UNPAID', value: `$${totalUnpaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-rose-700', help: false },
+    { label: 'TOTAL', value: `$${netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-slate-900', help: false },
   ];
 
   return (
@@ -2046,16 +2064,27 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
       {/* Filter Bar */}
       <div className="bg-slate-50/50 border border-slate-200 rounded-lg p-3 flex gap-3">
         <div className="relative">
-          <select className="appearance-none bg-white border border-slate-300 rounded px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          <select 
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+            className="appearance-none bg-white border border-slate-300 rounded px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
             <option>2026</option>
+            <option>2025</option>
+            <option>2024</option>
           </select>
           <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
             <ChevronRight className="w-3 h-3 text-slate-400 rotate-90" />
           </div>
         </div>
         <div className="relative">
-          <select className="appearance-none bg-white border border-slate-300 rounded px-10 py-1.5 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500">
-            <option>Monthly number of signings</option>
+          <select 
+            value={chartType}
+            onChange={(e) => setChartType(e.target.value as 'signings' | 'income')}
+            className="appearance-none bg-white border border-slate-300 rounded px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-[200px]"
+          >
+            <option value="signings">Monthly Number of signings</option>
+            <option value="income">Monthly income</option>
           </select>
           <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
             <ChevronRight className="w-3 h-3 text-slate-400 rotate-90" />
@@ -2100,12 +2129,22 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
                   borderRadius: '8px', 
                   border: '1px solid #e2e8f0'
                 }}
+                formatter={(value: any) => [
+                  chartType === 'income' ? `$${value.toLocaleString()}` : value,
+                  chartType === 'income' ? 'Monthly Income' : 'Monthly Signings'
+                ]}
               />
               <Bar 
-                dataKey="signings" 
-                fill="#7ebcf0" 
+                dataKey={chartType} 
+                fill={chartType === 'signings' ? "#3b82f6" : "#22c55e"} 
                 barSize={40}
-                label={{ position: 'top', fill: '#000', fontSize: 14, fontWeight: 'bold' }}
+                label={{ 
+                  position: 'top', 
+                  fill: '#000', 
+                  fontSize: 14, 
+                  fontWeight: 'bold',
+                  formatter: (value: any) => chartType === 'income' ? `$${value.toLocaleString()}` : value
+                }}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -2114,8 +2153,10 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
         {/* Legend */}
         <div className="flex justify-center mt-4">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-[#7ebcf0]"></div>
-            <span className="text-sm text-slate-700 font-medium">Signings</span>
+            <div className={cn("w-4 h-4", chartType === 'signings' ? "bg-blue-500" : "bg-green-500")}></div>
+            <span className="text-sm text-slate-700 font-medium">
+              {chartType === 'signings' ? 'Monthly Number of signings' : 'Monthly income'}
+            </span>
           </div>
         </div>
       </div>
@@ -2630,12 +2671,23 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
     setSelectedIds([]);
   };
 
-  const stats = [
-    { label: 'SIGNINGS', value: '51', color: 'text-sky-600', help: true },
-    { label: 'INCOME', value: '$1,795.00', color: 'text-sky-600', help: true },
-    { label: 'UNPAID', value: '$2,835.00', color: 'text-rose-700', help: false },
-    { label: 'TOTAL', value: '$4,630.00', color: 'text-slate-900', help: false },
-  ];
+  const stats = useMemo(() => {
+    const totalSignings = appointments.length;
+    const paidIncome = appointments
+      .filter(a => (a.status as string) === 'Paid')
+      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+    const unpaidIncome = appointments
+      .filter(a => (a.status as string) !== 'Paid')
+      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+    const totalFees = appointments.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+
+    return [
+      { label: 'SIGNINGS', value: totalSignings.toString(), color: 'text-sky-600', help: true },
+      { label: 'INCOME', value: `$${paidIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-sky-600', help: true },
+      { label: 'UNPAID', value: `$${unpaidIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-rose-700', help: false },
+      { label: 'TOTAL', value: `$${totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-slate-900', help: false },
+    ];
+  }, [appointments]);
 
   return (
     <div className="space-y-4 animate-in fade-in duration-700">
@@ -3467,7 +3519,7 @@ export default function App() {
 
   if (!isAuthReady) {
     return (
-      <div className="min-h-screen bg-[#334155] flex items-center justify-center">
+      <div className="min-h-screen bg-[#1e3a8a] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-indigo-400 font-medium animate-pulse">Initializing NotaryPro...</p>
