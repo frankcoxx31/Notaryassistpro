@@ -163,6 +163,17 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     location: '321 Elm Blvd, Springfield',
     fee: 90,
     status: 'Scheduled'
+  },
+  {
+    id: '5',
+    date: '2026-04-02',
+    time: '01:00 PM',
+    clientName: 'Melissa Caballero',
+    signingType: 'Attorney Hybrid Refinance',
+    location: '1800 Nikkie Pl Indian Trail, NC 28079',
+    fee: 65,
+    status: 'Scheduled',
+    notes: 'Order No. 75785626. Loan #: 3582834992. Cell: (980) 406-1463'
   }
 ];
 
@@ -182,6 +193,14 @@ const MOCK_CLIENTS: Client[] = [
     email: 'sarah@xyzsigning.com',
     phone: '(555) 987-6543',
     address: '456 Oak Ave, Shelbyville'
+  },
+  {
+    id: '3',
+    name: 'Melissa Caballero',
+    company: 'Rocket Mortgage, LLC',
+    email: '',
+    phone: '(980) 406-1463',
+    address: '1800 Nikkie Pl Indian Trail, NC 28079'
   }
 ];
 
