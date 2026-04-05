@@ -1798,7 +1798,7 @@ const Sidebar = ({
         initial={false}
         animate={{ x: isOpen ? 0 : -280 }}
         className={cn(
-          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#0f172a] text-amber-400/70 z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
+          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#334155] text-amber-400/70 z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
           !isOpen && "lg:w-[80px]"
         )}
       >
@@ -3467,7 +3467,7 @@ export default function App() {
 
   if (!isAuthReady) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+      <div className="min-h-screen bg-[#334155] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-indigo-400 font-medium animate-pulse">Initializing NotaryPro...</p>
