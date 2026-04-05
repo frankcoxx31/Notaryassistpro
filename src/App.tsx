@@ -228,7 +228,7 @@ const parsePDFWithAI = async (file: File): Promise<Appointment[]> => {
 
       // Ensure address/city/state/zip are set if location is provided
       if (appointment.location && (!appointment.address || !appointment.city || !appointment.state || !appointment.zip)) {
-        const parts = appointment.location.split(',').map(p => p.trim());
+        const parts = appointment.location.split(',').map((p: string) => p.trim());
         if (!appointment.address) appointment.address = parts[0] || '';
         
         if (parts.length > 1) {
@@ -480,7 +480,7 @@ const NewSigningModal = ({ isOpen, onClose, appointment, onSave, initialTab = 'S
       }
       // Derive address/city/state/zip if missing
       if (data.location && (!data.address || !data.city || !data.state || !data.zip)) {
-        const parts = data.location.split(',').map(p => p.trim());
+        const parts = data.location.split(',').map((p: string) => p.trim());
         if (!data.address) data.address = parts[0] || '';
         
         if (parts.length > 1) {
@@ -2219,31 +2219,31 @@ const Sidebar = ({
 
 const Header = ({ toggleSidebar, onNewSigning }: { toggleSidebar: () => void; onNewSigning: () => void }) => {
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+    <header className="h-16 bg-[#27285C] border-b border-white/10 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
       <div className="flex items-center gap-4">
         <button 
           onClick={toggleSidebar}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors lg:hidden"
+          className="p-2 hover:bg-white/10 rounded-lg transition-colors lg:hidden"
         >
-          <Menu className="w-5 h-5 text-slate-600" />
+          <Menu className="w-5 h-5 text-amber-400/70" />
         </button>
         <div className="relative hidden md:block">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-amber-400/50 absolute left-3 top-1/2 -translate-y-1/2" />
           <input 
             type="text" 
             placeholder="Search clients, addresses, signings..." 
-            className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-[350px] transition-all"
+            className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-amber-400 placeholder:text-amber-400/30 focus:outline-none focus:ring-2 focus:ring-amber-400/20 focus:border-amber-400/50 w-[350px] transition-all"
           />
         </div>
       </div>
       <div className="flex items-center gap-2 md:gap-4">
-        <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative">
-          <Bell className="w-5 h-5 text-slate-600" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
+        <button className="p-2 hover:bg-white/10 rounded-lg transition-colors relative">
+          <Bell className="w-5 h-5 text-amber-400/70" />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-[#27285C]"></span>
         </button>
         <button 
           onClick={onNewSigning}
-          className="flex items-center gap-2 bg-[#1E293B] hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm shadow-slate-200"
+          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-[#27285C] px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-black/20"
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">+ New Signing</span>
