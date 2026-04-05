@@ -25,6 +25,7 @@ import {
   MapPin, 
   CheckCircle2, 
   AlertCircle, 
+  AlertTriangle,
   TrendingUp, 
   TrendingDown, 
   FileText, 
@@ -1798,7 +1799,7 @@ const Sidebar = ({
         initial={false}
         animate={{ x: isOpen ? 0 : -280 }}
         className={cn(
-          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#1e3a8a] text-amber-400/70 z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
+          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#27285C] text-amber-400/70 z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
           !isOpen && "lg:w-[80px]"
         )}
       >
@@ -1968,7 +1969,7 @@ const Sidebar = ({
   );
 };
 
-const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
+const Header = ({ toggleSidebar, onNewSigning }: { toggleSidebar: () => void; onNewSigning: () => void }) => {
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
       <div className="flex items-center gap-4">
@@ -1982,8 +1983,8 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input 
             type="text" 
-            placeholder="Search appointments, clients..." 
-            className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-[300px] transition-all"
+            placeholder="Search clients, addresses, signings..." 
+            className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-[350px] transition-all"
           />
         </div>
       </div>
@@ -1992,9 +1993,12 @@ const Header = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
           <Bell className="w-5 h-5 text-slate-600" />
           <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
         </button>
-        <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm shadow-indigo-200">
+        <button 
+          onClick={onNewSigning}
+          className="flex items-center gap-2 bg-[#1E293B] hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm shadow-slate-200"
+        >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">New Signing</span>
+          <span className="hidden sm:inline">+ New Signing</span>
         </button>
       </div>
     </header>
@@ -2007,8 +2011,8 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
 
   const monthlyData = useMemo(() => {
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
 
     return months.map((month, index) => {
@@ -2039,125 +2043,153 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
   const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const netTotal = totalGross - totalExpenses;
 
-  const stats = [
-    { label: 'SIGNINGS', value: totalSignings.toString(), color: 'text-sky-600', help: true },
-    { label: 'INCOME', value: `$${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-sky-600', help: true },
-    { label: 'UNPAID', value: `$${totalUnpaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-rose-700', help: false },
-    { label: 'TOTAL', value: `$${netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-slate-900', help: false },
+  const metrics = [
+    { label: 'Total Signings', value: totalSignings.toString(), icon: Calendar, color: 'text-slate-600', iconColor: 'text-slate-400', bg: 'bg-white' },
+    { label: 'Paid Income', value: `$${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-emerald-600', iconColor: 'text-emerald-500', bg: 'bg-white' },
+    { label: 'Unpaid Amount', value: `$${totalUnpaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: AlertTriangle, color: 'text-rose-600', iconColor: 'text-rose-500', bg: 'bg-white' },
+    { label: 'Projected Total', value: `$${totalGross.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: TrendingUp, color: 'text-slate-900', iconColor: 'text-slate-400', bg: 'bg-white', isBold: true },
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-700">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b border-slate-200">
+    <div className="space-y-8 animate-in fade-in duration-700 bg-[#F9FAFB] -m-4 lg:-m-8 p-4 lg:p-8 min-h-screen">
+      {/* User Hero Section */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Frank Coxx</h1>
-          <p className="text-slate-500 font-medium">{format(new Date(), 'EEEE, MMMM do yyyy')}</p>
+          <h1 className="text-3xl font-bold text-[#1E293B] tracking-tight">Frank Coxx</h1>
+          <p className="text-slate-500 font-medium mt-1">{format(new Date(), 'EEEE, MMMM do, yyyy')}</p>
         </div>
-        <div className="text-right mt-4 md:mt-0">
-          <p className="text-sm font-bold text-slate-900">Next Signing</p>
-          <p className="text-sm text-slate-500">Today 3:00 PM</p>
-          <p className="text-sm text-slate-500">Monroe</p>
-        </div>
-      </div>
-
-      {/* Filter Bar */}
-      <div className="bg-slate-50/50 border border-slate-200 rounded-lg p-3 flex gap-3">
-        <div className="relative">
-          <select 
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-            className="appearance-none bg-white border border-slate-300 rounded px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          >
-            <option>2026</option>
-            <option>2025</option>
-            <option>2024</option>
-          </select>
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-            <ChevronRight className="w-3 h-3 text-slate-400 rotate-90" />
+        
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 min-w-[300px]">
+          <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center">
+            <Clock className="w-6 h-6 text-indigo-600" />
           </div>
-        </div>
-        <div className="relative">
-          <select 
-            value={chartType}
-            onChange={(e) => setChartType(e.target.value as 'signings' | 'income')}
-            className="appearance-none bg-white border border-slate-300 rounded px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-[200px]"
-          >
-            <option value="signings">Monthly Number of signings</option>
-            <option value="income">Monthly income</option>
-          </select>
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-            <ChevronRight className="w-3 h-3 text-slate-400 rotate-90" />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Chart Section */}
-      <div className="bg-white border border-slate-200 rounded-lg p-8 shadow-sm">
-        {/* Stats Summary */}
-        <div className="flex justify-end gap-8 mb-12">
-          {stats.map((s) => (
-            <div key={s.label} className="text-right">
-              <div className="flex items-center justify-end gap-1 mb-1">
-                <span className="text-[10px] font-bold text-slate-500 tracking-wider">{s.label}</span>
-                {s.help && <HelpCircle className="w-3 h-3 text-sky-600" />}
-              </div>
-              <p className={cn("text-xl font-medium", s.color)}>{s.value}</p>
+          <div>
+            <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Next Signing</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-lg font-bold text-slate-900">3:00 PM</span>
+              <span className="text-sm text-slate-500">• Monroe</span>
             </div>
-          ))}
+            <p className="text-xs text-slate-400 font-medium">Today</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {metrics.map((m) => (
+          <div key={m.label} className={cn("p-6 rounded-2xl shadow-sm border border-slate-100 transition-all hover:shadow-md", m.bg)}>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{m.label}</span>
+              <div className={cn("p-2 rounded-lg bg-slate-50", m.iconColor.replace('text-', 'bg-').replace('500', '50').replace('400', '50'))}>
+                <m.icon className={cn("w-5 h-5", m.iconColor)} />
+              </div>
+            </div>
+            <p className={cn("text-2xl tracking-tight", m.isBold ? "font-black" : "font-bold", m.color)}>
+              {m.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Main Chart Area */}
+      <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Activity Overview</h2>
+            <p className="text-sm text-slate-500 mt-1">Track your monthly performance and growth</p>
+          </div>
+          
+          <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+            <div className="relative">
+              <select 
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="appearance-none bg-white border border-slate-200 rounded-lg px-4 py-2 pr-10 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-sm"
+              >
+                <option>2026</option>
+                <option>2025</option>
+                <option>2024</option>
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+            
+            <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-200">
+              <button 
+                onClick={() => setChartType('signings')}
+                className={cn(
+                  "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
+                  chartType === 'signings' ? "bg-[#1E293B] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                Signings
+              </button>
+              <button 
+                onClick={() => setChartType('income')}
+                className={cn(
+                  "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
+                  chartType === 'income' ? "bg-[#1E293B] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                Income
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Chart */}
-        <div className="h-[400px] w-full">
+        <div className="h-[450px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+            <BarChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis 
                 dataKey="name" 
-                axisLine={{ stroke: '#e2e8f0' }} 
-                tickLine={{ stroke: '#e2e8f0' }} 
-                tick={{ fill: '#64748b', fontSize: 12 }} 
-                angle={-45}
-                textAnchor="end"
-                interval={0}
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} 
+                dy={10}
               />
-              <YAxis hide />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
+                tickFormatter={(value) => chartType === 'income' ? `$${value}` : value}
+              />
               <Tooltip 
-                cursor={{ fill: '#f8fafc' }}
-                contentStyle={{ 
-                  backgroundColor: '#fff', 
-                  borderRadius: '8px', 
-                  border: '1px solid #e2e8f0'
+                cursor={{ fill: '#f8fafc', radius: 12 }}
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const value = payload[0].value;
+                    return (
+                      <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-xl animate-in zoom-in-95 duration-200">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                        <p className="text-lg font-black text-slate-900">
+                          {chartType === 'income' ? `$${Number(value).toLocaleString()}` : `${value} Signings`}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
                 }}
-                formatter={(value: any) => [
-                  chartType === 'income' ? `$${value.toLocaleString()}` : value,
-                  chartType === 'income' ? 'Monthly Income' : 'Monthly Signings'
-                ]}
               />
               <Bar 
                 dataKey={chartType} 
-                fill={chartType === 'signings' ? "#3b82f6" : "#22c55e"} 
-                barSize={40}
-                label={{ 
-                  position: 'top', 
-                  fill: '#000', 
-                  fontSize: 14, 
-                  fontWeight: 'bold',
-                  formatter: (value: any) => chartType === 'income' ? `$${value.toLocaleString()}` : value
-                }}
-              />
+                fill={chartType === 'signings' ? "#3b82f6" : "#10b981"} 
+                radius={[12, 12, 0, 0]}
+                barSize={48}
+              >
+                {monthlyData.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.name === 'Jul' && entry[chartType] === 0 ? '#f1f5f9' : (chartType === 'signings' ? "#3b82f6" : "#10b981")}
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
-
-        {/* Legend */}
-        <div className="flex justify-center mt-4">
-          <div className="flex items-center gap-2">
-            <div className={cn("w-4 h-4", chartType === 'signings' ? "bg-blue-500" : "bg-green-500")}></div>
-            <span className="text-sm text-slate-700 font-medium">
-              {chartType === 'signings' ? 'Monthly Number of signings' : 'Monthly income'}
-            </span>
-          </div>
+        
+        <div className="mt-4 flex items-center justify-center gap-2 text-xs font-medium text-slate-400">
+          <div className="w-2 h-2 rounded-full bg-slate-200"></div>
+          <span>Example: July had 0 signings during this period</span>
         </div>
       </div>
     </div>
@@ -3551,7 +3583,13 @@ export default function App() {
             "transition-all duration-300 ease-in-out min-h-screen flex flex-col",
             isSidebarOpen ? "lg:pl-[280px]" : "lg:pl-[80px]"
           )}>
-            <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+            <Header 
+              toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+              onNewSigning={() => {
+                setSelectedAppointment(null);
+                setIsNewSigningModalOpen(true);
+              }}
+            />
             
             <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
               <Routes>
