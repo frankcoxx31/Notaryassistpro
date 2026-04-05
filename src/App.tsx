@@ -1973,7 +1973,56 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
 
   const handlePrint = () => {
-    window.print();
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Signings Report - ${format(new Date(), 'MMMM yyyy')}</title>
+            <style>
+              body { font-family: sans-serif; padding: 20px; color: #334155; }
+              h1 { color: #0f172a; font-size: 24px; margin-bottom: 20px; text-align: center; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; font-size: 12px; }
+              th { background-color: #f8fafc; font-weight: bold; }
+              .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #94a3b8; }
+            </style>
+          </head>
+          <body>
+            <h1>Signings Report - ${format(new Date(), 'MMMM yyyy')}</h1>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Client</th>
+                  <th>Type</th>
+                  <th>Location</th>
+                  <th>Fee</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${appointments.map(app => `
+                  <tr>
+                    <td>${app.date}</td>
+                    <td>${app.time}</td>
+                    <td>${app.clientName}</td>
+                    <td>${app.signingType}</td>
+                    <td>${app.location}</td>
+                    <td>$${app.fee.toFixed(2)}</td>
+                    <td>${app.status}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="footer">Generated on ${new Date().toLocaleString()}</div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
   };
 
   const handlePrintJob = (app: Appointment) => {
@@ -2110,7 +2159,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
     <div className="space-y-4 animate-in fade-in duration-700">
       {/* Top Action Bar */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div className="flex flex-wrap items-center gap-px bg-slate-200 border border-slate-200 rounded-md overflow-hidden">
+        <div className="flex flex-wrap items-center gap-px bg-slate-200 border border-slate-200 rounded-md">
           <button 
             onClick={onNewSigning}
             className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200"
@@ -2235,7 +2284,6 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
                 <th className="px-3 py-3">Mileage</th>
                 <th className="px-3 py-3">Order No.</th>
                 <th className="px-3 py-3">Docs / Notarial Acts</th>
-                <th className="px-3 py-3">Tracking #</th>
                 <th className="px-3 py-3"></th>
               </tr>
             </thead>
@@ -2288,7 +2336,6 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
                   <td className="px-3 py-3 text-slate-600">{10 + idx * 8}</td>
                   <td className="px-3 py-3 text-slate-600">75787{410 + idx}</td>
                   <td className="px-3 py-3 text-slate-600">0 / 0</td>
-                  <td className="px-3 py-3 text-slate-600"></td>
                   <td className="px-3 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button 
