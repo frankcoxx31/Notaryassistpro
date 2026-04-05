@@ -91,6 +91,79 @@ import {
 } from 'recharts';
 import { cn } from './lib/utils';
 import { Appointment, Client, Expense, AppointmentStatus, Mileage, BusinessProfile } from './types';
+import { auth, db, provider } from './firebase';
+import LoginPage from './components/LoginPage';
+import { 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  updateDoc,
+  getDoc,
+  writeBatch,
+  getDocFromServer
+} from 'firebase/firestore';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: any, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid || '',
+      email: auth.currentUser?.email || '',
+      emailVerified: auth.currentUser?.emailVerified || false,
+      isAnonymous: auth.currentUser?.isAnonymous || false,
+      tenantId: auth.currentUser?.tenantId || '',
+      providerInfo: auth.currentUser?.providerData.map((provider: any) => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName || '',
+        email: provider.email || '',
+        photoUrl: provider.photoURL || ''
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 // --- Mock Data ---
 const MOCK_PROFILE: BusinessProfile = {
@@ -233,10 +306,34 @@ const MOCK_EXPENSES: Expense[] = [
 
 // --- Components ---
 
-const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; onClose: () => void; appointment?: Appointment | null }) => {
+const NewSigningModal = ({ isOpen, onClose, appointment, onSave }: { isOpen: boolean; onClose: () => void; appointment?: Appointment | null; onSave: (app: Appointment) => void }) => {
   const [activeTab, setActiveTab] = useState('Signer(s)');
+  const [formData, setFormData] = useState<Partial<Appointment>>({});
+
+  useEffect(() => {
+    if (appointment) {
+      setFormData(appointment);
+    } else {
+      setFormData({
+        id: Math.random().toString(36).substr(2, 9),
+        date: format(new Date(), 'yyyy-MM-dd'),
+        time: '10:00 AM',
+        signingType: 'General Loan Signing Work',
+        fee: 150,
+        status: 'Scheduled',
+        clientName: '',
+        location: ''
+      });
+    }
+  }, [appointment, isOpen]);
 
   if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (formData.id && formData.date && formData.time && formData.clientName && formData.signingType && formData.location && formData.fee !== undefined && formData.status) {
+      onSave(formData as Appointment);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
@@ -268,7 +365,8 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
               </button>
             </div>
             <select 
-              defaultValue={appointment?.signingType || "General Loan Signing Work"}
+              value={formData.signingType || "General Loan Signing Work"}
+              onChange={(e) => setFormData({ ...formData, signingType: e.target.value })}
               className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all"
             >
               <option>General Loan Signing Work</option>
@@ -286,14 +384,16 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Duration:</label>
                 <div className="flex-1 flex gap-2">
                   <select 
-                    defaultValue={appointment?.durationHours || "1 hour"}
+                    value={formData.durationHours || "1 hour"}
+                    onChange={(e) => setFormData({ ...formData, durationHours: e.target.value })}
                     className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
                   >
                     <option>1 hour</option>
                     <option>2 hours</option>
                   </select>
                   <select 
-                    defaultValue={appointment?.durationMinutes || "0 mins"}
+                    value={formData.durationMinutes || "0 mins"}
+                    onChange={(e) => setFormData({ ...formData, durationMinutes: e.target.value })}
                     className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
                   >
                     <option>0 mins</option>
@@ -310,7 +410,8 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                   </div>
                   <input 
                     type="number" 
-                    defaultValue={appointment?.fee || 150} 
+                    value={formData.fee || 0} 
+                    onChange={(e) => setFormData({ ...formData, fee: parseFloat(e.target.value) })}
                     className="flex-1 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                   />
                 </div>
@@ -323,7 +424,8 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Order #:</label>
                 <input 
                   type="text" 
-                  defaultValue={appointment?.orderNumber || (appointment?.id ? `75787${410 + parseInt(appointment.id)}` : "")}
+                  value={formData.orderNumber || ""}
+                  onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
                   className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                 />
               </div>
@@ -332,7 +434,8 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Loan #:</label>
                 <input 
                   type="text" 
-                  defaultValue={appointment?.loanNumber || ""}
+                  value={formData.loanNumber || ""}
+                  onChange={(e) => setFormData({ ...formData, loanNumber: e.target.value })}
                   className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                 />
               </div>
@@ -372,7 +475,8 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">Last Name:</label>
                     <input 
                       type="text" 
-                      defaultValue={appointment?.lastName || appointment?.clientName.split(' ')[1] || ""}
+                      value={formData.lastName || ""}
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value, clientName: `${formData.firstName || ''} ${e.target.value}`.trim() })}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
@@ -380,7 +484,8 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">First Name:</label>
                     <input 
                       type="text" 
-                      defaultValue={appointment?.firstName || appointment?.clientName.split(' ')[0] || ""}
+                      value={formData.firstName || ""}
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value, clientName: `${e.target.value} ${formData.lastName || ''}`.trim() })}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
@@ -388,7 +493,8 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">Address:</label>
                     <input 
                       type="text" 
-                      defaultValue={appointment?.address || appointment?.location || ""}
+                      value={formData.address || ""}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value, location: `${e.target.value}, ${formData.city || ''}`.trim() })}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
@@ -396,14 +502,16 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">City:</label>
                     <input 
                       type="text" 
-                      defaultValue={appointment?.city || appointment?.location.split(',')[1]?.trim() || ""}
+                      value={formData.city || ""}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value, location: `${formData.address || ''}, ${e.target.value}`.trim() })}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">State:</label>
                     <select 
-                      defaultValue={appointment?.state || "North Carolina"}
+                      value={formData.state || "North Carolina"}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
                     >
                       <option>North Carolina</option>
@@ -415,7 +523,8 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">Zip:</label>
                     <input 
                       type="text" 
-                      defaultValue={appointment?.zip || ""}
+                      value={formData.zip || ""}
+                      onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
@@ -447,7 +556,10 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
             </button>
           </div>
           <div className="flex gap-2">
-            <button className="bg-sky-400 hover:bg-sky-500 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
+            <button 
+              onClick={handleSave}
+              className="bg-sky-400 hover:bg-sky-500 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2"
+            >
               Save
             </button>
             <button onClick={onClose} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-6 py-2 rounded text-sm font-medium shadow-sm transition-colors">
@@ -460,8 +572,22 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
   );
 };
 
-const NewExpenseModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+const NewExpenseModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onClose: () => void; onSave: (e: Expense) => void }) => {
+  const [formData, setFormData] = useState<Partial<Expense>>({
+    id: Math.random().toString(36).substr(2, 9),
+    date: format(new Date(), 'yyyy-MM-dd'),
+    category: '',
+    amount: 0,
+    description: ''
+  });
+
   if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (formData.id && formData.date && formData.category && formData.amount !== undefined && formData.description) {
+      onSave(formData as Expense);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
@@ -491,11 +617,11 @@ const NewExpenseModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
             <label className="w-24 text-sm font-bold text-slate-700 text-right">Date:</label>
             <div className="flex-1 relative">
               <input 
-                type="text" 
-                defaultValue="04/04/2026"
+                type="date" 
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
               />
-              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             </div>
           </div>
 
@@ -505,6 +631,8 @@ const NewExpenseModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
             <input 
               type="text" 
               placeholder="Required"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
             />
           </div>
@@ -512,7 +640,11 @@ const NewExpenseModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
           {/* Category */}
           <div className="flex items-center gap-4">
             <label className="w-24 text-sm font-bold text-slate-700 text-right">Category:</label>
-            <select className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all bg-white">
+            <select 
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all bg-white"
+            >
               <option value=""></option>
               <option value="supplies">Supplies</option>
               <option value="travel">Travel</option>
@@ -520,22 +652,19 @@ const NewExpenseModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
             </select>
           </div>
 
-          {/* Details */}
-          <div className="flex items-start gap-4">
-            <label className="w-24 text-sm font-bold text-slate-700 text-right mt-2">Details:</label>
-            <textarea 
-              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all min-h-[80px] resize-none"
-            />
-          </div>
-
           {/* Amount */}
           <div className="flex items-center gap-4">
             <label className="w-24 text-sm font-bold text-slate-700 text-right">Amount:</label>
-            <input 
-              type="text" 
-              placeholder="Required"
-              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
-            />
+            <div className="flex-1 relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+              <input 
+                type="number" 
+                placeholder="0.00"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+                className="w-full border border-slate-300 rounded pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+              />
+            </div>
           </div>
 
           {/* Receipt */}
@@ -575,7 +704,10 @@ const NewExpenseModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
           >
             Cancel
           </button>
-          <button className="bg-sky-500 hover:bg-sky-600 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors">
+          <button 
+            onClick={handleSave}
+            className="bg-sky-500 hover:bg-sky-600 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors"
+          >
             Save
           </button>
         </div>
@@ -846,8 +978,27 @@ const RecurringExpenseModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: 
   );
 };
 
-const NewMileageModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+const NewMileageModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onClose: () => void; onSave: (m: Mileage) => void }) => {
+  const [formData, setFormData] = useState<Partial<Mileage>>({
+    id: Math.random().toString(36).substr(2, 9),
+    date: format(new Date(), 'yyyy-MM-dd'),
+    description: '',
+    miles: 0,
+    rate: 0.67,
+    total: 0
+  });
+
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, total: (prev.miles || 0) * (prev.rate || 0.67) }));
+  }, [formData.miles, formData.rate]);
+
   if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (formData.id && formData.date && formData.description && formData.miles !== undefined && formData.rate !== undefined && formData.total !== undefined) {
+      onSave(formData as Mileage);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
@@ -877,11 +1028,11 @@ const NewMileageModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
             <label className="w-24 text-sm font-bold text-slate-700 text-right">Date:</label>
             <div className="flex-1 relative">
               <input 
-                type="text" 
-                defaultValue="04/04/2026"
+                type="date" 
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               />
-              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             </div>
           </div>
 
@@ -891,6 +1042,8 @@ const NewMileageModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
             <input 
               type="text" 
               placeholder="e.g. Post Office, Bank, Supplies"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             />
           </div>
@@ -899,8 +1052,10 @@ const NewMileageModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
           <div className="flex items-center gap-4">
             <label className="w-24 text-sm font-bold text-slate-700 text-right">Miles:</label>
             <input 
-              type="text" 
+              type="number" 
               placeholder="0.0"
+              value={formData.miles}
+              onChange={(e) => setFormData({ ...formData, miles: parseFloat(e.target.value) })}
               className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             />
           </div>
@@ -911,8 +1066,9 @@ const NewMileageModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
             <div className="flex-1 relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
               <input 
-                type="text" 
-                defaultValue="0.67"
+                type="number" 
+                value={formData.rate}
+                onChange={(e) => setFormData({ ...formData, rate: parseFloat(e.target.value) })}
                 className="w-full border border-slate-300 rounded pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               />
             </div>
@@ -927,7 +1083,10 @@ const NewMileageModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
           >
             Cancel
           </button>
-          <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors">
+          <button 
+            onClick={handleSave}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors"
+          >
             Save Mileage
           </button>
         </div>
@@ -936,7 +1095,7 @@ const NewMileageModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
   );
 };
 
-const MileageView = ({ mileage, onNewMileage }: { mileage: Mileage[]; onNewMileage: () => void }) => {
+const MileageView = ({ mileage, onNewMileage, onDeleteMileage }: { mileage: Mileage[]; onNewMileage: () => void; onDeleteMileage: (id: string) => void }) => {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -974,7 +1133,10 @@ const MileageView = ({ mileage, onNewMileage }: { mileage: Mileage[]; onNewMilea
                   <td className="px-6 py-4 text-slate-600">${item.rate.toFixed(2)}</td>
                   <td className="px-6 py-4 font-bold text-emerald-600">${item.total.toFixed(2)}</td>
                   <td className="px-6 py-4 text-right">
-                    <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 opacity-0 group-hover:opacity-100 transition-all">
+                    <button 
+                      onClick={() => onDeleteMileage(item.id)}
+                      className="p-2 hover:bg-rose-50 rounded-lg text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -1363,7 +1525,29 @@ const ToolsView = () => {
   );
 };
 
-const Sidebar = ({ isOpen, toggle, onNewSigning, onNewExpense, onExpenseTypes, onRecurringExpense, onNewMileage }: { isOpen: boolean; toggle: () => void; onNewSigning: () => void; onNewExpense: () => void; onExpenseTypes: () => void; onRecurringExpense: () => void; onNewMileage: () => void }) => {
+const Sidebar = ({ 
+  isOpen, 
+  toggle, 
+  onNewSigning, 
+  onNewExpense, 
+  onExpenseTypes, 
+  onRecurringExpense, 
+  onNewMileage,
+  user,
+  onSignIn,
+  onSignOut
+}: { 
+  isOpen: boolean; 
+  toggle: () => void; 
+  onNewSigning: () => void; 
+  onNewExpense: () => void; 
+  onExpenseTypes: () => void; 
+  onRecurringExpense: () => void; 
+  onNewMileage: () => void;
+  user: FirebaseUser | null;
+  onSignIn: () => void;
+  onSignOut: () => void;
+}) => {
   const location = useLocation();
   const [isSigningsOpen, setIsSigningsOpen] = useState(true);
   const [isExpensesOpen, setIsExpensesOpen] = useState(false);
@@ -1560,20 +1744,49 @@ const Sidebar = ({ isOpen, toggle, onNewSigning, onNewExpense, onExpenseTypes, o
 
           {/* User Profile */}
           <div className="p-4 border-t border-white/5 bg-black/10">
-            <div className={cn(
-              "flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer",
-              !isOpen && "justify-center"
-            )}>
-              <div className="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center overflow-hidden">
-                <User className="w-6 h-6 text-indigo-400" />
-              </div>
-              {isOpen && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-amber-400 truncate">Frank Cox</p>
-                  <p className="text-xs text-amber-400/50 truncate">Pro Plan</p>
+            {user ? (
+              <div className={cn(
+                "flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group",
+                !isOpen && "justify-center"
+              )}>
+                <div className="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center overflow-hidden">
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <User className="w-6 h-6 text-indigo-400" />
+                  )}
                 </div>
-              )}
-            </div>
+                {isOpen && (
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-amber-400 truncate">{user.displayName || 'Frank Cox'}</p>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSignOut();
+                      }}
+                      className="text-[10px] text-amber-400/50 hover:text-rose-400 transition-colors flex items-center gap-1"
+                    >
+                      <LogOut className="w-3 h-3" /> Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button 
+                onClick={onSignIn}
+                className={cn(
+                  "w-full flex items-center gap-3 p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-lg shadow-indigo-600/20",
+                  !isOpen && "justify-center px-0"
+                )}
+              >
+                <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+                  <User className="w-6 h-6" />
+                </div>
+                {isOpen && (
+                  <span className="text-sm font-bold">Sign In with Google</span>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </motion.aside>
@@ -2409,7 +2622,122 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete }: {
   );
 };
 
-const Clients = ({ clients }: { clients: Client[] }) => {
+const NewClientModal = ({ isOpen, onClose, client, onSave }: { isOpen: boolean; onClose: () => void; client?: Client | null; onSave: (c: Client) => void }) => {
+  const [formData, setFormData] = useState<Partial<Client>>({});
+
+  useEffect(() => {
+    if (client) {
+      setFormData(client);
+    } else {
+      setFormData({
+        id: Math.random().toString(36).substr(2, 9),
+        name: '',
+        company: '',
+        email: '',
+        phone: '',
+        address: ''
+      });
+    }
+  }, [client, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (formData.id && formData.name && formData.company && formData.email && formData.phone && formData.address) {
+      onSave(formData as Client);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="bg-white rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]"
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-200">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800">{client ? 'Edit Client' : 'New Client'}</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+          <div className="flex items-center gap-4">
+            <label className="w-24 text-sm font-bold text-slate-700 text-right">Name:</label>
+            <input 
+              type="text" 
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="w-24 text-sm font-bold text-slate-700 text-right">Company:</label>
+            <input 
+              type="text" 
+              value={formData.company}
+              onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="w-24 text-sm font-bold text-slate-700 text-right">Email:</label>
+            <input 
+              type="email" 
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="w-24 text-sm font-bold text-slate-700 text-right">Phone:</label>
+            <input 
+              type="tel" 
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="w-24 text-sm font-bold text-slate-700 text-right">Address:</label>
+            <textarea 
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all min-h-[80px] resize-none"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/30 shrink-0">
+          <button 
+            onClick={onClose}
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-6 py-2 rounded text-sm font-medium shadow-sm transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSave}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors"
+          >
+            Save Client
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const Clients = ({ clients, onNewClient, onEditClient, onDeleteClient }: { clients: Client[]; onNewClient: () => void; onEditClient: (c: Client) => void; onDeleteClient: (id: string) => void }) => {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -2417,7 +2745,10 @@ const Clients = ({ clients }: { clients: Client[] }) => {
           <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
           <p className="text-slate-500">Manage your contacts and title company relationships.</p>
         </div>
-        <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
+        <button 
+          onClick={onNewClient}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2"
+        >
           <Plus className="w-4 h-4" /> New Client
         </button>
       </div>
@@ -2430,9 +2761,20 @@ const Clients = ({ clients }: { clients: Client[] }) => {
               <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xl">
                 {client.name.charAt(0)}
               </div>
-              <button className="p-2 hover:bg-slate-50 rounded-lg text-slate-400">
-                <MoreVertical className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => onEditClient(client)}
+                  className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                >
+                  <PenLine className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => onDeleteClient(client.id)}
+                  className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <h3 className="font-bold text-lg text-slate-900 mb-1">{client.name}</h3>
             <p className="text-sm text-indigo-600 font-medium mb-4">{client.company}</p>
@@ -2463,7 +2805,7 @@ const Clients = ({ clients }: { clients: Client[] }) => {
   );
 };
 
-const Accounting = ({ appointments, expenses }: { appointments: Appointment[]; expenses: Expense[] }) => {
+const Accounting = ({ appointments, expenses, onNewExpense, onDeleteExpense }: { appointments: Appointment[]; expenses: Expense[]; onNewExpense: () => void; onDeleteExpense: (id: string) => void }) => {
   const totalIncome = appointments.filter(a => a.status === 'Completed').reduce((sum, a) => sum + a.fee, 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
   const netProfit = totalIncome - totalExpenses;
@@ -2479,7 +2821,10 @@ const Accounting = ({ appointments, expenses }: { appointments: Appointment[]; e
           <button className="bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all flex items-center gap-2">
             <FileText className="w-4 h-4" /> Export Report
           </button>
-          <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+          <button 
+            onClick={onNewExpense}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2"
+          >
             <Plus className="w-4 h-4" /> Add Expense
           </button>
         </div>
@@ -2519,7 +2864,7 @@ const Accounting = ({ appointments, expenses }: { appointments: Appointment[]; e
           </div>
           <div className="divide-y divide-slate-100">
             {expenses.map((expense) => (
-              <div key={expense.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+              <div key={expense.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
                     <TrendingDown className="w-5 h-5 text-rose-600" />
@@ -2529,9 +2874,17 @@ const Accounting = ({ appointments, expenses }: { appointments: Appointment[]; e
                     <p className="text-xs text-slate-500">{expense.description}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-slate-900">-${expense.amount}</p>
-                  <p className="text-xs text-slate-400">{format(new Date(expense.date), 'MMM d')}</p>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="font-bold text-slate-900">-${expense.amount}</p>
+                    <p className="text-xs text-slate-400">{format(new Date(expense.date), 'MMM d')}</p>
+                  </div>
+                  <button 
+                    onClick={() => onDeleteExpense(expense.id)}
+                    className="p-2 hover:bg-rose-50 rounded-lg text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             ))}
@@ -2601,15 +2954,235 @@ export default function App() {
   const [isExpenseTypesModalOpen, setIsExpenseTypesModalOpen] = useState(false);
   const [isRecurringExpenseModalOpen, setIsRecurringExpenseModalOpen] = useState(false);
   const [isNewMileageModalOpen, setIsNewMileageModalOpen] = useState(false);
+  const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
-  const [clients, setClients] = useState<Client[]>(MOCK_CLIENTS);
-  const [expenses, setExpenses] = useState<Expense[]>(MOCK_EXPENSES);
-  const [mileage, setMileage] = useState<Mileage[]>(MOCK_MILEAGE);
+  
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [mileage, setMileage] = useState<Mileage[]>([]);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile>(MOCK_PROFILE);
 
-  const handleDeleteAppointments = (ids: string[]) => {
-    setAppointments(prev => prev.filter(app => !ids.includes(app.id)));
+  // Auth listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user: FirebaseUser | null) => {
+      setUser(user);
+      setIsAuthReady(true);
+    });
+
+    // Test connection
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration. ");
+        }
+      }
+    };
+    testConnection();
+
+    return () => unsubscribe();
+  }, []);
+
+  // Firestore listeners
+  useEffect(() => {
+    if (!isAuthReady || !user) {
+      setAppointments(MOCK_APPOINTMENTS);
+      setClients(MOCK_CLIENTS);
+      setExpenses(MOCK_EXPENSES);
+      setMileage(MOCK_MILEAGE);
+      setBusinessProfile(MOCK_PROFILE);
+      return;
+    }
+
+    const qAppointments = query(collection(db, 'appointments'), where('userId', '==', user.uid));
+    const unsubAppointments = onSnapshot(qAppointments, (snapshot: any) => {
+      setAppointments(snapshot.docs.map((doc: any) => doc.data() as Appointment));
+    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'appointments'));
+
+    const qClients = query(collection(db, 'clients'), where('userId', '==', user.uid));
+    const unsubClients = onSnapshot(qClients, (snapshot: any) => {
+      setClients(snapshot.docs.map((doc: any) => doc.data() as Client));
+    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'clients'));
+
+    const qExpenses = query(collection(db, 'expenses'), where('userId', '==', user.uid));
+    const unsubExpenses = onSnapshot(qExpenses, (snapshot: any) => {
+      setExpenses(snapshot.docs.map((doc: any) => doc.data() as Expense));
+    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'expenses'));
+
+    const qMileage = query(collection(db, 'mileage'), where('userId', '==', user.uid));
+    const unsubMileage = onSnapshot(qMileage, (snapshot: any) => {
+      setMileage(snapshot.docs.map((doc: any) => doc.data() as Mileage));
+    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'mileage'));
+
+    const unsubProfile = onSnapshot(doc(db, 'profiles', user.uid), (doc: any) => {
+      if (doc.exists()) {
+        setBusinessProfile(doc.data() as BusinessProfile);
+      }
+    }, (error: any) => handleFirestoreError(error, OperationType.GET, `profiles/${user.uid}`));
+
+    return () => {
+      unsubAppointments();
+      unsubClients();
+      unsubExpenses();
+      unsubMileage();
+      unsubProfile();
+    };
+  }, [isAuthReady, user]);
+
+  const handleSignIn = async () => {
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error('Sign in error:', error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
+  const handleSaveAppointment = async (app: Appointment) => {
+    if (!user) {
+      setAppointments(prev => {
+        const exists = prev.find(a => a.id === app.id);
+        if (exists) return prev.map(a => a.id === app.id ? app : a);
+        return [...prev, app];
+      });
+      return;
+    }
+
+    try {
+      const appData = { ...app, userId: user.uid };
+      await setDoc(doc(db, 'appointments', app.id), appData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `appointments/${app.id}`);
+    }
+  };
+
+  const handleSaveExpense = async (expense: Expense) => {
+    if (!user) {
+      setExpenses(prev => [...prev, expense]);
+      return;
+    }
+
+    try {
+      const expenseData = { ...expense, userId: user.uid };
+      await setDoc(doc(db, 'expenses', expense.id), expenseData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `expenses/${expense.id}`);
+    }
+  };
+
+  const handleSaveMileage = async (m: Mileage) => {
+    if (!user) {
+      setMileage(prev => [...prev, m]);
+      return;
+    }
+
+    try {
+      const mileageData = { ...m, userId: user.uid };
+      await setDoc(doc(db, 'mileage', m.id), mileageData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `mileage/${m.id}`);
+    }
+  };
+
+  const handleSaveProfile = async (profile: BusinessProfile) => {
+    if (!user) {
+      setBusinessProfile(profile);
+      return;
+    }
+
+    try {
+      const profileData = { ...profile, userId: user.uid };
+      await setDoc(doc(db, 'profiles', user.uid), profileData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `profiles/${user.uid}`);
+    }
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (!user) {
+      setExpenses(prev => prev.filter(e => e.id !== id));
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'expenses', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `expenses/${id}`);
+    }
+  };
+
+  const handleDeleteMileage = async (id: string) => {
+    if (!user) {
+      setMileage(prev => prev.filter(m => m.id !== id));
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'mileage', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `mileage/${id}`);
+    }
+  };
+
+  const handleSaveClient = async (client: Client) => {
+    if (!user) {
+      setClients(prev => {
+        const exists = prev.find(c => c.id === client.id);
+        if (exists) return prev.map(c => c.id === client.id ? client : c);
+        return [...prev, client];
+      });
+      return;
+    }
+
+    try {
+      const clientData = { ...client, userId: user.uid };
+      await setDoc(doc(db, 'clients', client.id), clientData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `clients/${client.id}`);
+    }
+  };
+
+  const handleDeleteClient = async (id: string) => {
+    if (!user) {
+      setClients(prev => prev.filter(c => c.id !== id));
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'clients', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `clients/${id}`);
+    }
+  };
+
+  const handleDeleteAppointments = async (ids: string[]) => {
+    if (!user) {
+      setAppointments(prev => prev.filter(app => !ids.includes(app.id)));
+      return;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      ids.forEach(id => {
+        batch.delete(doc(db, 'appointments', id));
+      });
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'appointments');
+    }
   };
 
   // Responsive sidebar
@@ -2628,97 +3201,175 @@ export default function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-        <Sidebar 
-          isOpen={isSidebarOpen} 
-          toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
-          onNewSigning={() => setIsNewSigningModalOpen(true)}
-          onNewExpense={() => setIsNewExpenseModalOpen(true)}
-          onExpenseTypes={() => setIsExpenseTypesModalOpen(true)}
-          onRecurringExpense={() => setIsRecurringExpenseModalOpen(true)}
-          onNewMileage={() => setIsNewMileageModalOpen(true)}
-        />
-        
-        <div className={cn(
-          "transition-all duration-300 ease-in-out min-h-screen flex flex-col",
-          isSidebarOpen ? "lg:pl-[280px]" : "lg:pl-[80px]"
-        )}>
-          <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-          
-          <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
-            <Routes>
-              <Route path="/" element={<Dashboard appointments={appointments} expenses={expenses} />} />
-              <Route 
-                path="/appointments" 
-                element={
-                  <Appointments 
-                    appointments={appointments} 
-                    onNewSigning={() => {
-                      setSelectedAppointment(null);
-                      setIsNewSigningModalOpen(true);
-                    }} 
-                    onViewSigning={(app) => {
-                      setSelectedAppointment(app);
-                      setIsNewSigningModalOpen(true);
-                    }}
-                    onDelete={handleDeleteAppointments}
-                  />
-                } 
-              />
-              <Route path="/calendar" element={<CalendarView appointments={appointments} />} />
-              <Route path="/clients" element={<Clients clients={clients} />} />
-              <Route path="/mileage" element={<MileageView mileage={mileage} onNewMileage={() => setIsNewMileageModalOpen(true)} />} />
-              <Route path="/reports/*" element={<Reports />} />
-              <Route path="/accounting" element={<Accounting appointments={appointments} expenses={expenses} />} />
-              <Route path="/tools" element={<ToolsView />} />
-              <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} />} />
-            </Routes>
-          </main>
-
-          <footer className="py-6 px-8 border-t border-slate-200 text-center text-slate-400 text-sm">
-            &copy; {new Date().getFullYear()} NotaryPro App. All rights reserved.
-          </footer>
+      {!isAuthReady ? (
+        <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-indigo-400 font-medium animate-pulse">Initializing NotaryPro...</p>
+          </div>
         </div>
-      </div>
+      ) : !user ? (
+        <LoginPage onSignIn={handleSignIn} />
+      ) : (
+        <>
+          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <Sidebar 
+              isOpen={isSidebarOpen} 
+              toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+              onNewSigning={() => setIsNewSigningModalOpen(true)}
+              onNewExpense={() => setIsNewExpenseModalOpen(true)}
+              onExpenseTypes={() => setIsExpenseTypesModalOpen(true)}
+              onRecurringExpense={() => setIsRecurringExpenseModalOpen(true)}
+              onNewMileage={() => setIsNewMileageModalOpen(true)}
+              user={user}
+              onSignIn={handleSignIn}
+              onSignOut={handleSignOut}
+            />
+            
+            <div className={cn(
+              "transition-all duration-300 ease-in-out min-h-screen flex flex-col",
+              isSidebarOpen ? "lg:pl-[280px]" : "lg:pl-[80px]"
+            )}>
+              <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+              
+              <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
+                <Routes>
+                  <Route path="/" element={<Dashboard appointments={appointments} expenses={expenses} />} />
+                  <Route 
+                    path="/appointments" 
+                    element={
+                      <Appointments 
+                        appointments={appointments} 
+                        onNewSigning={() => {
+                          setSelectedAppointment(null);
+                          setIsNewSigningModalOpen(true);
+                        }} 
+                        onViewSigning={(app) => {
+                          setSelectedAppointment(app);
+                          setIsNewSigningModalOpen(true);
+                        }}
+                        onDelete={handleDeleteAppointments}
+                      />
+                    } 
+                  />
+                  <Route path="/calendar" element={<CalendarView appointments={appointments} />} />
+                  <Route 
+                    path="/clients" 
+                    element={
+                      <Clients 
+                        clients={clients} 
+                        onNewClient={() => {
+                          setSelectedClient(null);
+                          setIsNewClientModalOpen(true);
+                        }}
+                        onEditClient={(c) => {
+                          setSelectedClient(c);
+                          setIsNewClientModalOpen(true);
+                        }}
+                        onDeleteClient={handleDeleteClient}
+                      />
+                    } 
+                  />
+                  <Route 
+                    path="/mileage" 
+                    element={
+                      <MileageView 
+                        mileage={mileage} 
+                        onNewMileage={() => setIsNewMileageModalOpen(true)} 
+                        onDeleteMileage={handleDeleteMileage}
+                      />
+                    } 
+                  />
+                  <Route path="/reports/*" element={<Reports />} />
+                  <Route 
+                    path="/accounting" 
+                    element={
+                      <Accounting 
+                        appointments={appointments} 
+                        expenses={expenses} 
+                        onNewExpense={() => setIsNewExpenseModalOpen(true)}
+                        onDeleteExpense={handleDeleteExpense}
+                      />
+                    } 
+                  />
+                  <Route path="/tools" element={<ToolsView />} />
+                  <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} />} />
+                </Routes>
+              </main>
 
-      <NewSigningModal 
-        isOpen={isNewSigningModalOpen} 
-        onClose={() => {
-          setIsNewSigningModalOpen(false);
-          setSelectedAppointment(null);
-        }} 
-        appointment={selectedAppointment}
-      />
+              <footer className="py-6 px-8 border-t border-slate-200 text-center text-slate-400 text-sm">
+                &copy; {new Date().getFullYear()} NotaryPro App. All rights reserved.
+              </footer>
+            </div>
+          </div>
 
-      <NewExpenseModal 
-        isOpen={isNewExpenseModalOpen} 
-        onClose={() => setIsNewExpenseModalOpen(false)} 
-      />
+          <NewSigningModal 
+            isOpen={isNewSigningModalOpen} 
+            onClose={() => {
+              setIsNewSigningModalOpen(false);
+              setSelectedAppointment(null);
+            }} 
+            appointment={selectedAppointment}
+            onSave={(app) => {
+              handleSaveAppointment(app);
+              setIsNewSigningModalOpen(false);
+              setSelectedAppointment(null);
+            }}
+          />
 
-      <ExpenseTypesModal 
-        isOpen={isExpenseTypesModalOpen} 
-        onClose={() => setIsExpenseTypesModalOpen(false)} 
-      />
+          <NewExpenseModal 
+            isOpen={isNewExpenseModalOpen} 
+            onClose={() => setIsNewExpenseModalOpen(false)} 
+            onSave={(expense) => {
+              handleSaveExpense(expense);
+              setIsNewExpenseModalOpen(false);
+            }}
+          />
 
-      <RecurringExpenseModal 
-        isOpen={isRecurringExpenseModalOpen} 
-        onClose={() => setIsRecurringExpenseModalOpen(false)} 
-      />
+          <ExpenseTypesModal 
+            isOpen={isExpenseTypesModalOpen} 
+            onClose={() => setIsExpenseTypesModalOpen(false)} 
+          />
 
-      <NewMileageModal 
-        isOpen={isNewMileageModalOpen} 
-        onClose={() => setIsNewMileageModalOpen(false)} 
-      />
+          <RecurringExpenseModal 
+            isOpen={isRecurringExpenseModalOpen} 
+            onClose={() => setIsRecurringExpenseModalOpen(false)} 
+          />
 
-      <BusinessProfileModal 
-        isOpen={isProfileModalOpen} 
-        onClose={() => setIsProfileModalOpen(false)} 
-        profile={businessProfile}
-        onSave={(updatedProfile) => {
-          setBusinessProfile(updatedProfile);
-          setIsProfileModalOpen(false);
-        }}
-      />
+          <NewMileageModal 
+            isOpen={isNewMileageModalOpen} 
+            onClose={() => setIsNewMileageModalOpen(false)} 
+            onSave={(m) => {
+              handleSaveMileage(m);
+              setIsNewMileageModalOpen(false);
+            }}
+          />
+
+          <NewClientModal 
+            isOpen={isNewClientModalOpen} 
+            onClose={() => {
+              setIsNewClientModalOpen(false);
+              setSelectedClient(null);
+            }} 
+            client={selectedClient}
+            onSave={(c) => {
+              handleSaveClient(c);
+              setIsNewClientModalOpen(false);
+              setSelectedClient(null);
+            }}
+          />
+
+          <BusinessProfileModal 
+            isOpen={isProfileModalOpen} 
+            onClose={() => setIsProfileModalOpen(false)} 
+            profile={businessProfile}
+            onSave={(updatedProfile) => {
+              handleSaveProfile(updatedProfile);
+              setIsProfileModalOpen(false);
+            }}
+          />
+        </>
+      )}
     </Router>
   );
 }

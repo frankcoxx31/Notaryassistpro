@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: appointments
+    // Fields: id, date, time, clientName, signingType, location, fee, status, userId, etc.
+    //
+    // Collection: clients
+    // Fields: id, name, company, email, phone, address, userId
+    //
+    // Collection: expenses
+    // Fields: id, date, category, amount, description, userId
+    //
+    // Collection: mileage
+    // Fields: id, date, description, miles, rate, total, userId
+    //
+    // Collection: profiles
+    // Fields: name, companyName, email, phone, address, commissionNumber, commissionExpiration, userId
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function uidUnchanged() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidAppointment(data) {
+      return hasRequiredFields(['id', 'date', 'time', 'clientName', 'signingType', 'location', 'fee', 'status', 'userId']) &&
+             data.fee is number && data.fee >= 0 &&
+             data.status in ['Scheduled', 'Completed', 'Cancelled', 'No Show'];
+    }
+
+    function isValidClient(data) {
+      return hasRequiredFields(['id', 'name', 'email', 'phone', 'address', 'userId']);
+    }
+
+    function isValidExpense(data) {
+      return hasRequiredFields(['id', 'date', 'category', 'amount', 'description', 'userId']) &&
+             data.amount is number && data.amount >= 0;
+    }
+
+    function isValidMileage(data) {
+      return hasRequiredFields(['id', 'date', 'description', 'miles', 'rate', 'total', 'userId']) &&
+             data.miles is number && data.miles >= 0 &&
+             data.rate is number && data.rate >= 0 &&
+             data.total is number && data.total >= 0;
+    }
+
+    function isValidProfile(data) {
+      return hasRequiredFields(['name', 'companyName', 'email', 'phone', 'address', 'commissionNumber', 'commissionExpiration', 'userId']);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /appointments/{appointmentId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidAppointment(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidAppointment(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /clients/{clientId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidClient(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidClient(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidExpense(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidExpense(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /mileage/{mileageId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidMileage(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidMileage(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /profiles/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidProfile(request.resource.data);
+      allow update: if isOwner(userId) && isValidProfile(request.resource.data) && uidNotModified();
+      allow delete: if isOwner(userId);
+    }
+  }
+}
