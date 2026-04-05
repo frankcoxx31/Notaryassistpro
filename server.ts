@@ -21,9 +21,14 @@ async function startServer() {
     if (process.env.NODE_ENV !== "production") {
       console.log("Initializing Vite in development mode...");
       const vite = await createViteServer({
-        server: { middlewareMode: true },
+        server: { 
+          middlewareMode: true,
+          host: '0.0.0.0',
+          port: 3000
+        },
         appType: "spa",
       });
+      console.log("Vite server created, attaching middleware...");
       app.use(vite.middlewares);
       console.log("Vite middleware attached.");
     } else {
