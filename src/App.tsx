@@ -1684,7 +1684,10 @@ const Sidebar = ({
                   <Link
                     to={item.path}
                     onClick={(e) => {
-                      if (hasSubItems) {
+                      if (item.onClick) {
+                        e.preventDefault();
+                        item.onClick();
+                      } else if (hasSubItems) {
                         e.preventDefault();
                         if (item.setIsOpen) {
                           item.setIsOpen(!item.isOpen);
@@ -3062,8 +3065,9 @@ export default function App() {
       console.log('Sign in successful');
     } catch (error) {
       console.error('Sign in error:', error);
+      alert('Sign in failed. Please check if popups are blocked in your browser.');
     }
-  }, []);
+  }, [provider]);
 
   const handleSignOut = useCallback(async () => {
     try {
