@@ -2119,7 +2119,12 @@ const Sidebar = ({
                     )} />
                     {isOpen && (
                       <div className="flex-1 flex items-center justify-between">
-                        <span className="text-[15px] font-medium tracking-wide">{item.name}</span>
+                        <span className={cn(
+                          "text-[15px] tracking-wide",
+                          (item.name === 'Settings' || item.name === 'Tools') ? "font-bold" : "font-medium"
+                        )}>
+                          {item.name}
+                        </span>
                         {hasSubItems && (
                           <ChevronDown className={cn("w-4 h-4 transition-transform", item.isOpen && "rotate-180")} />
                         )}
