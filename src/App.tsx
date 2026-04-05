@@ -2068,7 +2068,7 @@ const Sidebar = ({
         initial={false}
         animate={{ x: isOpen ? 0 : -280 }}
         className={cn(
-          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#27285C] text-amber-400/70 z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
+          "fixed top-0 left-0 bottom-0 w-[280px] bg-[#27285C] text-white/70 z-50 transition-all duration-300 ease-in-out lg:translate-x-0 border-r border-white/5",
           !isOpen && "lg:w-[80px]"
         )}
       >
@@ -2077,10 +2077,10 @@ const Sidebar = ({
           <div className="h-16 flex items-center px-6 border-b border-white/5">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <FileText className="w-5 h-5 text-amber-400" />
+                <FileText className="w-5 h-5 text-white" />
               </div>
               {isOpen && (
-                <span className="font-bold text-xl text-amber-400 tracking-tight">NotaryPro App</span>
+                <span className="font-bold text-xl text-white tracking-tight">NotaryPro App</span>
               )}
             </div>
           </div>
@@ -2109,13 +2109,13 @@ const Sidebar = ({
                     className={cn(
                       "flex items-center gap-4 px-4 py-3 transition-all duration-200 group relative",
                       isActive && !hasSubItems
-                        ? "bg-white/5 text-amber-400" 
-                        : "hover:bg-white/5 hover:text-amber-400 text-amber-400/70"
+                        ? "bg-white/5 text-white" 
+                        : "hover:bg-white/5 hover:text-white text-white/70"
                     )}
                   >
                     <item.icon className={cn(
                       "w-6 h-6 transition-colors",
-                      isActive ? "text-amber-400" : "text-amber-400/60 group-hover:text-amber-400"
+                      isActive ? "text-white" : "text-white/60 group-hover:text-white"
                     )} />
                     {isOpen && (
                       <div className="flex-1 flex items-center justify-between">
@@ -2150,7 +2150,7 @@ const Sidebar = ({
                                 onClick={sub.onClick}
                                 className={cn(
                                   "w-full flex items-center gap-4 pl-14 pr-4 py-2.5 transition-all duration-200 group relative",
-                                  "text-amber-400/70 hover:text-amber-400 hover:bg-white/5"
+                                  "text-white/70 hover:text-white hover:bg-white/5"
                                 )}
                               >
                                 <span className="text-[14px] font-medium">{sub.name}</span>
@@ -2160,7 +2160,7 @@ const Sidebar = ({
                                 to={sub.path}
                                 className={cn(
                                   "flex items-center gap-4 pl-14 pr-4 py-2.5 transition-all duration-200 group relative",
-                                  isSubActive ? "text-amber-400 bg-white/5" : "text-amber-400/70 hover:text-amber-400 hover:bg-white/5"
+                                  isSubActive ? "text-white bg-white/5" : "text-white/70 hover:text-white hover:bg-white/5"
                                 )}
                               >
                                 <span className="text-[14px] font-medium">{sub.name}</span>
@@ -2195,13 +2195,13 @@ const Sidebar = ({
                 </div>
                 {isOpen && (
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-amber-400 truncate">{user.displayName || 'Frank Cox'}</p>
+                    <p className="text-sm font-semibold text-white truncate">{user.displayName || 'Frank Cox'}</p>
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
                         onSignOut();
                       }}
-                      className="text-[10px] text-amber-400/50 hover:text-rose-400 transition-colors flex items-center gap-1"
+                      className="text-[10px] text-white/50 hover:text-rose-400 transition-colors flex items-center gap-1"
                     >
                       <LogOut className="w-3 h-3" /> Sign Out
                     </button>
@@ -2215,14 +2215,14 @@ const Sidebar = ({
               )}>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center overflow-hidden">
-                    <User className="w-6 h-6 text-amber-400" />
+                    <User className="w-6 h-6 text-white" />
                   </div>
                   {isOpen && (
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-amber-400 truncate">Demo User</p>
+                      <p className="text-sm font-semibold text-white truncate">Demo User</p>
                       <button 
                         onClick={onSignOut}
-                        className="text-[10px] text-amber-400/50 hover:text-rose-400 transition-colors flex items-center gap-1"
+                        className="text-[10px] text-white/50 hover:text-rose-400 transition-colors flex items-center gap-1"
                       >
                         <LogOut className="w-3 h-3" /> Sign Out
                       </button>
@@ -2246,20 +2246,20 @@ const Header = ({ toggleSidebar, onNewSigning }: { toggleSidebar: () => void; on
           onClick={toggleSidebar}
           className="p-2 hover:bg-white/10 rounded-lg transition-colors lg:hidden"
         >
-          <Menu className="w-5 h-5 text-amber-400/70" />
+          <Menu className="w-5 h-5 text-white/70" />
         </button>
         <div className="relative hidden md:block">
-          <Search className="w-4 h-4 text-amber-400/50 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
           <input 
             type="text" 
             placeholder="Search clients, addresses, signings..." 
-            className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-amber-400 placeholder:text-amber-400/30 focus:outline-none focus:ring-2 focus:ring-amber-400/20 focus:border-amber-400/50 w-[350px] transition-all"
+            className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/50 w-[350px] transition-all"
           />
         </div>
       </div>
       <div className="flex items-center gap-2 md:gap-4">
         <button className="p-2 hover:bg-white/10 rounded-lg transition-colors relative">
-          <Bell className="w-5 h-5 text-amber-400/70" />
+          <Bell className="w-5 h-5 text-white/70" />
           <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-[#27285C]"></span>
         </button>
         <button 
