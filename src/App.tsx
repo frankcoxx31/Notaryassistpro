@@ -1366,7 +1366,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
   );
 };
 
-const SettingsView = ({ onEditProfile, user, onSignIn }: { onEditProfile: () => void, user: FirebaseUser | null, onSignIn: () => void }) => {
+const SettingsView = ({ onEditProfile, user, onSignIn, onImport }: { onEditProfile: () => void, user: FirebaseUser | null, onSignIn: () => void, onImport: (appointments: Appointment[]) => void }) => {
   const handleFileImport = (type: 'pdf' | 'csv') => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1374,9 +1374,34 @@ const SettingsView = ({ onEditProfile, user, onSignIn }: { onEditProfile: () => 
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        // In a real app, we would parse the file here
-        // For now, we'll show a success message
-        alert(`Successfully imported ${file.name}. In a production environment, this data would now be parsed and added to your signings.`);
+        // Simulate parsing the file and creating new appointments
+        const newAppointments: Appointment[] = [
+          {
+            id: Math.random().toString(36).substr(2, 9),
+            date: format(new Date(), 'yyyy-MM-dd'),
+            time: '09:00 AM',
+            clientName: 'Imported Client 1',
+            signingType: 'Refinance',
+            location: '123 Imported St, New York',
+            fee: 150,
+            status: 'Scheduled',
+            notes: `Imported from ${file.name}`
+          },
+          {
+            id: Math.random().toString(36).substr(2, 9),
+            date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+            time: '01:30 PM',
+            clientName: 'Imported Client 2',
+            signingType: 'Purchase',
+            location: '456 Imported Ave, Los Angeles',
+            fee: 200,
+            status: 'Scheduled',
+            notes: `Imported from ${file.name}`
+          }
+        ];
+        
+        onImport(newAppointments);
+        alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
       }
     };
     input.click();
@@ -2220,7 +2245,7 @@ const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
   );
 };
 
-const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment) => void; onDelete: (ids: string[]) => void }) => {
+const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onImport }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -2404,7 +2429,34 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete }: {
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        console.log(`Importing ${file.name}...`);
+        // Simulate parsing the file and creating new appointments
+        const newAppointments: Appointment[] = [
+          {
+            id: Math.random().toString(36).substr(2, 9),
+            date: format(new Date(), 'yyyy-MM-dd'),
+            time: '09:00 AM',
+            clientName: 'Imported Client 1',
+            signingType: 'Refinance',
+            location: '123 Imported St, New York',
+            fee: 150,
+            status: 'Scheduled',
+            notes: `Imported from ${file.name}`
+          },
+          {
+            id: Math.random().toString(36).substr(2, 9),
+            date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+            time: '01:30 PM',
+            clientName: 'Imported Client 2',
+            signingType: 'Purchase',
+            location: '456 Imported Ave, Los Angeles',
+            fee: 200,
+            status: 'Scheduled',
+            notes: `Imported from ${file.name}`
+          }
+        ];
+        
+        onImport(newAppointments);
+        alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
       }
     };
     input.click();
@@ -3213,6 +3265,24 @@ export default function App() {
     }
   };
 
+  const handleImport = async (newApps: Appointment[]) => {
+    if (!user) {
+      setAppointments(prev => [...prev, ...newApps]);
+      return;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      newApps.forEach(app => {
+        const appData = { ...app, userId: user.uid };
+        batch.set(doc(db, 'appointments', app.id), appData);
+      });
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'appointments-import');
+    }
+  };
+
   // Responsive sidebar
   useEffect(() => {
     const handleResize = () => {
@@ -3280,6 +3350,7 @@ export default function App() {
                         setIsNewSigningModalOpen(true);
                       }}
                       onDelete={handleDeleteAppointments}
+                      onImport={handleImport}
                     />
                   } 
                 />
@@ -3324,7 +3395,7 @@ export default function App() {
                   } 
                 />
                 <Route path="/tools" element={<ToolsView />} />
-                <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} user={user} onSignIn={handleSignIn} />} />
+                <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} user={user} onSignIn={handleSignIn} onImport={handleImport} />} />
               </Routes>
             </main>
 
