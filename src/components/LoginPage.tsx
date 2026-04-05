@@ -38,10 +38,38 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Decorative Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 rounded-full blur-[120px]" />
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-slate-950">
+      {/* Background Image with Overlay */}
+      <div className="absolute inset-0 z-0">
+        <img 
+          src="https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=2000" 
+          alt="Legal Background"
+          className="w-full h-full object-cover opacity-30 scale-105 blur-sm"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-950/90 to-indigo-950/80" />
+      </div>
+
+      {/* Animated Background Decorative Elements */}
+      <motion.div 
+        animate={{ 
+          scale: [1, 1.2, 1],
+          opacity: [0.1, 0.15, 0.1],
+          rotate: [0, 90, 0]
+        }}
+        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/20 rounded-full blur-[120px] z-0" 
+      />
+      <motion.div 
+        animate={{ 
+          scale: [1, 1.3, 1],
+          opacity: [0.05, 0.1, 0.05],
+          rotate: [0, -90, 0]
+        }}
+        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+        className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-amber-500/15 rounded-full blur-[120px] z-0" 
+      />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.03] pointer-events-none z-0" />
       
       <motion.div 
         key="login-card"
@@ -50,7 +78,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
         transition={{ duration: 0.6 }}
         className="w-full max-w-md z-10"
       >
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+        <div className="bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_0_50px_-12px_rgba(79,70,229,0.3)]">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
             <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-600/20 mb-4">
@@ -104,7 +132,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
               <div className="w-full border-t border-white/10"></div>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-[#0f172a] px-2 text-white/30">Or continue with</span>
+              <span className="bg-slate-900 px-2 text-white/30">Or continue with</span>
             </div>
           </div>
 
