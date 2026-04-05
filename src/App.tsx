@@ -2121,11 +2121,11 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete }: {
   };
 
   const handleApplyPayments = () => {
-    alert("Apply Payments action triggered for selected signings.");
+    console.log("Apply Payments action triggered for selected signings.");
   };
 
   const handleBatchInvoice = () => {
-    alert("Batch Invoice action triggered for selected signings.");
+    console.log("Batch Invoice action triggered for selected signings.");
   };
 
   const handleExport = () => {
@@ -2159,7 +2159,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete }: {
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        alert(`Importing ${file.name}... (In a real app, this would parse the CSV/PDF and update state)`);
+        console.log(`Importing ${file.name}...`);
       }
     };
     input.click();
@@ -2167,13 +2167,11 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete }: {
 
   const handleDelete = () => {
     if (selectedIds.length === 0) {
-      alert("Please select at least one signing to delete.");
       return;
     }
-    if (confirm(`Are you sure you want to delete ${selectedIds.length} selected signing(s)?`)) {
-      onDelete(selectedIds);
-      setSelectedIds([]);
-    }
+    // Perform deletion directly to avoid iframe confirm() issues
+    onDelete(selectedIds);
+    setSelectedIds([]);
   };
 
   const stats = [
@@ -2389,9 +2387,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete }: {
                       </button>
                       <button 
                         onClick={() => {
-                          if (confirm("Are you sure you want to delete this signing?")) {
-                            onDelete([app.id]);
-                          }
+                          onDelete([app.id]);
                         }}
                         className="p-1 hover:bg-rose-50 rounded text-slate-300 hover:text-rose-600 transition-colors"
                         title="Delete Signing"
