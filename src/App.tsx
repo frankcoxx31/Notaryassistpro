@@ -3063,9 +3063,10 @@ export default function App() {
       console.log('Initiating sign in...');
       await signInWithPopup(auth, provider);
       console.log('Sign in successful');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sign in error:', error);
-      alert('Sign in failed. Please check if popups are blocked in your browser.');
+      const errorCode = error.code || 'unknown';
+      alert(`Sign in failed (${errorCode}). Please check if popups are blocked or if your domain is authorized in Firebase.`);
     }
   }, [provider]);
 
