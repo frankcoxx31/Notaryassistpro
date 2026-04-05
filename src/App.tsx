@@ -74,7 +74,8 @@ import {
   subWeeks, 
   eachDayOfInterval, 
   isSameDay, 
-  isSameMonth 
+  isSameMonth,
+  parse
 } from 'date-fns';
 import { 
   BarChart, 
@@ -203,7 +204,7 @@ const MOCK_EXPENSES: Expense[] = [
 
 // --- Components ---
 
-const NewSigningModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; onClose: () => void; appointment?: Appointment | null }) => {
   const [activeTab, setActiveTab] = useState('Signer(s)');
 
   if (!isOpen) return null;
@@ -221,7 +222,7 @@ const NewSigningModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
             <div className="w-10 h-10 bg-sky-50 rounded-lg flex items-center justify-center border border-sky-100">
               <Edit2 className="w-6 h-6 text-sky-600" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800">Signing:</h2>
+            <h2 className="text-2xl font-bold text-slate-800">{appointment ? 'View Signing' : 'New Signing'}:</h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <X className="w-6 h-6" />
@@ -237,8 +238,14 @@ const NewSigningModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
                 Help <HelpCircle className="w-3 h-3" />
               </button>
             </div>
-            <select className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all">
+            <select 
+              defaultValue={appointment?.signingType || "General Loan Signing Work"}
+              className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all"
+            >
               <option>General Loan Signing Work</option>
+              <option>Refinance</option>
+              <option>Purchase</option>
+              <option>Seller</option>
             </select>
           </div>
 
@@ -249,25 +256,22 @@ const NewSigningModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Date:</label>
                 <div className="flex-1 flex border border-slate-300 rounded overflow-hidden">
-                  <input type="text" defaultValue="04/04/2026" className="flex-1 px-3 py-2 text-sm outline-none" />
-                  <div className="bg-slate-50 px-3 py-2 border-l border-slate-300 flex items-center justify-center">
-                    <Calendar className="w-4 h-4 text-slate-600" />
-                  </div>
+                  <input 
+                    type="date" 
+                    defaultValue={appointment?.date || format(new Date(), 'yyyy-MM-dd')} 
+                    className="flex-1 px-3 py-2 text-sm outline-none" 
+                  />
                 </div>
               </div>
 
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Time:</label>
                 <div className="flex-1 flex gap-2">
-                  <select className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none">
-                    <option>1</option>
-                  </select>
-                  <select className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none">
-                    <option>00</option>
-                  </select>
-                  <select className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none">
-                    <option>PM</option>
-                  </select>
+                  <input 
+                    type="time" 
+                    defaultValue={appointment?.time ? format(parse(appointment.time, 'hh:mm a', new Date()), 'HH:mm') : "10:00"}
+                    className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none"
+                  />
                 </div>
               </div>
 
@@ -276,9 +280,11 @@ const NewSigningModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
                 <div className="flex-1 flex gap-2">
                   <select className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none">
                     <option>1 hour</option>
+                    <option>2 hours</option>
                   </select>
                   <select className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none">
                     <option>0 mins</option>
+                    <option>30 mins</option>
                   </select>
                 </div>
               </div>
@@ -289,7 +295,11 @@ const NewSigningModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
                   <div className="bg-slate-50 px-3 py-2 border-r border-slate-300 text-sm text-slate-500 font-medium">
                     $
                   </div>
-                  <input type="text" defaultValue="150" className="flex-1 px-3 py-2 text-sm outline-none" />
+                  <input 
+                    type="number" 
+                    defaultValue={appointment?.fee || 150} 
+                    className="flex-1 px-3 py-2 text-sm outline-none" 
+                  />
                 </div>
               </div>
             </div>
@@ -299,20 +309,26 @@ const NewSigningModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Customer:</label>
                 <select className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none">
-                  <option></option>
+                  <option>Rocket Close</option>
+                  <option>Title First</option>
                 </select>
               </div>
 
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Contact:</label>
                 <select className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none">
-                  <option></option>
+                  <option>Jane Doe</option>
+                  <option>John Smith</option>
                 </select>
               </div>
 
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Order #:</label>
-                <input type="text" className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none" />
+                <input 
+                  type="text" 
+                  defaultValue={appointment?.id ? `75787${410 + parseInt(appointment.id)}` : ""}
+                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none" 
+                />
               </div>
 
               <div className="flex items-center gap-4">
@@ -353,22 +369,39 @@ const NewSigningModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">Last Name:</label>
-                    <input type="text" placeholder="Required" className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" />
+                    <input 
+                      type="text" 
+                      defaultValue={appointment?.clientName.split(' ')[1] || ""}
+                      placeholder="Required" 
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                    />
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">First Name:</label>
-                    <input type="text" className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" />
+                    <input 
+                      type="text" 
+                      defaultValue={appointment?.clientName.split(' ')[0] || ""}
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                    />
                   </div>
                   <div className="flex items-start gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right mt-2">Address:</label>
                     <div className="flex-1 space-y-2">
-                      <input type="text" placeholder="Enter a location" className="w-full border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" />
-                      <input type="text" className="w-full border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" />
+                      <input 
+                        type="text" 
+                        defaultValue={appointment?.location || ""}
+                        placeholder="Enter a location" 
+                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                      />
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">City:</label>
-                    <input type="text" className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" />
+                    <input 
+                      type="text" 
+                      defaultValue={appointment?.location.split(',')[1]?.trim() || ""}
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                    />
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">State:</label>
@@ -1936,11 +1969,32 @@ const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
   );
 };
 
-const Appointments = ({ appointments, onNewSigning }: { appointments: Appointment[]; onNewSigning: () => void }) => {
-  const [activeTab, setActiveTab] = useState('All Signings');
-
+const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment) => void }) => {
   const handlePrint = () => {
     window.print();
+  };
+
+  const handlePrintJob = (app: Appointment) => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head><title>Print Signing - ${app.clientName}</title></head>
+          <body>
+            <h1>Signing Details</h1>
+            <p><strong>Client:</strong> ${app.clientName}</p>
+            <p><strong>Date:</strong> ${app.date}</p>
+            <p><strong>Time:</strong> ${app.time}</p>
+            <p><strong>Type:</strong> ${app.signingType}</p>
+            <p><strong>Location:</strong> ${app.location}</p>
+            <p><strong>Fee:</strong> $${app.fee}</p>
+            <p><strong>Status:</strong> ${app.status}</p>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
   };
 
   const handleExport = () => {
@@ -1970,14 +2024,20 @@ const Appointments = ({ appointments, onNewSigning }: { appointments: Appointmen
   const handleImport = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.csv';
+    input.accept = '.csv,.pdf';
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        alert(`Importing ${file.name}... (In a real app, this would parse the CSV and update state)`);
+        alert(`Importing ${file.name}... (In a real app, this would parse the CSV/PDF and update state)`);
       }
     };
     input.click();
+  };
+
+  const handleDelete = () => {
+    if (confirm("Are you sure you want to delete the selected signings?")) {
+      alert("Selected signings deleted (In a real app, this would update state)");
+    }
   };
 
   const stats = [
@@ -2010,9 +2070,19 @@ const Appointments = ({ appointments, onNewSigning }: { appointments: Appointmen
           >
             <Download className="w-4 h-4 text-sky-600" /> Export
           </button>
-          <button className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200">
-            Batch Actions <ChevronDown className="w-3 h-3" />
-          </button>
+          <div className="relative group/batch">
+            <button className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200">
+              Batch Actions <ChevronDown className="w-3 h-3" />
+            </button>
+            <div className="absolute top-full left-0 mt-1 w-40 bg-white border border-slate-200 rounded-md shadow-lg hidden group-hover/batch:block z-50">
+              <button 
+                onClick={handleDelete}
+                className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" /> Delete Selected
+              </button>
+            </div>
+          </div>
           <button 
             onClick={handleImport}
             className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2"
@@ -2031,28 +2101,6 @@ const Appointments = ({ appointments, onNewSigning }: { appointments: Appointmen
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-slate-200">
-        {['All Signings', 'Locations'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              "px-6 py-3 text-sm font-medium transition-colors relative",
-              activeTab === tab ? "text-sky-600" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            {tab}
-            {activeTab === tab && (
-              <motion.div 
-                layoutId="activeTab"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600"
-              />
-            )}
-          </button>
-        ))}
       </div>
 
       {/* Filter Bar */}
@@ -2112,23 +2160,33 @@ const Appointments = ({ appointments, onNewSigning }: { appointments: Appointmen
                     {app.time}
                   </td>
                   <td className="px-3 py-3">
-                    <button className="text-sky-600 hover:underline font-medium">{app.clientName.split(' ')[1] || app.clientName}</button>
+                    <button 
+                      onClick={() => onViewSigning(app)}
+                      className="text-sky-600 hover:underline font-medium"
+                    >
+                      {app.clientName.split(' ')[1] || app.clientName}
+                    </button>
                   </td>
                   <td className="px-3 py-3 text-slate-600">{app.signingType}</td>
                   <td className="px-3 py-3">
                     <button className="text-sky-600 hover:underline">
-                      {activeTab === 'Locations' 
-                        ? (app.location.split(',')[1]?.trim() || app.location)
-                        : app.location.split(',')[0]}
+                      {app.location.split(',')[1]?.trim() || app.location}
                     </button>
                   </td>
                   <td className="px-3 py-3 text-slate-600">Rocket Close</td>
                   <td className="px-3 py-3 font-medium text-rose-700">${app.fee.toFixed(2)}</td>
                   <td className="px-3 py-3">
-                    <button className="text-sky-600 hover:underline">{format(subDays(new Date(app.date), 10), 'M/d/yyyy')}</button>
+                    <input 
+                      type="date" 
+                      defaultValue={format(subDays(new Date(app.date), 10), 'yyyy-MM-dd')}
+                      className="text-xs border border-slate-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-sky-500"
+                    />
                   </td>
                   <td className="px-3 py-3">
-                    <Calendar className="w-4 h-4 text-sky-600 cursor-pointer" />
+                    <input 
+                      type="date"
+                      className="text-xs border border-slate-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-sky-500"
+                    />
                   </td>
                   <td className="px-3 py-3">
                     <button className="text-sky-600 hover:underline">{45 + idx}</button>
@@ -2138,9 +2196,18 @@ const Appointments = ({ appointments, onNewSigning }: { appointments: Appointmen
                   <td className="px-3 py-3 text-slate-600">0 / 0</td>
                   <td className="px-3 py-3 text-slate-600"></td>
                   <td className="px-3 py-3 text-right">
-                    <button className="p-1 hover:bg-slate-100 rounded text-slate-300 group-hover:text-slate-400">
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => handlePrintJob(app)}
+                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-sky-600"
+                        title="Print Job"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                      <button className="p-1 hover:bg-slate-100 rounded text-slate-300 group-hover:text-slate-400">
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -2339,6 +2406,7 @@ const Accounting = ({ appointments, expenses }: { appointments: Appointment[]; e
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNewSigningModalOpen, setIsNewSigningModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
   const [isExpenseTypesModalOpen, setIsExpenseTypesModalOpen] = useState(false);
   const [isRecurringExpenseModalOpen, setIsRecurringExpenseModalOpen] = useState(false);
@@ -2386,7 +2454,22 @@ export default function App() {
           <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
             <Routes>
               <Route path="/" element={<Dashboard appointments={appointments} expenses={expenses} />} />
-              <Route path="/appointments" element={<Appointments appointments={appointments} onNewSigning={() => setIsNewSigningModalOpen(true)} />} />
+              <Route 
+                path="/appointments" 
+                element={
+                  <Appointments 
+                    appointments={appointments} 
+                    onNewSigning={() => {
+                      setSelectedAppointment(null);
+                      setIsNewSigningModalOpen(true);
+                    }} 
+                    onViewSigning={(app) => {
+                      setSelectedAppointment(app);
+                      setIsNewSigningModalOpen(true);
+                    }}
+                  />
+                } 
+              />
               <Route path="/calendar" element={<CalendarView appointments={appointments} />} />
               <Route path="/clients" element={<Clients clients={clients} />} />
               <Route path="/mileage" element={<MileageView mileage={mileage} onNewMileage={() => setIsNewMileageModalOpen(true)} />} />
@@ -2405,7 +2488,11 @@ export default function App() {
 
       <NewSigningModal 
         isOpen={isNewSigningModalOpen} 
-        onClose={() => setIsNewSigningModalOpen(false)} 
+        onClose={() => {
+          setIsNewSigningModalOpen(false);
+          setSelectedAppointment(null);
+        }} 
+        appointment={selectedAppointment}
       />
 
       <NewExpenseModal 
