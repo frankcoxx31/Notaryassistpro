@@ -11,8 +11,11 @@ interface LoginPageProps {
 const LoginPage: React.FC<LoginPageProps> = ({ onSignIn }) => {
   const handleSignIn = async () => {
     try {
-      await signInWithPopup(auth, provider);
-      if (onSignIn) onSignIn();
+      if (onSignIn) {
+        onSignIn();
+      } else {
+        await signInWithPopup(auth, provider);
+      }
     } catch (error) {
       console.error('Sign in error:', error);
     }
