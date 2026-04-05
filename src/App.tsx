@@ -1979,22 +1979,70 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
     if (printWindow) {
       printWindow.document.write(`
         <html>
-          <head><title>Print Signing - ${app.clientName}</title></head>
+          <head>
+            <title>Signing Report - ${app.clientName}</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; color: #334155; }
+              .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+              .header h1 { margin: 0; color: #0f172a; font-size: 24px; }
+              .section { margin-bottom: 24px; }
+              .section h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
+              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+              .item { margin-bottom: 12px; }
+              .label { font-weight: bold; font-size: 12px; color: #94a3b8; display: block; margin-bottom: 2px; }
+              .value { font-size: 15px; color: #1e293b; }
+              .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center; }
+            </style>
+          </head>
           <body>
-            <h1>Signing Details</h1>
-            <p><strong>Client:</strong> ${app.clientName}</p>
-            <p><strong>Date:</strong> ${app.date}</p>
-            <p><strong>Time:</strong> ${app.time}</p>
-            <p><strong>Type:</strong> ${app.signingType}</p>
-            <p><strong>Location:</strong> ${app.location}</p>
-            <p><strong>Fee:</strong> $${app.fee}</p>
-            <p><strong>Status:</strong> ${app.status}</p>
+            <div class="header">
+              <h1>Signing Report</h1>
+              <p>Generated on ${new Date().toLocaleDateString()}</p>
+            </div>
+            
+            <div class="section">
+              <h2>Client Information</h2>
+              <div class="grid">
+                <div class="item"><span class="label">Client Name</span><span class="value">${app.clientName}</span></div>
+                <div class="item"><span class="label">Signing Type</span><span class="value">${app.signingType}</span></div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>Appointment Details</h2>
+              <div class="grid">
+                <div class="item"><span class="label">Date</span><span class="value">${app.date}</span></div>
+                <div class="item"><span class="label">Time</span><span class="value">${app.time}</span></div>
+                <div class="item"><span class="label">Location</span><span class="value">${app.location}</span></div>
+                <div class="item"><span class="label">Status</span><span class="value">${app.status}</span></div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>Financials</h2>
+              <div class="grid">
+                <div class="item"><span class="label">Fee</span><span class="value">$${app.fee.toFixed(2)}</span></div>
+                <div class="item"><span class="label">Order Number</span><span class="value">75787${410 + parseInt(app.id)}</span></div>
+              </div>
+            </div>
+
+            <div class="footer">
+              &copy; ${new Date().getFullYear()} Notary Management System
+            </div>
           </body>
         </html>
       `);
       printWindow.document.close();
       printWindow.print();
     }
+  };
+
+  const handleApplyPayments = () => {
+    alert("Apply Payments action triggered for selected signings.");
+  };
+
+  const handleBatchInvoice = () => {
+    alert("Batch Invoice action triggered for selected signings.");
   };
 
   const handleExport = () => {
@@ -2074,7 +2122,19 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
             <button className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200">
               Batch Actions <ChevronDown className="w-3 h-3" />
             </button>
-            <div className="absolute top-full left-0 mt-1 w-40 bg-white border border-slate-200 rounded-md shadow-lg hidden group-hover/batch:block z-50">
+            <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg hidden group-hover/batch:block z-50">
+              <button 
+                onClick={handleApplyPayments}
+                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+              >
+                Apply Payments
+              </button>
+              <button 
+                onClick={handleBatchInvoice}
+                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+              >
+                Batch Invoice
+              </button>
               <button 
                 onClick={handleDelete}
                 className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2"
@@ -2169,7 +2229,10 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
                   </td>
                   <td className="px-3 py-3 text-slate-600">{app.signingType}</td>
                   <td className="px-3 py-3">
-                    <button className="text-sky-600 hover:underline">
+                    <button 
+                      onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(app.location)}`, '_blank')}
+                      className="text-sky-600 hover:underline"
+                    >
                       {app.location.split(',')[1]?.trim() || app.location}
                     </button>
                   </td>
