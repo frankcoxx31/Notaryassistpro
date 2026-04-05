@@ -28,6 +28,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn }) => {
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 rounded-full blur-[120px]" />
       
       <motion.div 
+        key="login-card"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}

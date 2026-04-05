@@ -3027,7 +3027,9 @@ export default function App() {
 
   const handleSignIn = useCallback(async () => {
     try {
+      console.log('Initiating sign in...');
       await signInWithPopup(auth, provider);
+      console.log('Sign in successful');
     } catch (error) {
       console.error('Sign in error:', error);
     }
@@ -3200,184 +3202,184 @@ export default function App() {
     );
   }
 
-  if (!user) {
-    return <LoginPage onSignIn={handleSignIn} />;
-  }
-
   return (
     <Router>
-      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-        <Sidebar 
-          isOpen={isSidebarOpen} 
-          toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
-          onNewSigning={() => setIsNewSigningModalOpen(true)}
-          onNewExpense={() => setIsNewExpenseModalOpen(true)}
-          onExpenseTypes={() => setIsExpenseTypesModalOpen(true)}
-          onRecurringExpense={() => setIsRecurringExpenseModalOpen(true)}
-          onNewMileage={() => setIsNewMileageModalOpen(true)}
-          user={user}
-          onSignIn={handleSignIn}
-          onSignOut={handleSignOut}
-        />
-        
-        <div className={cn(
-          "transition-all duration-300 ease-in-out min-h-screen flex flex-col",
-          isSidebarOpen ? "lg:pl-[280px]" : "lg:pl-[80px]"
-        )}>
-          <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+      {!user ? (
+        <LoginPage onSignIn={handleSignIn} />
+      ) : (
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+          <Sidebar 
+            isOpen={isSidebarOpen} 
+            toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+            onNewSigning={() => setIsNewSigningModalOpen(true)}
+            onNewExpense={() => setIsNewExpenseModalOpen(true)}
+            onExpenseTypes={() => setIsExpenseTypesModalOpen(true)}
+            onRecurringExpense={() => setIsRecurringExpenseModalOpen(true)}
+            onNewMileage={() => setIsNewMileageModalOpen(true)}
+            user={user}
+            onSignIn={handleSignIn}
+            onSignOut={handleSignOut}
+          />
           
-          <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
-            <Routes>
-              <Route path="/" element={<Dashboard appointments={appointments} expenses={expenses} />} />
-              <Route 
-                path="/appointments" 
-                element={
-                  <Appointments 
-                    appointments={appointments} 
-                    onNewSigning={() => {
-                      setSelectedAppointment(null);
-                      setIsNewSigningModalOpen(true);
-                    }} 
-                    onViewSigning={(app) => {
-                      setSelectedAppointment(app);
-                      setIsNewSigningModalOpen(true);
-                    }}
-                    onDelete={handleDeleteAppointments}
-                  />
-                } 
-              />
-              <Route path="/calendar" element={<CalendarView appointments={appointments} />} />
-              <Route 
-                path="/clients" 
-                element={
-                  <Clients 
-                    clients={clients} 
-                    onNewClient={() => {
-                      setSelectedClient(null);
-                      setIsNewClientModalOpen(true);
-                    }}
-                    onEditClient={(c) => {
-                      setSelectedClient(c);
-                      setIsNewClientModalOpen(true);
-                    }}
-                    onDeleteClient={handleDeleteClient}
-                  />
-                } 
-              />
-              <Route 
-                path="/mileage" 
-                element={
-                  <MileageView 
-                    mileage={mileage} 
-                    onNewMileage={() => setIsNewMileageModalOpen(true)} 
-                    onDeleteMileage={handleDeleteMileage}
-                  />
-                } 
-              />
-              <Route path="/reports/*" element={<Reports />} />
-              <Route 
-                path="/accounting" 
-                element={
-                  <Accounting 
-                    appointments={appointments} 
-                    expenses={expenses} 
-                    onNewExpense={() => setIsNewExpenseModalOpen(true)}
-                    onDeleteExpense={handleDeleteExpense}
-                  />
-                } 
-              />
-              <Route path="/tools" element={<ToolsView />} />
-              <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} />} />
-            </Routes>
-          </main>
+          <div className={cn(
+            "transition-all duration-300 ease-in-out min-h-screen flex flex-col",
+            isSidebarOpen ? "lg:pl-[280px]" : "lg:pl-[80px]"
+          )}>
+            <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+            
+            <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
+              <Routes>
+                <Route path="/" element={<Dashboard appointments={appointments} expenses={expenses} />} />
+                <Route 
+                  path="/appointments" 
+                  element={
+                    <Appointments 
+                      appointments={appointments} 
+                      onNewSigning={() => {
+                        setSelectedAppointment(null);
+                        setIsNewSigningModalOpen(true);
+                      }} 
+                      onViewSigning={(app) => {
+                        setSelectedAppointment(app);
+                        setIsNewSigningModalOpen(true);
+                      }}
+                      onDelete={handleDeleteAppointments}
+                    />
+                  } 
+                />
+                <Route path="/calendar" element={<CalendarView appointments={appointments} />} />
+                <Route 
+                  path="/clients" 
+                  element={
+                    <Clients 
+                      clients={clients} 
+                      onNewClient={() => {
+                        setSelectedClient(null);
+                        setIsNewClientModalOpen(true);
+                      }}
+                      onEditClient={(c) => {
+                        setSelectedClient(c);
+                        setIsNewClientModalOpen(true);
+                      }}
+                      onDeleteClient={handleDeleteClient}
+                    />
+                  } 
+                />
+                <Route 
+                  path="/mileage" 
+                  element={
+                    <MileageView 
+                      mileage={mileage} 
+                      onNewMileage={() => setIsNewMileageModalOpen(true)} 
+                      onDeleteMileage={handleDeleteMileage}
+                    />
+                  } 
+                />
+                <Route path="/reports/*" element={<Reports />} />
+                <Route 
+                  path="/accounting" 
+                  element={
+                    <Accounting 
+                      appointments={appointments} 
+                      expenses={expenses} 
+                      onNewExpense={() => setIsNewExpenseModalOpen(true)}
+                      onDeleteExpense={handleDeleteExpense}
+                    />
+                  } 
+                />
+                <Route path="/tools" element={<ToolsView />} />
+                <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} />} />
+              </Routes>
+            </main>
 
-          <footer className="py-6 px-8 border-t border-slate-200 text-center text-slate-400 text-sm">
-            &copy; {new Date().getFullYear()} NotaryPro App. All rights reserved.
-          </footer>
+            <footer className="py-6 px-8 border-t border-slate-200 text-center text-slate-400 text-sm">
+              &copy; {new Date().getFullYear()} NotaryPro App. All rights reserved.
+            </footer>
+          </div>
+
+          <AnimatePresence>
+            {isNewSigningModalOpen && (
+              <NewSigningModal 
+                isOpen={isNewSigningModalOpen} 
+                onClose={() => {
+                  setIsNewSigningModalOpen(false);
+                  setSelectedAppointment(null);
+                }} 
+                appointment={selectedAppointment}
+                onSave={(app) => {
+                  handleSaveAppointment(app);
+                  setIsNewSigningModalOpen(false);
+                  setSelectedAppointment(null);
+                }}
+              />
+            )}
+
+            {isNewExpenseModalOpen && (
+              <NewExpenseModal 
+                isOpen={isNewExpenseModalOpen} 
+                onClose={() => setIsNewExpenseModalOpen(false)} 
+                onSave={(expense) => {
+                  handleSaveExpense(expense);
+                  setIsNewExpenseModalOpen(false);
+                }}
+              />
+            )}
+
+            {isExpenseTypesModalOpen && (
+              <ExpenseTypesModal 
+                isOpen={isExpenseTypesModalOpen} 
+                onClose={() => setIsExpenseTypesModalOpen(false)} 
+              />
+            )}
+
+            {isRecurringExpenseModalOpen && (
+              <RecurringExpenseModal 
+                isOpen={isRecurringExpenseModalOpen} 
+                onClose={() => setIsRecurringExpenseModalOpen(false)} 
+              />
+            )}
+
+            {isNewMileageModalOpen && (
+              <NewMileageModal 
+                isOpen={isNewMileageModalOpen} 
+                onClose={() => setIsNewMileageModalOpen(false)} 
+                onSave={(m) => {
+                  handleSaveMileage(m);
+                  setIsNewMileageModalOpen(false);
+                }}
+              />
+            )}
+
+            {isNewClientModalOpen && (
+              <NewClientModal 
+                isOpen={isNewClientModalOpen} 
+                onClose={() => {
+                  setIsNewClientModalOpen(false);
+                  setSelectedClient(null);
+                }} 
+                client={selectedClient}
+                onSave={(c) => {
+                  handleSaveClient(c);
+                  setIsNewClientModalOpen(false);
+                  setSelectedClient(null);
+                }}
+              />
+            )}
+
+            {isProfileModalOpen && (
+              <BusinessProfileModal 
+                isOpen={isProfileModalOpen} 
+                onClose={() => setIsProfileModalOpen(false)} 
+                profile={businessProfile}
+                onSave={(updatedProfile) => {
+                  handleSaveProfile(updatedProfile);
+                  setIsProfileModalOpen(false);
+                }}
+              />
+            )}
+          </AnimatePresence>
         </div>
-      </div>
-
-      <AnimatePresence>
-        {isNewSigningModalOpen && (
-          <NewSigningModal 
-            isOpen={isNewSigningModalOpen} 
-            onClose={() => {
-              setIsNewSigningModalOpen(false);
-              setSelectedAppointment(null);
-            }} 
-            appointment={selectedAppointment}
-            onSave={(app) => {
-              handleSaveAppointment(app);
-              setIsNewSigningModalOpen(false);
-              setSelectedAppointment(null);
-            }}
-          />
-        )}
-
-        {isNewExpenseModalOpen && (
-          <NewExpenseModal 
-            isOpen={isNewExpenseModalOpen} 
-            onClose={() => setIsNewExpenseModalOpen(false)} 
-            onSave={(expense) => {
-              handleSaveExpense(expense);
-              setIsNewExpenseModalOpen(false);
-            }}
-          />
-        )}
-
-        {isExpenseTypesModalOpen && (
-          <ExpenseTypesModal 
-            isOpen={isExpenseTypesModalOpen} 
-            onClose={() => setIsExpenseTypesModalOpen(false)} 
-          />
-        )}
-
-        {isRecurringExpenseModalOpen && (
-          <RecurringExpenseModal 
-            isOpen={isRecurringExpenseModalOpen} 
-            onClose={() => setIsRecurringExpenseModalOpen(false)} 
-          />
-        )}
-
-        {isNewMileageModalOpen && (
-          <NewMileageModal 
-            isOpen={isNewMileageModalOpen} 
-            onClose={() => setIsNewMileageModalOpen(false)} 
-            onSave={(m) => {
-              handleSaveMileage(m);
-              setIsNewMileageModalOpen(false);
-            }}
-          />
-        )}
-
-        {isNewClientModalOpen && (
-          <NewClientModal 
-            isOpen={isNewClientModalOpen} 
-            onClose={() => {
-              setIsNewClientModalOpen(false);
-              setSelectedClient(null);
-            }} 
-            client={selectedClient}
-            onSave={(c) => {
-              handleSaveClient(c);
-              setIsNewClientModalOpen(false);
-              setSelectedClient(null);
-            }}
-          />
-        )}
-
-        {isProfileModalOpen && (
-          <BusinessProfileModal 
-            isOpen={isProfileModalOpen} 
-            onClose={() => setIsProfileModalOpen(false)} 
-            profile={businessProfile}
-            onSave={(updatedProfile) => {
-              handleSaveProfile(updatedProfile);
-              setIsProfileModalOpen(false);
-            }}
-          />
-        )}
-      </AnimatePresence>
+      )}
     </Router>
   );
 }
