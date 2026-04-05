@@ -5,11 +5,21 @@ export interface Appointment {
   date: string;
   time: string;
   clientName: string;
+  firstName?: string;
+  lastName?: string;
   signingType: string;
   location: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
   fee: number;
   status: AppointmentStatus;
   notes?: string;
+  orderNumber?: string;
+  loanNumber?: string;
+  durationHours?: string;
+  durationMinutes?: string;
 }
 
 export interface Client {

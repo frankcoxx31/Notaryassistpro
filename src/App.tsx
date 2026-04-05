@@ -169,11 +169,21 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     date: '2026-04-02',
     time: '01:00 PM',
     clientName: 'Melissa Caballero',
+    firstName: 'Melissa',
+    lastName: 'Caballero',
     signingType: 'Attorney Hybrid Refinance',
     location: '1800 Nikkie Pl Indian Trail, NC 28079',
+    address: '1800 Nikkie Pl',
+    city: 'Indian Trail',
+    state: 'North Carolina',
+    zip: '28079',
     fee: 65,
     status: 'Scheduled',
-    notes: 'Order No. 75785626. Loan #: 3582834992. Cell: (980) 406-1463'
+    orderNumber: '75785626',
+    loanNumber: '3582834992',
+    durationHours: '1 hour',
+    durationMinutes: '0 mins',
+    notes: 'Cell: (980) 406-1463'
   }
 ];
 
@@ -273,35 +283,19 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
             {/* Left Column */}
             <div className="space-y-4">
               <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Date:</label>
-                <div className="flex-1 flex border border-slate-300 rounded overflow-hidden">
-                  <input 
-                    type="date" 
-                    defaultValue={appointment?.date || format(new Date(), 'yyyy-MM-dd')} 
-                    className="flex-1 px-3 py-2 text-sm outline-none" 
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Time:</label>
-                <div className="flex-1 flex gap-2">
-                  <input 
-                    type="time" 
-                    defaultValue={appointment?.time ? format(parse(appointment.time, 'hh:mm a', new Date()), 'HH:mm') : "10:00"}
-                    className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Duration:</label>
                 <div className="flex-1 flex gap-2">
-                  <select className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none">
+                  <select 
+                    defaultValue={appointment?.durationHours || "1 hour"}
+                    className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                  >
                     <option>1 hour</option>
                     <option>2 hours</option>
                   </select>
-                  <select className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none">
+                  <select 
+                    defaultValue={appointment?.durationMinutes || "0 mins"}
+                    className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                  >
                     <option>0 mins</option>
                     <option>30 mins</option>
                   </select>
@@ -317,7 +311,7 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                   <input 
                     type="number" 
                     defaultValue={appointment?.fee || 150} 
-                    className="flex-1 px-3 py-2 text-sm outline-none" 
+                    className="flex-1 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                   />
                 </div>
               </div>
@@ -326,33 +320,21 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
             {/* Right Column */}
             <div className="space-y-4">
               <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Customer:</label>
-                <select className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none">
-                  <option>Rocket Close</option>
-                  <option>Title First</option>
-                </select>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Contact:</label>
-                <select className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none">
-                  <option>Jane Doe</option>
-                  <option>John Smith</option>
-                </select>
-              </div>
-
-              <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Order #:</label>
                 <input 
                   type="text" 
-                  defaultValue={appointment?.id ? `75787${410 + parseInt(appointment.id)}` : ""}
-                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none" 
+                  defaultValue={appointment?.orderNumber || (appointment?.id ? `75787${410 + parseInt(appointment.id)}` : "")}
+                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                 />
               </div>
 
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Loan #:</label>
-                <input type="text" className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none" />
+                <input 
+                  type="text" 
+                  defaultValue={appointment?.loanNumber || ""}
+                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                />
               </div>
             </div>
           </div>
@@ -390,8 +372,7 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">Last Name:</label>
                     <input 
                       type="text" 
-                      defaultValue={appointment?.clientName.split(' ')[1] || ""}
-                      placeholder="Required" 
+                      defaultValue={appointment?.lastName || appointment?.clientName.split(' ')[1] || ""}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
@@ -399,38 +380,44 @@ const NewSigningModal = ({ isOpen, onClose, appointment }: { isOpen: boolean; on
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">First Name:</label>
                     <input 
                       type="text" 
-                      defaultValue={appointment?.clientName.split(' ')[0] || ""}
+                      defaultValue={appointment?.firstName || appointment?.clientName.split(' ')[0] || ""}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
-                  <div className="flex items-start gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right mt-2">Address:</label>
-                    <div className="flex-1 space-y-2">
-                      <input 
-                        type="text" 
-                        defaultValue={appointment?.location || ""}
-                        placeholder="Enter a location" 
-                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                      />
-                    </div>
+                  <div className="flex items-center gap-4">
+                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Address:</label>
+                    <input 
+                      type="text" 
+                      defaultValue={appointment?.address || appointment?.location || ""}
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                    />
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">City:</label>
                     <input 
                       type="text" 
-                      defaultValue={appointment?.location.split(',')[1]?.trim() || ""}
+                      defaultValue={appointment?.city || appointment?.location.split(',')[1]?.trim() || ""}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">State:</label>
-                    <select className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500">
+                    <select 
+                      defaultValue={appointment?.state || "North Carolina"}
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                    >
                       <option>North Carolina</option>
+                      <option>California</option>
+                      <option>Texas</option>
                     </select>
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">Zip:</label>
-                    <input type="text" className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" />
+                    <input 
+                      type="text" 
+                      defaultValue={appointment?.zip || ""}
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                    />
                   </div>
                 </div>
               )}
