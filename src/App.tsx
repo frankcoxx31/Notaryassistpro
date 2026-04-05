@@ -1970,6 +1970,8 @@ const CalendarView = ({ appointments }: { appointments: Appointment[] }) => {
 };
 
 const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment) => void }) => {
+  const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
+
   const handlePrint = () => {
     window.print();
   };
@@ -1977,58 +1979,67 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
   const handlePrintJob = (app: Appointment) => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
+      const formattedDate = format(new Date(app.date), 'EEEE, MMMM d, yyyy');
+      const rescissionDate = format(subDays(new Date(app.date), 3), 'M/d/yyyy'); // Example logic
+      
       printWindow.document.write(`
         <html>
           <head>
             <title>Signing Report - ${app.clientName}</title>
             <style>
-              body { font-family: sans-serif; padding: 40px; color: #334155; }
-              .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
-              .header h1 { margin: 0; color: #0f172a; font-size: 24px; }
-              .section { margin-bottom: 24px; }
-              .section h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
-              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-              .item { margin-bottom: 12px; }
-              .label { font-weight: bold; font-size: 12px; color: #94a3b8; display: block; margin-bottom: 2px; }
-              .value { font-size: 15px; color: #1e293b; }
-              .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center; }
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #334155; max-width: 800px; margin: 0 auto; }
+              .header-box { background-color: #004a8d; color: white; padding: 25px 30px; margin-bottom: 40px; border-radius: 2px; }
+              .header-box h1 { margin: 0; font-size: 24px; font-weight: 500; }
+              .header-box p { margin: 8px 0 0 0; font-size: 15px; opacity: 0.9; }
+              
+              .main-info { text-align: center; margin-bottom: 40px; }
+              .main-info h2 { font-size: 24px; font-weight: 700; color: #000; margin-bottom: 5px; }
+              .rescission { color: #cbd5e1; font-size: 14px; margin-bottom: 30px; }
+              
+              .details-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; margin-bottom: 40px; padding: 0 20px; }
+              .details-left { line-height: 1.6; font-size: 16px; color: #000; }
+              .details-right { line-height: 1.6; font-size: 16px; color: #000; }
+              
+              .notes-section { padding: 0 20px; margin-top: 20px; }
+              .notes-label { font-size: 13px; font-weight: bold; color: #000; margin-bottom: 15px; display: block; }
+              
+              .bottom-line { border: none; border-top: 4px solid #004a8d; margin-top: 60px; }
+              
+              @media print {
+                body { padding: 20px; }
+                .header-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              }
             </style>
           </head>
           <body>
-            <div class="header">
+            <div class="header-box">
               <h1>Signing Report</h1>
-              <p>Generated on ${new Date().toLocaleDateString()}</p>
+              <p>Frank Coxx Sunday, April 5, 2026</p>
             </div>
             
-            <div class="section">
-              <h2>Client Information</h2>
-              <div class="grid">
-                <div class="item"><span class="label">Client Name</span><span class="value">${app.clientName}</span></div>
-                <div class="item"><span class="label">Signing Type</span><span class="value">${app.signingType}</span></div>
+            <div class="main-info">
+              <h2>${formattedDate} : ${app.time}</h2>
+              <div class="rescission">Rescission Date: ${rescissionDate}</div>
+            </div>
+
+            <div class="details-grid">
+              <div class="details-left">
+                <div>${app.clientName}</div>
+                <div>138 August Ln</div>
+                <div>Stallings 28104</div>
+                <div>Cell: 6077610961</div>
+              </div>
+              <div class="details-right">
+                <div>Rocket Close</div>
+                <div style="margin-top: 20px;">Order No. 75787${410 + parseInt(app.id)}</div>
               </div>
             </div>
 
-            <div class="section">
-              <h2>Appointment Details</h2>
-              <div class="grid">
-                <div class="item"><span class="label">Date</span><span class="value">${app.date}</span></div>
-                <div class="item"><span class="label">Time</span><span class="value">${app.time}</span></div>
-                <div class="item"><span class="label">Location</span><span class="value">${app.location}</span></div>
-                <div class="item"><span class="label">Status</span><span class="value">${app.status}</span></div>
-              </div>
+            <div class="notes-section">
+              <span class="notes-label">NOTES:</span>
             </div>
 
-            <div class="section">
-              <h2>Financials</h2>
-              <div class="grid">
-                <div class="item"><span class="label">Fee</span><span class="value">$${app.fee.toFixed(2)}</span></div>
-                <div class="item"><span class="label">Order Number</span><span class="value">75787${410 + parseInt(app.id)}</span></div>
-              </div>
-            </div>
-
-            <div class="footer">
-              &copy; ${new Date().getFullYear()} Notary Management System
-            </div>
+            <hr class="bottom-line" />
           </body>
         </html>
       `);
@@ -2118,30 +2129,50 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning }: { appointme
           >
             <Download className="w-4 h-4 text-sky-600" /> Export
           </button>
-          <div className="relative group/batch">
-            <button className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200">
+          <div className="relative">
+            <button 
+              onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
+              className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200"
+            >
               Batch Actions <ChevronDown className="w-3 h-3" />
             </button>
-            <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg hidden group-hover/batch:block z-50">
-              <button 
-                onClick={handleApplyPayments}
-                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
-              >
-                Apply Payments
-              </button>
-              <button 
-                onClick={handleBatchInvoice}
-                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
-              >
-                Batch Invoice
-              </button>
-              <button 
-                onClick={handleDelete}
-                className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" /> Delete Selected
-              </button>
-            </div>
+            {isBatchDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setIsBatchDropdownOpen(false)}
+                />
+                <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <button 
+                    onClick={() => {
+                      handleApplyPayments();
+                      setIsBatchDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+                  >
+                    Apply Payments
+                  </button>
+                  <button 
+                    onClick={() => {
+                      handleBatchInvoice();
+                      setIsBatchDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+                  >
+                    Batch Invoice
+                  </button>
+                  <button 
+                    onClick={() => {
+                      handleDelete();
+                      setIsBatchDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete Selected
+                  </button>
+                </div>
+              </>
+            )}
           </div>
           <button 
             onClick={handleImport}
