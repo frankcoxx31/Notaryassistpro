@@ -2140,7 +2140,7 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
   );
 };
 
-const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onImport, userId }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void; userId: string }) => {
+const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onImport, onUpdate, userId }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void; onUpdate: (app: Appointment) => void; userId: string }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
@@ -2563,7 +2563,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                 <th className="px-3 py-3">Date / Time <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Last Name <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Type of work <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">Location <ChevronDown className="inline w-3 h-3" /></th>
+                <th className="px-3 py-3">City <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Customer <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Amount</th>
                 <th className="px-3 py-3">Invoice Sent <ChevronDown className="inline w-3 h-3" /></th>
@@ -2606,7 +2606,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                       onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(app.location)}`, '_blank')}
                       className="text-sky-600 hover:underline"
                     >
-                      {app.location.split(',')[1]?.trim() || app.location}
+                      {app.city || app.location.split(',')[1]?.trim() || app.location}
                     </button>
                   </td>
                   <td className="px-3 py-3">
@@ -2621,13 +2621,16 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                   <td className="px-3 py-3">
                     <input 
                       type="date" 
-                      defaultValue={format(subDays(new Date(app.date), 10), 'yyyy-MM-dd')}
+                      value={app.invoiceSentDate || ""}
+                      onChange={(e) => onUpdate({ ...app, invoiceSentDate: e.target.value })}
                       className="text-xs border border-slate-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-sky-500"
                     />
                   </td>
                   <td className="px-3 py-3">
                     <input 
                       type="date"
+                      value={app.invoicePaidDate || ""}
+                      onChange={(e) => onUpdate({ ...app, invoicePaidDate: e.target.value })}
                       className="text-xs border border-slate-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-sky-500"
                     />
                   </td>
@@ -3212,6 +3215,7 @@ export default function App() {
                       }}
                       onDelete={handleDeleteAppointments}
                       onImport={handleImport}
+                      onUpdate={handleSaveAppointment}
                       userId={user?.uid || 'mock-user'}
                     />
                   } 

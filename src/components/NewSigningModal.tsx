@@ -445,6 +445,24 @@ const NewSigningModal = ({
                         <p className="text-slate-500 text-xs mb-1">Invoice Date</p>
                         <p className="font-bold text-slate-900">{formData.date}</p>
                       </div>
+                      <div>
+                        <p className="text-slate-500 text-xs mb-1">Invoice Sent Date</p>
+                        <input 
+                          type="date" 
+                          value={formData.invoiceSentDate || ""}
+                          onChange={(e) => setFormData({ ...formData, invoiceSentDate: e.target.value })}
+                          className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-slate-500 text-xs mb-1">Invoice Paid Date</p>
+                        <input 
+                          type="date" 
+                          value={formData.invoicePaidDate || ""}
+                          onChange={(e) => setFormData({ ...formData, invoicePaidDate: e.target.value })}
+                          className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                        />
+                      </div>
                     </div>
                   </div>
                   

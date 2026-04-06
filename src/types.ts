@@ -25,6 +25,8 @@ export interface Appointment {
   loanNumber?: string;
   durationHours?: string;
   durationMinutes?: string;
+  invoiceSentDate?: string;
+  invoicePaidDate?: string;
 }
 
 export interface Client {
