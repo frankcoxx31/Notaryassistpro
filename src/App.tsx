@@ -2321,13 +2321,15 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
 
   // Sort appointments by combined date and time in descending order (newest at the top)
   const sortedAppointments = useMemo(() => {
-    return [...appointments]
-      .map(app => ({
-        ...app,
-        sortableDateTime: parseSafeDateTime(app.date, app.time).toISOString()
-      }))
+    return appointments
+      .map(app => {
+        if (app.sortableDateTime) return app;
+        return {
+          ...app,
+          sortableDateTime: parseSafeDateTime(app.date, app.time).toISOString()
+        };
+      })
       .sort((a, b) => {
-        // Deterministic string comparison for ISO dates
         if (a.sortableDateTime < b.sortableDateTime) return 1;
         if (a.sortableDateTime > b.sortableDateTime) return -1;
         return 0;
@@ -2922,7 +2924,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                       {app.invoiceNumber || "N/A"}
                     </button>
                   </td>
-                  <td className="px-3 py-3 text-slate-600">{10 + idx * 8}</td>
+                  <td className="px-3 py-3 text-slate-600">{app.mileage || "N/A"}</td>
                   <td className="px-3 py-3 text-slate-600">{app.orderNumber || "N/A"}</td>
                   <td className="px-3 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
