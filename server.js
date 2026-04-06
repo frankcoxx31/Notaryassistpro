@@ -14,7 +14,7 @@ process.on("unhandledRejection", (reason, promise) => {
 });
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3e3;
+  const PORT = Number(process.env.PORT) || 3e3;
   app.use(compression());
   app.use(express.json());
   app.get("/api/health", (req, res) => {
@@ -33,7 +33,7 @@ async function startServer() {
       console.error(`ERROR: 'dist' folder not found at ${distPath}. Build might have failed.`);
     }
     app.use(express.static(distPath));
-    app.get("/*", (req, res) => {
+    app.get("*all", (req, res) => {
       const indexPath = path.join(distPath, "index.html");
       res.sendFile(indexPath, (err) => {
         if (err) {
