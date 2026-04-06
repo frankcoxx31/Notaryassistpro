@@ -151,25 +151,33 @@ const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]
             }
           },
           {
-            text: `Extract all notary signing appointments from this PDF. 
+            text: `Read the PDF as plain text. 
             
+            Find the exact label: "Scheduled Closing Date and Time:".
+            Copy the EXACT text that appears immediately after that label on the same line.
+            Do NOT interpret, normalize, convert, or reformat this value. 
+            Do NOT infer the date or change the day.
+            Return the value exactly as it appears in the PDF.
+            
+            Example: "April 02, 2026 1:00 PM"
+
             IMPORTANT FIELD DEFINITIONS:
-            - clientName: The name of the person signing the documents (the Signer).
-            - customer: The company or agency hiring the notary (e.g., "Rocket Close", "Snapdocs", "Title Company").
-            - location: The full address of the signing.
+            - date: Copy the EXACT text from "Scheduled Closing Date and Time:".
+            - time: Copy the EXACT time portion from "Scheduled Closing Date and Time:" (e.g., "1:00 PM").
+            - clientName: The name of the person signing the documents (often listed as "Borrower" or "Signer").
+            - customer: The company or agency hiring the notary (e.g., "Rocket Close", "Snapdocs").
+            - location: The full address of the signing (often listed as "Closing Location" or "Property Address").
             - address: Just the street address part of the location.
             - city: Just the city name.
             - state: The state (e.g., "NC").
             - zip: The 5-digit zip code.
-            - date: The date of the signing in YYYY-MM-DD format.
-            - time: The time of the signing (e.g., "10:00 AM").
-            - fee: The numeric amount being paid to the notary.
-            - orderNumber: The order or reference number for the signing.
-            - invoiceNumber: The invoice number for the signing.
-            - loanNumber: The loan number associated with the signing.
-            - phone: The phone number of the signer.
+            - fee: The numeric amount being paid to the notary (look for "Signing: $XX.XX").
+            - orderNumber: The order or reference number (look for "Order #").
+            - invoiceNumber: The invoice number.
+            - loanNumber: The loan number (look for "Closing Loan #" or "Primary Loan #").
+            - phone: The phone number of the signer (look for "Mobile" under Borrower).
             - email: The email address of the signer.
-            - signingType: The type of signing (e.g., "Refinance", "Purchase", "Seller", "HELOC").
+            - signingType: The type of signing (e.g., "Refinance", "Purchase"). Look for "Transaction Type" or the service description.
             - notes: Any special instructions or notes.
 
             Return them as a JSON array of objects. If a field is missing, use an empty string or a sensible default. Ensure the output is ONLY the JSON array.`
