@@ -459,7 +459,14 @@ const NewSigningModal = ({
                         <input 
                           type="date" 
                           value={formData.invoicePaidDate || ""}
-                          onChange={(e) => setFormData({ ...formData, invoicePaidDate: e.target.value })}
+                          onChange={(e) => {
+                            const newDate = e.target.value;
+                            setFormData({ 
+                              ...formData, 
+                              invoicePaidDate: newDate,
+                              status: newDate ? 'Paid' : (formData.status === 'Paid' ? 'Completed' : formData.status)
+                            });
+                          }}
                           className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500"
                         />
                       </div>

@@ -1907,10 +1907,10 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
   const totalSignings = appointments.length;
   const totalGross = appointments.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
   const totalPaid = appointments
-    .filter(a => (a.status as string) === 'Paid')
+    .filter(a => (a.status as string) === 'Paid' || a.invoicePaidDate)
     .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
   const totalUnpaid = appointments
-    .filter(a => (a.status as string) !== 'Paid')
+    .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate)
     .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const netTotal = totalGross - totalExpenses;
@@ -2685,10 +2685,10 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
   const stats = useMemo(() => {
     const totalSignings = appointments.length;
     const paidIncome = appointments
-      .filter(a => (a.status as string) === 'Paid')
+      .filter(a => (a.status as string) === 'Paid' || a.invoicePaidDate)
       .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
     const unpaidIncome = appointments
-      .filter(a => (a.status as string) !== 'Paid')
+      .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate)
       .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
     const totalFees = appointments.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
 
@@ -2903,7 +2903,14 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                     <input 
                       type="date"
                       value={app.invoicePaidDate || ""}
-                      onChange={(e) => onUpdate({ ...app, invoicePaidDate: e.target.value })}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        onUpdate({ 
+                          ...app, 
+                          invoicePaidDate: newDate,
+                          status: newDate ? 'Paid' : (app.status === 'Paid' ? 'Completed' : app.status)
+                        });
+                      }}
                       className="text-xs border border-slate-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-sky-500"
                     />
                   </td>
