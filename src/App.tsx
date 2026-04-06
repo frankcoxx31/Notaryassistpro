@@ -195,6 +195,37 @@ const parseSafeDateTime = (dateStr: string, timeStr: string = ''): Date => {
   }
 };
 
+const parseLocation = (loc: string) => {
+  const parts = loc.split(',').map(p => p.trim());
+  let address = '', city = '', state = '', zip = '';
+  
+  if (parts.length >= 3) {
+    address = parts[0];
+    city = parts[1];
+    const stateZip = parts[2].split(' ').map(p => p.trim()).filter(p => p);
+    if (stateZip.length >= 2) {
+      state = stateZip[0];
+      zip = stateZip[1];
+    } else {
+      state = stateZip[0] || '';
+    }
+  } else if (parts.length === 2) {
+    address = parts[0];
+    city = parts[1];
+  } else {
+    address = loc;
+  }
+  return { address, city, state, zip };
+};
+
+const splitName = (name: string) => {
+  const parts = name.split(' ').map(p => p.trim()).filter(p => p);
+  if (parts.length >= 2) {
+    return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+  }
+  return { firstName: name, lastName: '' };
+};
+
 const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
   
@@ -1255,8 +1286,22 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onE
           const feeIdx = headers.findIndex(h => h.includes('fee') || h.includes('amount'));
           const statusIdx = headers.findIndex(h => h.includes('status'));
           const notesIdx = headers.findIndex(h => h.includes('note'));
+          
+          // New headers
+          const addressIdx = headers.findIndex(h => h.includes('address'));
+          const cityIdx = headers.findIndex(h => h.includes('city'));
+          const stateIdx = headers.findIndex(h => h.includes('state'));
+          const zipIdx = headers.findIndex(h => h.includes('zip'));
+          const orderNumIdx = headers.findIndex(h => h.includes('ordernum') || h.includes('order#'));
+          const invoiceNumIdx = headers.findIndex(h => h.includes('invoicenum') || h.includes('invoice#'));
+          const firstNameIdx = headers.findIndex(h => h.includes('signerfirstname') || h.includes('first name'));
+          const lastNameIdx = headers.findIndex(h => h.includes('signerlastname') || h.includes('last name'));
+          const homePhoneIdx = headers.findIndex(h => h.includes('signerhomephone') || h.includes('home phone'));
+          const cellPhoneIdx = headers.findIndex(h => h.includes('signercellphone') || h.includes('cell phone'));
+          const workPhoneIdx = headers.findIndex(h => h.includes('signerworkphone') || h.includes('work phone'));
+          const emailIdx = headers.findIndex(h => h.includes('signeremail') || h.includes('email'));
 
-          const startIdx = dateIdx !== -1 || clientIdx !== -1 ? 1 : 0;
+          const startIdx = dateIdx !== -1 || clientIdx !== -1 || firstNameIdx !== -1 ? 1 : 0;
           
           for (let i = startIdx; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -1266,17 +1311,60 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onE
             if (parts.length >= 3) {
               const date = (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd');
               const time = (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM';
+              
+              // Handle Client split
+              let firstName = firstNameIdx !== -1 ? parts[firstNameIdx] : '';
+              let lastName = lastNameIdx !== -1 ? parts[lastNameIdx] : '';
+              let clientName = clientIdx !== -1 ? parts[clientIdx] : '';
+
+              if (!firstName && !lastName && clientName) {
+                const split = splitName(clientName);
+                firstName = split.firstName;
+                lastName = split.lastName;
+              } else if (firstName || lastName) {
+                clientName = `${firstName} ${lastName}`.trim();
+              }
+
+              // Handle Location parse
+              let address = addressIdx !== -1 ? parts[addressIdx] : '';
+              let city = cityIdx !== -1 ? parts[cityIdx] : '';
+              let state = stateIdx !== -1 ? parts[stateIdx] : '';
+              let zip = zipIdx !== -1 ? parts[zipIdx] : '';
+              let location = locationIdx !== -1 ? parts[locationIdx] : '';
+
+              if (!address && !city && !state && !zip && location) {
+                const parsed = parseLocation(location);
+                address = parsed.address;
+                city = parsed.city;
+                state = parsed.state;
+                zip = parsed.zip;
+              } else if (address || city || state || zip) {
+                location = `${address}, ${city}, ${state} ${zip}`.trim().replace(/, ,/g, ',');
+              }
+
               newAppointments.push({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: userId,
                 date: date,
                 time: time,
-                clientName: (clientIdx !== -1 ? parts[clientIdx] : '') || 'Unknown Client',
+                clientName: clientName || 'Unknown Client',
+                firstName: firstName,
+                lastName: lastName,
                 signingType: (typeIdx !== -1 ? parts[typeIdx] : '') || 'General Notary Work',
-                location: (locationIdx !== -1 ? parts[locationIdx] : '') || 'TBD',
+                location: location || 'TBD',
+                address: address,
+                city: city,
+                state: state,
+                zip: zip,
                 fee: feeIdx !== -1 ? parseFloat(parts[feeIdx]) || 0 : 0,
                 status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
                 notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`,
+                orderNumber: orderNumIdx !== -1 ? parts[orderNumIdx] : '',
+                invoiceNumber: invoiceNumIdx !== -1 ? parts[invoiceNumIdx] : '',
+                homePhone: homePhoneIdx !== -1 ? parts[homePhoneIdx] : '',
+                phone: cellPhoneIdx !== -1 ? parts[cellPhoneIdx] : '',
+                workPhone: workPhoneIdx !== -1 ? parts[workPhoneIdx] : '',
+                email: emailIdx !== -1 ? parts[emailIdx] : '',
                 sortableDateTime: parseSafeDateTime(date, time).toISOString()
               });
             }
@@ -1286,7 +1374,7 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onE
             onImport(newAppointments);
             alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
           } else {
-            alert('Could not find any valid signing records in the CSV file. Please ensure it has columns for Date, Time, Client, Type, and Location.');
+            alert('Could not find any valid signing records in the CSV file. Please ensure it has the correct columns.');
           }
         };
         reader.readAsText(file);
@@ -2394,15 +2482,28 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
   };
 
   const handleExport = () => {
-    const headers = ["Date", "Time", "Client", "Type", "Location", "Fee", "Status"];
+    const headers = [
+      "Date", "Time", "Address", "City", "State", "Zip", 
+      "OrderNum", "InvoiceNum", "Amount", 
+      "SignerFirstName", "SignerLastName", 
+      "SignerHomePhone", "SignerCellPhone", "SignerWorkPhone", "SignerEmail"
+    ];
     const csvData = appointments.map(app => [
       app.date,
       app.time,
-      app.clientName,
-      app.signingType,
-      app.location,
+      app.address || '',
+      app.city || '',
+      app.state || '',
+      app.zip || '',
+      app.orderNumber || '',
+      app.invoiceNumber || '',
       app.fee,
-      app.status
+      app.firstName || '',
+      app.lastName || '',
+      app.homePhone || '',
+      app.phone || '',
+      app.workPhone || '',
+      app.email || ''
     ]);
     
     const csvContent = [headers, ...csvData].map(e => e.join(",")).join("\n");
@@ -2462,8 +2563,22 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
           const feeIdx = headers.findIndex(h => h.includes('fee') || h.includes('amount'));
           const statusIdx = headers.findIndex(h => h.includes('status'));
           const notesIdx = headers.findIndex(h => h.includes('note'));
+          
+          // New headers
+          const addressIdx = headers.findIndex(h => h.includes('address'));
+          const cityIdx = headers.findIndex(h => h.includes('city'));
+          const stateIdx = headers.findIndex(h => h.includes('state'));
+          const zipIdx = headers.findIndex(h => h.includes('zip'));
+          const orderNumIdx = headers.findIndex(h => h.includes('ordernum') || h.includes('order#'));
+          const invoiceNumIdx = headers.findIndex(h => h.includes('invoicenum') || h.includes('invoice#'));
+          const firstNameIdx = headers.findIndex(h => h.includes('signerfirstname') || h.includes('first name'));
+          const lastNameIdx = headers.findIndex(h => h.includes('signerlastname') || h.includes('last name'));
+          const homePhoneIdx = headers.findIndex(h => h.includes('signerhomephone') || h.includes('home phone'));
+          const cellPhoneIdx = headers.findIndex(h => h.includes('signercellphone') || h.includes('cell phone'));
+          const workPhoneIdx = headers.findIndex(h => h.includes('signerworkphone') || h.includes('work phone'));
+          const emailIdx = headers.findIndex(h => h.includes('signeremail') || h.includes('email'));
 
-          const startIdx = dateIdx !== -1 || clientIdx !== -1 ? 1 : 0;
+          const startIdx = dateIdx !== -1 || clientIdx !== -1 || firstNameIdx !== -1 ? 1 : 0;
           
           for (let i = startIdx; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -2473,17 +2588,60 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
             if (parts.length >= 3) {
               const date = (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd');
               const time = (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM';
+              
+              // Handle Client split
+              let firstName = firstNameIdx !== -1 ? parts[firstNameIdx] : '';
+              let lastName = lastNameIdx !== -1 ? parts[lastNameIdx] : '';
+              let clientName = clientIdx !== -1 ? parts[clientIdx] : '';
+
+              if (!firstName && !lastName && clientName) {
+                const split = splitName(clientName);
+                firstName = split.firstName;
+                lastName = split.lastName;
+              } else if (firstName || lastName) {
+                clientName = `${firstName} ${lastName}`.trim();
+              }
+
+              // Handle Location parse
+              let address = addressIdx !== -1 ? parts[addressIdx] : '';
+              let city = cityIdx !== -1 ? parts[cityIdx] : '';
+              let state = stateIdx !== -1 ? parts[stateIdx] : '';
+              let zip = zipIdx !== -1 ? parts[zipIdx] : '';
+              let location = locationIdx !== -1 ? parts[locationIdx] : '';
+
+              if (!address && !city && !state && !zip && location) {
+                const parsed = parseLocation(location);
+                address = parsed.address;
+                city = parsed.city;
+                state = parsed.state;
+                zip = parsed.zip;
+              } else if (address || city || state || zip) {
+                location = `${address}, ${city}, ${state} ${zip}`.trim().replace(/, ,/g, ',');
+              }
+
               newAppointments.push({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: userId,
                 date: date,
                 time: time,
-                clientName: (clientIdx !== -1 ? parts[clientIdx] : '') || 'Unknown Client',
+                clientName: clientName || 'Unknown Client',
+                firstName: firstName,
+                lastName: lastName,
                 signingType: (typeIdx !== -1 ? parts[typeIdx] : '') || 'General Notary Work',
-                location: (locationIdx !== -1 ? parts[locationIdx] : '') || 'TBD',
+                location: location || 'TBD',
+                address: address,
+                city: city,
+                state: state,
+                zip: zip,
                 fee: feeIdx !== -1 ? parseFloat(parts[feeIdx]) || 0 : 0,
                 status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
                 notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`,
+                orderNumber: orderNumIdx !== -1 ? parts[orderNumIdx] : '',
+                invoiceNumber: invoiceNumIdx !== -1 ? parts[invoiceNumIdx] : '',
+                homePhone: homePhoneIdx !== -1 ? parts[homePhoneIdx] : '',
+                phone: cellPhoneIdx !== -1 ? parts[cellPhoneIdx] : '',
+                workPhone: workPhoneIdx !== -1 ? parts[workPhoneIdx] : '',
+                email: emailIdx !== -1 ? parts[emailIdx] : '',
                 sortableDateTime: parseSafeDateTime(date, time).toISOString()
               });
             }
@@ -2493,7 +2651,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
             onImport(newAppointments);
             alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
           } else {
-            alert('Could not find any valid signing records in the CSV file. Please ensure it has columns for Date, Time, Client, Type, and Location.');
+            alert('Could not find any valid signing records in the CSV file. Please ensure it has the correct columns.');
           }
         };
         reader.readAsText(file);

@@ -18,6 +18,8 @@ export interface Appointment {
   status: AppointmentStatus;
   notes?: string;
   phone?: string;
+  homePhone?: string;
+  workPhone?: string;
   email?: string;
   customer?: string;
   orderNumber?: string;
