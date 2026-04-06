@@ -126,6 +126,75 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 
+// Robust date/time parsing for deterministic sorting and display
+const parseSafeDateTime = (dateStr: string, timeStr: string = ''): Date => {
+  try {
+    if (!dateStr) return new Date();
+    
+    let year = 0, month = 0, day = 0;
+    
+    // Handle YYYY-MM-DD
+    if (dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        year = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10) - 1;
+        day = parseInt(parts[2], 10);
+      }
+    } 
+    // Handle M/D/YYYY or MM/DD/YYYY
+    else if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        month = parseInt(parts[0], 10) - 1;
+        day = parseInt(parts[1], 10);
+        year = parseInt(parts[2], 10);
+        if (year < 100) year += 2000;
+      }
+    }
+    // Handle "April 6, 2026" or "April 06, 2026 1:30 PM"
+    else {
+      const dateMatch = dateStr.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/);
+      if (dateMatch) {
+        const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        month = monthNames.findIndex(m => dateMatch[1].toLowerCase().startsWith(m));
+        day = parseInt(dateMatch[2], 10);
+        year = parseInt(dateMatch[3], 10);
+      } else {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) return d;
+      }
+    }
+
+    let hours = 0, minutes = 0;
+    if (timeStr) {
+      const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (timeMatch) {
+        hours = parseInt(timeMatch[1], 10);
+        minutes = parseInt(timeMatch[2], 10);
+        const ampm = timeMatch[3].toUpperCase();
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+      }
+    } else {
+      // Check if time is in dateStr
+      const timeMatch = dateStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (timeMatch) {
+        hours = parseInt(timeMatch[1], 10);
+        minutes = parseInt(timeMatch[2], 10);
+        const ampm = timeMatch[3].toUpperCase();
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+      }
+    }
+
+    if (year === 0) return new Date(dateStr);
+    return new Date(year, month, day, hours, minutes);
+  } catch (e) {
+    return new Date(dateStr);
+  }
+};
+
 const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
   
@@ -226,7 +295,8 @@ const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]
         ...item,
         id: Math.random().toString(36).substr(2, 9),
         userId: userId,
-        status: item.status || 'Scheduled'
+        status: item.status || 'Scheduled',
+        sortableDateTime: parseSafeDateTime(item.date, item.time).toISOString()
       };
 
       // Ensure clientName is set if firstName/lastName are provided
@@ -1194,17 +1264,20 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onE
             
             const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
             if (parts.length >= 3) {
+              const date = (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd');
+              const time = (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM';
               newAppointments.push({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: userId,
-                date: (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd'),
-                time: (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM',
+                date: date,
+                time: time,
                 clientName: (clientIdx !== -1 ? parts[clientIdx] : '') || 'Unknown Client',
                 signingType: (typeIdx !== -1 ? parts[typeIdx] : '') || 'General Notary Work',
                 location: (locationIdx !== -1 ? parts[locationIdx] : '') || 'TBD',
                 fee: feeIdx !== -1 ? parseFloat(parts[feeIdx]) || 0 : 0,
                 status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
-                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`
+                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`,
+                sortableDateTime: parseSafeDateTime(date, time).toISOString()
               });
             }
           }
@@ -1728,7 +1801,7 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
 
     return months.map((month, index) => {
       const monthAppointments = appointments.filter(a => {
-        const date = new Date(a.date);
+        const date = parseSafeDateTime(a.date);
         return date.getMonth() === index && date.getFullYear().toString() === selectedYear;
       });
 
@@ -1927,7 +2000,10 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
   const getEventsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     return appointments
-      .filter(app => app.date === dateStr)
+      .filter(app => {
+        const appDate = parseSafeDateTime(app.date);
+        return format(appDate, 'yyyy-MM-dd') === dateStr;
+      })
       .map(app => ({
         time: app.time.split(' ')[0].toLowerCase() + (app.time.includes('PM') ? 'p' : 'a'),
         name: `${app.clientName.split(' ').pop() || app.clientName} (${app.location.split(',')[1]?.trim() || app.location})`,
@@ -2155,15 +2231,17 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
 
   // Sort appointments by combined date and time in descending order (newest at the top)
   const sortedAppointments = useMemo(() => {
-    return [...appointments].sort((a, b) => {
-      const dateA = new Date(`${a.date} ${a.time}`);
-      const dateB = new Date(`${b.date} ${b.time}`);
-      
-      const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
-      const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
-      
-      return timeB - timeA;
-    });
+    return [...appointments]
+      .map(app => ({
+        ...app,
+        sortableDateTime: parseSafeDateTime(app.date, app.time).toISOString()
+      }))
+      .sort((a, b) => {
+        // Deterministic string comparison for ISO dates
+        if (a.sortableDateTime < b.sortableDateTime) return 1;
+        if (a.sortableDateTime > b.sortableDateTime) return -1;
+        return 0;
+      });
   }, [appointments]);
 
   const toggleSelectAll = () => {
@@ -2393,17 +2471,20 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
             
             const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
             if (parts.length >= 3) {
+              const date = (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd');
+              const time = (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM';
               newAppointments.push({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: userId,
-                date: (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd'),
-                time: (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM',
+                date: date,
+                time: time,
                 clientName: (clientIdx !== -1 ? parts[clientIdx] : '') || 'Unknown Client',
                 signingType: (typeIdx !== -1 ? parts[typeIdx] : '') || 'General Notary Work',
                 location: (locationIdx !== -1 ? parts[locationIdx] : '') || 'TBD',
                 fee: feeIdx !== -1 ? parseFloat(parts[feeIdx]) || 0 : 0,
                 status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
-                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`
+                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`,
+                sortableDateTime: parseSafeDateTime(date, time).toISOString()
               });
             }
           }
@@ -2610,7 +2691,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                     {app.status === 'Completed' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
                   </td>
                   <td className="px-3 py-3 text-slate-600">
-                    {format(new Date(app.date), 'M/d/yyyy')}<br />
+                    {format(parseSafeDateTime(app.date), 'M/d/yyyy')}<br />
                     {app.time}
                   </td>
                   <td className="px-3 py-3">
@@ -3013,14 +3094,22 @@ export default function App() {
     if (!user) {
       setAppointments(prev => {
         const exists = prev.find(a => a.id === app.id);
-        if (exists) return prev.map(a => a.id === app.id ? app : a);
-        return [...prev, app];
+        const appWithSort = {
+          ...app,
+          sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
+        };
+        if (exists) return prev.map(a => a.id === app.id ? appWithSort : a);
+        return [...prev, appWithSort];
       });
       return;
     }
 
     try {
-      const appData = { ...app, userId: user.uid };
+      const appData = { 
+        ...app, 
+        userId: user.uid,
+        sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
+      };
       await setDoc(doc(db, 'appointments', app.id), appData);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `appointments/${app.id}`);

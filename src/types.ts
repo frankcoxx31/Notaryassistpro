@@ -27,6 +27,7 @@ export interface Appointment {
   durationMinutes?: string;
   invoiceSentDate?: string;
   invoicePaidDate?: string;
+  sortableDateTime?: string;
 }
 
 export interface Client {
