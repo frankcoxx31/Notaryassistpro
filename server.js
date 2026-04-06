@@ -28,7 +28,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = path.join(__dirname, "dist");
     if (!fs.existsSync(distPath)) {
       console.error(`ERROR: 'dist' folder not found at ${distPath}. Build might have failed.`);
     }
