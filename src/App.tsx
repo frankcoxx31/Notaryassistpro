@@ -3272,22 +3272,22 @@ export default function App() {
     console.log('Starting Firestore listeners for:', user.uid);
     const qAppointments = query(collection(db, 'appointments'), where('userId', '==', user.uid));
     const unsubAppointments = onSnapshot(qAppointments, (snapshot: any) => {
-      setAppointments(snapshot.docs.map((doc: any) => doc.data() as Appointment));
+      setAppointments(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Appointment)));
     }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'appointments'));
 
     const qClients = query(collection(db, 'clients'), where('userId', '==', user.uid));
     const unsubClients = onSnapshot(qClients, (snapshot: any) => {
-      setClients(snapshot.docs.map((doc: any) => doc.data() as Client));
+      setClients(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Client)));
     }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'clients'));
 
     const qExpenses = query(collection(db, 'expenses'), where('userId', '==', user.uid));
     const unsubExpenses = onSnapshot(qExpenses, (snapshot: any) => {
-      setExpenses(snapshot.docs.map((doc: any) => doc.data() as Expense));
+      setExpenses(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Expense)));
     }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'expenses'));
 
     const qMileage = query(collection(db, 'mileage'), where('userId', '==', user.uid));
     const unsubMileage = onSnapshot(qMileage, (snapshot: any) => {
-      setMileage(snapshot.docs.map((doc: any) => doc.data() as Mileage));
+      setMileage(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Mileage)));
     }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'mileage'));
 
     const unsubProfile = onSnapshot(doc(db, 'profiles', user.uid), (doc: any) => {
