@@ -2153,11 +2153,24 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
 
+  // Sort appointments by combined date and time in descending order (newest at the top)
+  const sortedAppointments = useMemo(() => {
+    return [...appointments].sort((a, b) => {
+      const dateA = new Date(`${a.date} ${a.time}`);
+      const dateB = new Date(`${b.date} ${b.time}`);
+      
+      const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+      const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+      
+      return timeB - timeA;
+    });
+  }, [appointments]);
+
   const toggleSelectAll = () => {
-    if (selectedIds.length === appointments.length) {
+    if (selectedIds.length === sortedAppointments.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(appointments.map(a => a.id));
+      setSelectedIds(sortedAppointments.map(a => a.id));
     }
   };
 
@@ -2200,7 +2213,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                 </tr>
               </thead>
               <tbody>
-                ${appointments.map(app => `
+                ${sortedAppointments.map(app => `
                   <tr>
                     <td>${app.date}</td>
                     <td>${app.time}</td>
@@ -2563,7 +2576,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                   <input 
                     type="checkbox" 
                     className="rounded" 
-                    checked={selectedIds.length === appointments.length && appointments.length > 0}
+                    checked={selectedIds.length === sortedAppointments.length && sortedAppointments.length > 0}
                     onChange={toggleSelectAll}
                   />
                 </th>
@@ -2583,7 +2596,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
               </tr>
             </thead>
             <tbody className="text-[13px] divide-y divide-slate-100">
-              {appointments.map((app, idx) => (
+              {sortedAppointments.map((app, idx) => (
                 <tr key={app.id} className={cn("hover:bg-sky-50/30 transition-colors group", selectedIds.includes(app.id) && "bg-sky-50")}>
                   <td className="px-3 py-3">
                     <input 
