@@ -1922,7 +1922,7 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
       .filter(app => app.date === dateStr)
       .map(app => ({
         time: app.time.split(' ')[0].toLowerCase() + (app.time.includes('PM') ? 'p' : 'a'),
-        name: `${app.clientName.split(' ')[1] || app.clientName} (${app.location.split(',')[1]?.trim() || app.location})`,
+        name: `${app.clientName.split(' ').pop() || app.clientName} (${app.location.split(',')[1]?.trim() || app.location})`,
         appointment: app
       }));
   };
@@ -2561,7 +2561,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                 </th>
                 <th className="px-3 py-3 w-10"></th>
                 <th className="px-3 py-3">Date / Time <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">Name <ChevronDown className="inline w-3 h-3" /></th>
+                <th className="px-3 py-3">Last Name <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Type of work <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Location <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Customer <ChevronDown className="inline w-3 h-3" /></th>

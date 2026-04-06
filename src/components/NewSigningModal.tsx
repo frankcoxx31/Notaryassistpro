@@ -138,6 +138,11 @@ const NewSigningModal = ({
                   <option>Seller</option>
                   <option>HELOC</option>
                   <option>Reverse Mortgage</option>
+                  <option>Loan Modification</option>
+                  <option>Debt Settlement</option>
+                  <option>Power of Attorney</option>
+                  <option>Wills/Trusts</option>
+                  <option>Other</option>
                 </select>
               </div>
 
@@ -235,36 +240,6 @@ const NewSigningModal = ({
                   onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
                   className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                   placeholder="Name of Signer"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Date/Time Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-bold text-slate-700 w-20 text-right">Date:</label>
-              <div className="flex-1 relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="date" 
-                  value={formData.date || ""}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-bold text-slate-700 w-20 text-right">Time:</label>
-              <div className="flex-1 relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="text" 
-                  value={formData.time || ""}
-                  onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                  placeholder="10:00 AM"
                 />
               </div>
             </div>

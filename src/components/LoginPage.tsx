@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { FileText, User, ShieldCheck, Lock, Mail, Check } from 'lucide-react';
+import { FileText, User, ShieldCheck, Lock, Mail, Check, AlertCircle, RefreshCw } from 'lucide-react';
 import { auth, provider } from '../firebase';
 import { signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 
@@ -108,152 +108,181 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950">
-      {/* Decorative Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px]" />
-        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px]" />
-      </div>
+    <div className="min-h-screen flex bg-slate-950 overflow-hidden font-sans">
+      {/* Left Side: Sign-In Form */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 relative z-10 bg-slate-950/50 backdrop-blur-3xl">
+        {/* Subtle Background Glows */}
+        <div className="absolute top-1/4 -left-20 w-64 h-64 bg-sky-500/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-1/4 -right-20 w-64 h-64 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="w-full max-w-md z-10"
-      >
-        {/* Glassmorphism Card */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-10 shadow-2xl shadow-black/50">
-          {/* Branding / Logo Placeholder */}
-          <div className="flex flex-col items-center mb-10">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/20 mb-6 group transition-transform hover:scale-105 duration-300">
-              <FileText className="w-12 h-12 text-white" />
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="w-full max-w-md space-y-8"
+        >
+          {/* Branding */}
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 shadow-lg shadow-sky-500/20 mb-2">
+              <FileText className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-white tracking-tight text-center">
+            <h1 className="text-3xl font-bold tracking-tight text-white">
               Integrity Closings CLT
             </h1>
-            <div className="h-1 w-12 bg-indigo-500 rounded-full mt-3 opacity-50" />
-            <p className="text-slate-400 font-medium mt-3 text-sm uppercase tracking-[0.2em]">Notary Management</p>
+            <p className="text-slate-400 text-sm font-medium">
+              Professional Notary Management System
+            </p>
           </div>
 
-          {/* Login Form */}
-          <form onSubmit={handleSignIn} className="space-y-6">
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
-                Email Address
-              </label>
-              <div className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors">
-                  <Mail className="w-5 h-5" />
+          {/* Sign-In Card */}
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl shadow-black/50 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            
+            <form onSubmit={handleSignIn} className="space-y-6 relative z-10">
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                    <input 
+                      type="email" 
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-slate-900/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all"
+                      placeholder="name@company.com"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:bg-white/10 transition-all duration-300"
-                  required
-                />
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
-                Password
-              </label>
-              <div className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors">
-                  <Lock className="w-5 h-5" />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between ml-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Password</label>
+                    <button type="button" className="text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-wider transition-colors">Forgot?</button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                    <input 
+                      type="password" 
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-slate-900/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all"
+                      placeholder="••••••••"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:bg-white/10 transition-all duration-300"
-                  required
-                />
               </div>
-            </div>
 
-            {/* Remember Me Toggle */}
-            <div className="flex items-center justify-between px-1">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div 
-                  onClick={() => setRememberMe(!rememberMe)}
-                  className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-200 ${
-                    rememberMe 
-                      ? 'bg-indigo-600 border-indigo-600' 
-                      : 'border-white/20 bg-white/5 group-hover:border-white/40'
-                  }`}
+              {error && (
+                <motion.div 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 flex items-center gap-3"
                 >
-                  {rememberMe && <Check className="w-3.5 h-3.5 text-white" />}
-                </div>
-                <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">Remember Me</span>
-              </label>
-              <button type="button" className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
-                Forgot Password?
-              </button>
-            </div>
-
-            {error && (
-              <motion.div 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 flex items-center gap-3"
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                <p className="text-rose-400 text-xs font-medium">{error}</p>
-              </motion.div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 text-lg ${
-                isLoading ? 'opacity-70 cursor-not-allowed' : 'active:scale-[0.98]'
-              }`}
-            >
-              {isLoading ? (
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                'Sign In'
+                  <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                  <p className="text-xs font-medium text-rose-200">{error}</p>
+                </motion.div>
               )}
-            </button>
-          </form>
 
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10"></div>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase tracking-widest">
-              <span className="bg-[#0f172a] px-4 text-white/30">Or</span>
-            </div>
+              <div className="flex items-center gap-3">
+                <input 
+                  type="checkbox" 
+                  id="remember" 
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/10 bg-slate-900 text-sky-500 focus:ring-sky-500/50" 
+                />
+                <label htmlFor="remember" className="text-xs font-medium text-slate-400 cursor-pointer">Remember this device</label>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-sky-500/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    <span>Authenticating...</span>
+                  </>
+                ) : (
+                  <span>Sign In to Dashboard</span>
+                )}
+              </button>
+
+              <div className="relative py-2">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-bold"><span className="bg-slate-900 px-4 text-slate-500">Or continue with</span></div>
+              </div>
+
+              <button 
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={isLoading}
+                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3"
+              >
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+                <span>Google Account</span>
+              </button>
+            </form>
           </div>
 
-          {/* Google Sign In Button */}
-          <button
-            onClick={handleGoogleSignIn}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 text-white font-semibold py-4 px-6 rounded-2xl border border-white/10 transition-all duration-300 active:scale-[0.98]"
-          >
-            <User className="w-5 h-5 text-indigo-400" />
-            <span>Sign in with Google</span>
-          </button>
-        </div>
-
-        {/* Footer Info */}
-        <div className="mt-10 flex flex-col items-center gap-4 text-white/20">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4" />
-              <span className="text-[10px] uppercase tracking-widest font-bold">Secure Access</span>
-            </div>
-          </div>
-          <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-center">
+          <p className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
             Authorized Access Only | Integrity Closings CLT
           </p>
+        </motion.div>
+      </div>
+
+      {/* Right Side: Image & Branding */}
+      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-sky-600/20 to-indigo-900/40 mix-blend-overlay z-10" />
+        <img 
+          src="https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=2000" 
+          alt="Professional Notary"
+          className="absolute inset-0 w-full h-full object-cover scale-105 hover:scale-100 transition-transform duration-[10s] ease-out"
+          loading="eager"
+          referrerPolicy="no-referrer"
+        />
+        
+        {/* Overlay Content */}
+        <div className="absolute inset-0 flex flex-col justify-end p-16 z-20 bg-gradient-to-t from-slate-950 via-transparent to-transparent">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.8 }}
+            className="max-w-lg space-y-6"
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-500/30 backdrop-blur-md">
+              <div className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+              <span className="text-[10px] font-bold text-sky-300 uppercase tracking-widest">System Online</span>
+            </div>
+            <h2 className="text-5xl font-bold text-white leading-tight">
+              Secure & Reliable <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-indigo-400">Notary Management</span>
+            </h2>
+            <p className="text-lg text-slate-300 font-medium leading-relaxed">
+              Streamline your closings with our advanced platform designed for modern notary professionals.
+            </p>
+            <div className="flex items-center gap-8 pt-4">
+              <div>
+                <p className="text-2xl font-bold text-white">99.9%</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Uptime</p>
+              </div>
+              <div className="w-px h-8 bg-white/10" />
+              <div>
+                <p className="text-2xl font-bold text-white">256-bit</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Encryption</p>
+              </div>
+              <div className="w-px h-8 bg-white/10" />
+              <div>
+                <p className="text-2xl font-bold text-white">24/7</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monitoring</p>
+              </div>
+            </div>
+          </motion.div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };
