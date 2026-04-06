@@ -2,6 +2,7 @@ export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Paid' | 'Cancelled'
 
 export interface Appointment {
   id: string;
+  userId: string;
   date: string;
   time: string;
   clientName: string;
@@ -28,6 +29,7 @@ export interface Appointment {
 
 export interface Client {
   id: string;
+  userId: string;
   name: string;
   company?: string;
   email: string;
@@ -37,6 +39,7 @@ export interface Client {
 
 export interface Expense {
   id: string;
+  userId: string;
   date: string;
   category: string;
   amount: number;
@@ -45,6 +48,7 @@ export interface Expense {
 
 export interface Mileage {
   id: string;
+  userId: string;
   date: string;
   description: string;
   miles: number;

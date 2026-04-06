@@ -94,8 +94,17 @@ import {
 } from 'recharts';
 import { cn } from './lib/utils';
 import { Appointment, Client, Expense, AppointmentStatus, Mileage, BusinessProfile } from './types';
+import { 
+  MOCK_PROFILE, 
+  MOCK_APPOINTMENTS, 
+  MOCK_CLIENTS, 
+  MOCK_EXPENSES, 
+  MOCK_MILEAGE 
+} from './mockData';
 import { auth, db, provider } from './firebase';
 import LoginPage from './components/LoginPage';
+import NewSigningModal from './components/NewSigningModal';
+import NewClientModal from './components/NewClientModal';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -117,7 +126,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 
-const parsePDFWithAI = async (file: File): Promise<Appointment[]> => {
+const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
   
   // Convert file to base64
@@ -208,6 +217,7 @@ const parsePDFWithAI = async (file: File): Promise<Appointment[]> => {
       const appointment = {
         ...item,
         id: Math.random().toString(36).substr(2, 9),
+        userId: userId,
         status: item.status || 'Scheduled'
       };
 
@@ -322,595 +332,12 @@ function handleFirestoreError(error: any, operationType: OperationType, path: st
   throw new Error(JSON.stringify(errInfo));
 }
 
-// --- Mock Data ---
-const MOCK_PROFILE: BusinessProfile = {
-  name: 'Frank Cox',
-  companyName: 'Cox Notary Services',
-  email: 'frankcoxx31@gmail.com',
-  phone: '(555) 987-6543',
-  address: '789 Notary Way, Signing City, CA 90210',
-  commissionNumber: '123456789',
-  commissionExpiration: '2028-12-31'
-};
-
-const MOCK_MILEAGE: Mileage[] = [
-  {
-    id: '1',
-    date: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
-    description: 'Post Office Drop-off',
-    miles: 12.4,
-    rate: 0.67,
-    total: 8.31
-  },
-  {
-    id: '2',
-    date: format(subDays(new Date(), 3), 'yyyy-MM-dd'),
-    description: 'Office Supplies Run',
-    miles: 8.2,
-    rate: 0.67,
-    total: 5.49
-  }
-];
-
-const MOCK_APPOINTMENTS: Appointment[] = [
-  {
-    id: '1',
-    date: format(new Date(), 'yyyy-MM-dd'),
-    time: '10:00 AM',
-    clientName: 'John Smith',
-    signingType: 'Refinance',
-    location: '123 Maple St, Springfield',
-    fee: 150,
-    status: 'Scheduled',
-    orderNumber: '75787410',
-    invoiceNumber: 'INV-1001',
-    notes: 'Borrower needs to sign with blue ink.'
-  },
-  {
-    id: '2',
-    date: format(new Date(), 'yyyy-MM-dd'),
-    time: '02:30 PM',
-    clientName: 'Sarah Johnson',
-    signingType: 'Purchase',
-    location: '456 Oak Ave, Shelbyville',
-    fee: 125,
-    status: 'Scheduled',
-    orderNumber: '75787411',
-    invoiceNumber: 'INV-1002'
-  },
-  {
-    id: '3',
-    date: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
-    time: '11:00 AM',
-    clientName: 'Michael Brown',
-    signingType: 'HELOC',
-    location: '789 Pine Rd, Capital City',
-    fee: 100,
-    status: 'Completed',
-    orderNumber: '75787412',
-    invoiceNumber: 'INV-1003'
-  },
-  {
-    id: '4',
-    date: format(addDays(new Date(), 2), 'yyyy-MM-dd'),
-    time: '09:00 AM',
-    clientName: 'Emily Davis',
-    signingType: 'Seller Package',
-    location: '321 Elm Blvd, Springfield',
-    fee: 90,
-    status: 'Scheduled',
-    orderNumber: '75787413',
-    invoiceNumber: 'INV-1004'
-  },
-  {
-    id: '5',
-    date: '2026-04-02',
-    time: '01:00 PM',
-    clientName: 'Melissa Caballero',
-    firstName: 'Melissa',
-    lastName: 'Caballero',
-    signingType: 'Attorney Hybrid Refinance',
-    location: '1800 Nikkie Pl Indian Trail, NC 28079',
-    address: '1800 Nikkie Pl',
-    city: 'Indian Trail',
-    state: 'North Carolina',
-    zip: '28079',
-    fee: 65,
-    status: 'Scheduled',
-    orderNumber: '75785626',
-    invoiceNumber: 'INV-1005',
-    loanNumber: '3582834992',
-    durationHours: '1 hour',
-    durationMinutes: '0 mins',
-    notes: 'Cell: (980) 406-1463'
-  }
-];
-
-const MOCK_CLIENTS: Client[] = [
-  {
-    id: '1',
-    name: 'John Smith',
-    company: 'ABC Title',
-    email: 'john@abctitle.com',
-    phone: '(555) 123-4567',
-    address: '123 Maple St, Springfield'
-  },
-  {
-    id: '2',
-    name: 'Sarah Johnson',
-    company: 'XYZ Signing',
-    email: 'sarah@xyzsigning.com',
-    phone: '(555) 987-6543',
-    address: '456 Oak Ave, Shelbyville'
-  },
-  {
-    id: '3',
-    name: 'Melissa Caballero',
-    company: 'Rocket Mortgage, LLC',
-    email: '',
-    phone: '(980) 406-1463',
-    address: '1800 Nikkie Pl Indian Trail, NC 28079'
-  }
-];
-
-const MOCK_EXPENSES: Expense[] = [
-  {
-    id: '1',
-    date: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
-    category: 'Mileage',
-    amount: 45.50,
-    description: 'Trip to Capital City'
-  },
-  {
-    id: '2',
-    date: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
-    category: 'Supplies',
-    amount: 25.00,
-    description: 'Printer Ink'
-  }
-];
-
 // --- Components ---
 
-const NewSigningModal = ({ isOpen, onClose, appointment, onSave, initialTab = 'Signer(s)' }: { isOpen: boolean; onClose: () => void; appointment?: Appointment | null; onSave: (app: Appointment) => void; initialTab?: string }) => {
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [formData, setFormData] = useState<Partial<Appointment>>({});
-
-  useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab, isOpen]);
-
-  useEffect(() => {
-    if (appointment) {
-      const data = { ...appointment };
-      // Derive first/last name if missing
-      if (data.clientName && (!data.firstName || !data.lastName)) {
-        const parts = data.clientName.trim().split(/\s+/);
-        if (!data.firstName) data.firstName = parts[0] || '';
-        if (!data.lastName) data.lastName = parts.slice(1).join(' ') || '';
-      }
-      // Derive address/city/state/zip if missing
-      if (data.location && (!data.address || !data.city || !data.state || !data.zip)) {
-        const parts = data.location.split(',').map((p: string) => p.trim());
-        if (!data.address) data.address = parts[0] || '';
-        
-        if (parts.length > 1) {
-          const cityPart = parts[1];
-          // Check if cityPart contains state/zip (e.g., "Springfield NC 28079")
-          const zipMatch = cityPart.match(/\d{5}(-\d{4})?$/);
-          if (zipMatch) {
-            if (!data.zip) data.zip = zipMatch[0];
-            const withoutZip = cityPart.replace(zipMatch[0], '').trim();
-            // Check for state (e.g., "NC")
-            const stateMatch = withoutZip.match(/\s([A-Z]{2})$/);
-            if (stateMatch) {
-              if (!data.state) data.state = stateMatch[1];
-              if (!data.city) data.city = withoutZip.replace(stateMatch[0], '').trim();
-            } else {
-              if (!data.city) data.city = withoutZip;
-            }
-          } else {
-            if (!data.city) data.city = cityPart;
-          }
-        }
-        
-        if (parts.length > 2 && !data.state) {
-          const stateZipPart = parts[2];
-          const zipMatch = stateZipPart.match(/\d{5}(-\d{4})?$/);
-          if (zipMatch) {
-            if (!data.zip) data.zip = zipMatch[0];
-            data.state = stateZipPart.replace(zipMatch[0], '').trim();
-          } else {
-            data.state = stateZipPart;
-          }
-        }
-      }
-      setFormData(data);
-    } else {
-      setFormData({
-        id: Math.random().toString(36).substr(2, 9),
-        date: format(new Date(), 'yyyy-MM-dd'),
-        time: '10:00 AM',
-        signingType: 'General Loan Signing Work',
-        fee: 150,
-        status: 'Scheduled',
-        clientName: '',
-        location: ''
-      });
-    }
-  }, [appointment, isOpen]);
-
-  if (!isOpen) return null;
-
-  const handleSave = () => {
-    if (formData.id && formData.date && formData.time && formData.clientName && formData.signingType && formData.location && formData.fee !== undefined && formData.status) {
-      onSave(formData as Appointment);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-lg shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-sky-50 rounded-lg flex items-center justify-center border border-sky-100">
-              <Edit2 className="w-6 h-6 text-sky-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800">{appointment ? 'View Signing' : 'New Signing'}:</h2>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-          {/* Type of Work Section */}
-          <div className="bg-slate-50/50 border border-slate-200 rounded-md p-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-bold text-slate-700">Type of work:</label>
-              <button className="text-sky-600 text-xs flex items-center gap-1 hover:underline">
-                Help <HelpCircle className="w-3 h-3" />
-              </button>
-            </div>
-            <select 
-              value={formData.signingType || "General Loan Signing Work"}
-              onChange={(e) => setFormData({ ...formData, signingType: e.target.value })}
-              className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all"
-            >
-              <option>General Loan Signing Work</option>
-              <option>Refinance</option>
-              <option>Purchase</option>
-              <option>Seller</option>
-            </select>
-          </div>
-
-          {/* Main Form Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
-            {/* Left Column */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Duration:</label>
-                <div className="flex-1 flex gap-2">
-                  <select 
-                    value={formData.durationHours || "1 hour"}
-                    onChange={(e) => setFormData({ ...formData, durationHours: e.target.value })}
-                    className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                  >
-                    <option>1 hour</option>
-                    <option>2 hours</option>
-                  </select>
-                  <select 
-                    value={formData.durationMinutes || "0 mins"}
-                    onChange={(e) => setFormData({ ...formData, durationMinutes: e.target.value })}
-                    className="flex-1 border border-slate-300 rounded px-2 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                  >
-                    <option>0 mins</option>
-                    <option>30 mins</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Amount:</label>
-                <div className="flex-1 flex border border-slate-300 rounded overflow-hidden">
-                  <div className="bg-slate-50 px-3 py-2 border-r border-slate-300 text-sm text-slate-500 font-medium">
-                    $
-                  </div>
-                  <input 
-                    type="number" 
-                    value={formData.fee || 0} 
-                    onChange={(e) => setFormData({ ...formData, fee: parseFloat(e.target.value) })}
-                    className="flex-1 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Order #:</label>
-                <input 
-                  type="text" 
-                  value={formData.orderNumber || ""}
-                  onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
-                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Loan #:</label>
-                <input 
-                  type="text" 
-                  value={formData.loanNumber || ""}
-                  onChange={(e) => setFormData({ ...formData, loanNumber: e.target.value })}
-                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs Section */}
-          <div className="border border-slate-200 rounded-md overflow-hidden">
-            <div className="flex border-b border-slate-200 bg-slate-50">
-              {[
-                { name: 'Signer(s)', icon: User },
-                { name: 'Contacts', icon: Phone },
-                { name: 'Invoice', icon: Banknote },
-                { name: 'Tracking', icon: List },
-                { name: 'Notes', icon: Pencil },
-              ].map((tab) => (
-                <button
-                  key={tab.name}
-                  onClick={() => setActiveTab(tab.name)}
-                  className={cn(
-                    "flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all border-r border-slate-200",
-                    activeTab === tab.name 
-                      ? "bg-white text-slate-800 border-t-2 border-t-indigo-500 -mt-px" 
-                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
-                  )}
-                >
-                  <tab.icon className={cn("w-4 h-4", activeTab === tab.name ? "text-indigo-500" : "text-slate-400")} />
-                  {tab.name}
-                </button>
-              ))}
-            </div>
-
-            <div className="p-6 space-y-4">
-              {activeTab === 'Signer(s)' && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Last Name:</label>
-                    <input 
-                      type="text" 
-                      value={formData.lastName || ""}
-                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value, clientName: `${formData.firstName || ''} ${e.target.value}`.trim() })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">First Name:</label>
-                    <input 
-                      type="text" 
-                      value={formData.firstName || ""}
-                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value, clientName: `${e.target.value} ${formData.lastName || ''}`.trim() })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Address:</label>
-                    <input 
-                      type="text" 
-                      value={formData.address || ""}
-                      onChange={(e) => {
-                        const newAddress = e.target.value;
-                        setFormData({ 
-                          ...formData, 
-                          address: newAddress, 
-                          location: `${newAddress}, ${formData.city || ''}${formData.state ? `, ${formData.state}` : ''}${formData.zip ? ` ${formData.zip}` : ''}`.trim() 
-                        });
-                      }}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">City:</label>
-                    <input 
-                      type="text" 
-                      value={formData.city || ""}
-                      onChange={(e) => {
-                        const newCity = e.target.value;
-                        setFormData({ 
-                          ...formData, 
-                          city: newCity, 
-                          location: `${formData.address || ''}, ${newCity}${formData.state ? `, ${formData.state}` : ''}${formData.zip ? ` ${formData.zip}` : ''}`.trim() 
-                        });
-                      }}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">State:</label>
-                    <select 
-                      value={formData.state || "North Carolina"}
-                      onChange={(e) => {
-                        const newState = e.target.value;
-                        setFormData({ 
-                          ...formData, 
-                          state: newState, 
-                          location: `${formData.address || ''}, ${formData.city || ''}, ${newState}${formData.zip ? ` ${formData.zip}` : ''}`.trim() 
-                        });
-                      }}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                    >
-                      <option>North Carolina</option>
-                      <option>California</option>
-                      <option>Texas</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Zip:</label>
-                    <input 
-                      type="text" 
-                      value={formData.zip || ""}
-                      onChange={(e) => {
-                        const newZip = e.target.value;
-                        setFormData({ 
-                          ...formData, 
-                          zip: newZip, 
-                          location: `${formData.address || ''}, ${formData.city || ''}${formData.state ? `, ${formData.state}` : ''}${newZip ? ` ${newZip}` : ''}`.trim() 
-                        });
-                      }}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                </div>
-              )}
-              {activeTab === 'Contacts' && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Phone:</label>
-                    <input 
-                      type="tel" 
-                      value={formData.phone || ""}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Email:</label>
-                    <input 
-                      type="email" 
-                      value={formData.email || ""}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Customer:</label>
-                    <input 
-                      type="text" 
-                      value={formData.customer || ""}
-                      onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                      placeholder="e.g. Rocket Close"
-                    />
-                  </div>
-                </div>
-              )}
-              {activeTab === 'Invoice' && (
-                <div className="space-y-6">
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-bold text-slate-800">Invoice Details</h3>
-                      <span className={cn(
-                        "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider",
-                        formData.status === 'Paid' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                      )}>
-                        {formData.status}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Invoice Number</p>
-                        <input 
-                          type="text" 
-                          value={formData.invoiceNumber || ""}
-                          onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
-                          className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                          placeholder="INV-000"
-                        />
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Fee Amount</p>
-                        <p className="font-bold text-slate-900">${formData.fee?.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Invoice Date</p>
-                        <p className="font-bold text-slate-900">{formData.date}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <label className="text-sm font-bold text-slate-700 w-24 text-right">Status:</label>
-                      <select 
-                        value={formData.status || "Scheduled"}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value as AppointmentStatus })}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                      >
-                        <option>Scheduled</option>
-                        <option>Completed</option>
-                        <option>Paid</option>
-                        <option>Cancelled</option>
-                        <option>No Show</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {activeTab === 'Notes' && (
-                <div className="space-y-4">
-                  <label className="text-sm font-bold text-slate-700 block">Notes:</label>
-                  <textarea 
-                    value={formData.notes || ""}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Add any special instructions or notes here..."
-                    className="w-full h-48 border border-slate-300 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-none transition-all"
-                  />
-                </div>
-              )}
-              {activeTab !== 'Signer(s)' && activeTab !== 'Notes' && activeTab !== 'Contacts' && activeTab !== 'Invoice' && (
-                <div className="py-12 text-center text-slate-400 italic">
-                  Content for {activeTab} tab will be implemented soon.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-          <div className="flex gap-2">
-            <button className="bg-sky-400 hover:bg-sky-500 text-white px-4 py-2 rounded text-sm font-medium shadow-sm transition-colors">
-              Invoice
-            </button>
-            <button className="bg-sky-400 hover:bg-sky-500 text-white px-4 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
-              Map
-            </button>
-            <button className="bg-sky-400 hover:bg-sky-500 text-white px-4 py-2 rounded text-sm font-medium shadow-sm transition-colors">
-              Expenses
-            </button>
-            <button className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
-              Send Email
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={handleSave}
-              className="bg-sky-400 hover:bg-sky-500 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2"
-            >
-              Save
-            </button>
-            <button onClick={onClose} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-6 py-2 rounded text-sm font-medium shadow-sm transition-colors">
-              Close
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const NewExpenseModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onClose: () => void; onSave: (e: Expense) => void }) => {
+const NewExpenseModal = ({ isOpen, onClose, onSave, userId }: { isOpen: boolean; onClose: () => void; onSave: (e: Expense) => void; userId: string }) => {
   const [formData, setFormData] = useState<Partial<Expense>>({
     id: Math.random().toString(36).substr(2, 9),
+    userId: userId,
     date: format(new Date(), 'yyyy-MM-dd'),
     category: '',
     amount: 0,
@@ -1314,9 +741,10 @@ const RecurringExpenseModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: 
   );
 };
 
-const NewMileageModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onClose: () => void; onSave: (m: Mileage) => void }) => {
+const NewMileageModal = ({ isOpen, onClose, onSave, userId }: { isOpen: boolean; onClose: () => void; onSave: (m: Mileage) => void; userId: string }) => {
   const [formData, setFormData] = useState<Partial<Mileage>>({
     id: Math.random().toString(36).substr(2, 9),
+    userId: userId,
     date: format(new Date(), 'yyyy-MM-dd'),
     description: '',
     miles: 0,
@@ -1701,7 +1129,7 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
   );
 };
 
-const SettingsView = ({ onEditProfile, user, onSignIn, onImport }: { onEditProfile: () => void, user: FirebaseUser | null, onSignIn: () => void, onImport: (appointments: Appointment[]) => void }) => {
+const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onEditProfile: () => void, user: FirebaseUser | null, onSignIn: () => void, onImport: (appointments: Appointment[]) => void, userId: string }) => {
   const [isImporting, setIsImporting] = useState(false);
 
   const handleFileImport = (type: 'pdf' | 'csv') => {
@@ -1714,7 +1142,7 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport }: { onEditProfi
         if (type === 'pdf') {
           setIsImporting(true);
           try {
-            const newAppointments = await parsePDFWithAI(file);
+            const newAppointments = await parsePDFWithAI(file, userId);
             if (newAppointments.length > 0) {
               onImport(newAppointments);
               alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
@@ -1760,6 +1188,7 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport }: { onEditProfi
             if (parts.length >= 3) {
               newAppointments.push({
                 id: Math.random().toString(36).substr(2, 9),
+                userId: userId,
                 date: (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd'),
                 time: (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM',
                 clientName: (clientIdx !== -1 ? parts[clientIdx] : '') || 'Unknown Client',
@@ -2711,7 +2140,7 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
   );
 };
 
-const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onImport }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void }) => {
+const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onImport, userId }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void; userId: string }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
@@ -2899,7 +2328,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
         if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
           setIsImporting(true);
           try {
-            const newAppointments = await parsePDFWithAI(file);
+            const newAppointments = await parsePDFWithAI(file, userId);
             if (newAppointments.length > 0) {
               onImport(newAppointments);
               alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
@@ -2945,6 +2374,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
             if (parts.length >= 3) {
               newAppointments.push({
                 id: Math.random().toString(36).substr(2, 9),
+                userId: userId,
                 date: (dateIdx !== -1 ? parts[dateIdx] : '') || format(new Date(), 'yyyy-MM-dd'),
                 time: (timeIdx !== -1 ? parts[timeIdx] : '') || '12:00 PM',
                 clientName: (clientIdx !== -1 ? parts[clientIdx] : '') || 'Unknown Client',
@@ -3167,7 +2597,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                       onClick={() => onViewSigning(app)}
                       className="text-sky-600 hover:underline font-medium"
                     >
-                      {app.clientName}
+                      {app.clientName.split(' ').pop()}
                     </button>
                   </td>
                   <td className="px-3 py-3 text-slate-600">{app.signingType}</td>
@@ -3240,121 +2670,6 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
           </table>
         </div>
       </div>
-    </div>
-  );
-};
-
-const NewClientModal = ({ isOpen, onClose, client, onSave }: { isOpen: boolean; onClose: () => void; client?: Client | null; onSave: (c: Client) => void }) => {
-  const [formData, setFormData] = useState<Partial<Client>>({});
-
-  useEffect(() => {
-    if (client) {
-      setFormData(client);
-    } else {
-      setFormData({
-        id: Math.random().toString(36).substr(2, 9),
-        name: '',
-        company: '',
-        email: '',
-        phone: '',
-        address: ''
-      });
-    }
-  }, [client, isOpen]);
-
-  if (!isOpen) return null;
-
-  const handleSave = () => {
-    if (formData.id && formData.name && formData.company && formData.email && formData.phone && formData.address) {
-      onSave(formData as Client);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]"
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-200">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800">{client ? 'Edit Client' : 'New Client'}</h2>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-          <div className="flex items-center gap-4">
-            <label className="w-24 text-sm font-bold text-slate-700 text-right">Name:</label>
-            <input 
-              type="text" 
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="w-24 text-sm font-bold text-slate-700 text-right">Company:</label>
-            <input 
-              type="text" 
-              value={formData.company}
-              onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="w-24 text-sm font-bold text-slate-700 text-right">Email:</label>
-            <input 
-              type="email" 
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="w-24 text-sm font-bold text-slate-700 text-right">Phone:</label>
-            <input 
-              type="tel" 
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="w-24 text-sm font-bold text-slate-700 text-right">Address:</label>
-            <textarea 
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all min-h-[80px] resize-none"
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/30 shrink-0">
-          <button 
-            onClick={onClose}
-            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-6 py-2 rounded text-sm font-medium shadow-sm transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={handleSave}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors"
-          >
-            Save Client
-          </button>
-        </div>
-      </motion.div>
     </div>
   );
 };
@@ -3897,6 +3212,7 @@ export default function App() {
                       }}
                       onDelete={handleDeleteAppointments}
                       onImport={handleImport}
+                      userId={user?.uid || 'mock-user'}
                     />
                   } 
                 />
@@ -3944,7 +3260,7 @@ export default function App() {
                   } 
                 />
                 <Route path="/tools" element={<ToolsView />} />
-                <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} user={user} onSignIn={handleSignIn} onImport={handleImport} />} />
+                <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} user={user} onSignIn={handleSignIn} onImport={handleImport} userId={user?.uid || 'mock-user'} />} />
               </Routes>
             </main>
 
@@ -3970,6 +3286,7 @@ export default function App() {
                   setSelectedAppointment(null);
                   setModalInitialTab('Signer(s)');
                 }}
+                userId={user?.uid || 'mock-user'}
               />
             )}
 
@@ -3981,6 +3298,7 @@ export default function App() {
                   handleSaveExpense(expense);
                   setIsNewExpenseModalOpen(false);
                 }}
+                userId={user?.uid || 'mock-user'}
               />
             )}
 
@@ -4006,6 +3324,7 @@ export default function App() {
                   handleSaveMileage(m);
                   setIsNewMileageModalOpen(false);
                 }}
+                userId={user?.uid || 'mock-user'}
               />
             )}
 
@@ -4022,6 +3341,7 @@ export default function App() {
                   setIsNewClientModalOpen(false);
                   setSelectedClient(null);
                 }}
+                userId={user?.uid || 'mock-user'}
               />
             )}
 
