@@ -238,8 +238,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
       <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-sky-600/20 to-indigo-900/40 mix-blend-overlay z-10" />
         <img 
-          src="https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=2000" 
-          alt="Professional Notary"
+          src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2000" 
+          alt="Professional Analytics"
           className="absolute inset-0 w-full h-full object-cover scale-105 hover:scale-100 transition-transform duration-[10s] ease-out"
           loading="eager"
           referrerPolicy="no-referrer"
