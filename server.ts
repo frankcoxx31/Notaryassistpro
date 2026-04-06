@@ -35,7 +35,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(__dirname, 'dist');
     
     // Check if dist folder exists
     if (!fs.existsSync(distPath)) {
