@@ -2316,6 +2316,8 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   // Sort appointments by combined date and time in descending order (newest at the top)
   const sortedAppointments = useMemo(() => {
@@ -2332,11 +2334,22 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
       });
   }, [appointments]);
 
+  const totalPages = Math.ceil(sortedAppointments.length / itemsPerPage);
+  const paginatedAppointments = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return sortedAppointments.slice(start, start + itemsPerPage);
+  }, [sortedAppointments, currentPage]);
+
+  // Reset to page 1 if sortedAppointments changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sortedAppointments.length]);
+
   const toggleSelectAll = () => {
-    if (selectedIds.length === sortedAppointments.length) {
+    if (selectedIds.length === paginatedAppointments.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(sortedAppointments.map(a => a.id));
+      setSelectedIds(paginatedAppointments.map(a => a.id));
     }
   };
 
@@ -2815,7 +2828,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                   <input 
                     type="checkbox" 
                     className="rounded" 
-                    checked={selectedIds.length === sortedAppointments.length && sortedAppointments.length > 0}
+                    checked={selectedIds.length === paginatedAppointments.length && paginatedAppointments.length > 0}
                     onChange={toggleSelectAll}
                   />
                 </th>
@@ -2835,7 +2848,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
               </tr>
             </thead>
             <tbody className="text-[13px] divide-y divide-slate-100">
-              {sortedAppointments.map((app, idx) => (
+              {paginatedAppointments.map((app, idx) => (
                 <tr key={app.id} className={cn("hover:bg-sky-50/30 transition-colors group", selectedIds.includes(app.id) && "bg-sky-50")}>
                   <td className="px-3 py-3">
                     <input 
@@ -2932,6 +2945,62 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div className="text-xs text-slate-500">
+              Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, sortedAppointments.length)}</span> of <span className="font-medium">{sortedAppointments.length}</span> signings
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={cn(
+                        "w-8 h-8 rounded text-xs font-medium transition-colors",
+                        currentPage === pageNum 
+                          ? "bg-sky-600 text-white" 
+                          : "bg-white border border-slate-300 text-slate-600 hover:bg-slate-50"
+                      )}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
