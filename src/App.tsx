@@ -78,6 +78,9 @@ import {
   eachDayOfInterval, 
   isSameDay, 
   isSameMonth,
+  isSameYear,
+  isSameWeek,
+  subYears,
   parse
 } from 'date-fns';
 import { 
@@ -2316,16 +2319,75 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
   );
 };
 
-const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onImport, onUpdate, userId }: { appointments: Appointment[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void; onUpdate: (app: Appointment) => void; userId: string }) => {
+const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDelete, onImport, onUpdate, userId }: { appointments: Appointment[]; clients: Client[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void; onUpdate: (app: Appointment) => void; userId: string }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
+  // Filter state
+  const [dateFilter, setDateFilter] = useState('This year');
+  const [customerFilter, setCustomerFilter] = useState('All Customers');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [workTypeFilter, setWorkTypeFilter] = useState('All Types of work');
+
+  const customers = useMemo(() => {
+    // Use the clients list as the source of truth for customers
+    const clientNames = clients.map(c => c.name);
+    // Also include any customer names from appointments that might not be in the clients list
+    const appointmentCustomerNames = appointments.map(a => a.customer || "Rocket Close");
+    const unique = new Set([...clientNames, ...appointmentCustomerNames]);
+    return Array.from(unique).filter(Boolean).sort();
+  }, [clients, appointments]);
+
+  const workTypes = useMemo(() => {
+    const unique = new Set(appointments.map(a => a.signingType));
+    return Array.from(unique).sort();
+  }, [appointments]);
+
+  const filteredAppointments = useMemo(() => {
+    let filtered = appointments;
+
+    // Date Filter
+    const now = new Date();
+    if (dateFilter === 'This year') {
+      filtered = filtered.filter(a => isSameYear(parseSafeDateTime(a.date, a.time), now));
+    } else if (dateFilter === 'Last year') {
+      filtered = filtered.filter(a => isSameYear(parseSafeDateTime(a.date, a.time), subYears(now, 1)));
+    } else if (dateFilter === 'This month') {
+      filtered = filtered.filter(a => isSameMonth(parseSafeDateTime(a.date, a.time), now));
+    } else if (dateFilter === 'Last month') {
+      filtered = filtered.filter(a => isSameMonth(parseSafeDateTime(a.date, a.time), subMonths(now, 1)));
+    } else if (dateFilter === 'This week') {
+      filtered = filtered.filter(a => isSameWeek(parseSafeDateTime(a.date, a.time), now));
+    } else if (dateFilter === 'Last week') {
+      filtered = filtered.filter(a => isSameWeek(parseSafeDateTime(a.date, a.time), subWeeks(now, 1)));
+    }
+
+    // Customer Filter
+    if (customerFilter !== 'All Customers') {
+      filtered = filtered.filter(a => (a.customer || "Rocket Close") === customerFilter);
+    }
+
+    // Status Filter
+    if (statusFilter === 'Paid') {
+      filtered = filtered.filter(a => (a.status === 'Paid' || !!a.invoicePaidDate));
+    } else if (statusFilter === 'Unpaid') {
+      filtered = filtered.filter(a => (a.status !== 'Paid' && !a.invoicePaidDate && a.status !== 'Cancelled' && a.status !== 'No Show'));
+    }
+
+    // Work Type Filter
+    if (workTypeFilter !== 'All Types of work') {
+      filtered = filtered.filter(a => a.signingType === workTypeFilter);
+    }
+
+    return filtered;
+  }, [appointments, dateFilter, customerFilter, statusFilter, workTypeFilter]);
+
   // Sort appointments by combined date and time in descending order (newest at the top)
   const sortedAppointments = useMemo(() => {
-    return appointments
+    return filteredAppointments
       .map(app => {
         if (app.sortableDateTime) return app;
         return {
@@ -2340,7 +2402,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
         if (dateA > dateB) return -1;
         return 0;
       });
-  }, [appointments]);
+  }, [filteredAppointments]);
 
   const totalPages = Math.ceil(sortedAppointments.length / itemsPerPage);
   const paginatedAppointments = useMemo(() => {
@@ -2691,7 +2753,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
   };
 
   const stats = useMemo(() => {
-    const activeApps = appointments.filter(a => a.status !== 'Cancelled' && a.status !== 'No Show');
+    const activeApps = filteredAppointments.filter(a => a.status !== 'Cancelled' && a.status !== 'No Show');
     const totalSignings = activeApps.length;
     const paidIncome = activeApps
       .filter(a => (a.status as string) === 'Paid' || a.invoicePaidDate)
@@ -2809,17 +2871,42 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
       {/* Filter Bar */}
       <div className="bg-slate-50 border border-slate-200 rounded-md p-2 flex items-center justify-between">
         <div className="flex flex-wrap gap-2">
-          <select className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-32">
-            <option>This year</option>
+          <select 
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-32"
+          >
+            <option value="This year">This year</option>
+            <option value="Last year">Last year</option>
+            <option value="This month">This month</option>
+            <option value="Last month">Last month</option>
+            <option value="This week">This week</option>
+            <option value="Last week">Last week</option>
           </select>
-          <select className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-44">
-            <option>All Customers</option>
+          <select 
+            value={customerFilter}
+            onChange={(e) => setCustomerFilter(e.target.value)}
+            className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-44"
+          >
+            <option value="All Customers">All Customers</option>
+            {customers.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-32">
-            <option>All</option>
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-32"
+          >
+            <option value="All">All</option>
+            <option value="Paid">Paid</option>
+            <option value="Unpaid">Unpaid</option>
           </select>
-          <select className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-44">
-            <option>All Types of work</option>
+          <select 
+            value={workTypeFilter}
+            onChange={(e) => setWorkTypeFilter(e.target.value)}
+            className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-44"
+          >
+            <option value="All Types of work">All Types of work</option>
+            {workTypes.map(w => <option key={w} value={w}>{w}</option>)}
           </select>
         </div>
         <button className="p-1.5 bg-white border border-slate-300 rounded hover:bg-slate-50">
@@ -3558,6 +3645,7 @@ export default function App() {
                   element={
                     <Appointments 
                       appointments={appointments} 
+                      clients={clients}
                       onNewSigning={() => {
                         setSelectedAppointment(null);
                         setIsNewSigningModalOpen(true);
