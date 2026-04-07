@@ -1894,7 +1894,9 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
       });
 
       const signingsCount = monthAppointments.length;
-      const totalIncome = monthAppointments.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+      const totalIncome = monthAppointments
+        .filter(a => a.status === 'Completed' || a.status === 'Paid')
+        .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
 
       return {
         name: month,
@@ -1905,12 +1907,14 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
   }, [appointments, selectedYear]);
 
   const totalSignings = appointments.length;
-  const totalGross = appointments.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  const totalGross = appointments
+    .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
+    .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
   const totalPaid = appointments
-    .filter(a => (a.status as string) === 'Paid' || a.invoicePaidDate)
+    .filter(a => ((a.status as string) === 'Paid' || a.invoicePaidDate) && a.status !== 'Cancelled' && a.status !== 'No Show')
     .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
   const totalUnpaid = appointments
-    .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate)
+    .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate && a.status !== 'Cancelled' && a.status !== 'No Show')
     .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const netTotal = totalGross - totalExpenses;
@@ -2687,14 +2691,15 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
   };
 
   const stats = useMemo(() => {
-    const totalSignings = appointments.length;
-    const paidIncome = appointments
+    const activeApps = appointments.filter(a => a.status !== 'Cancelled' && a.status !== 'No Show');
+    const totalSignings = activeApps.length;
+    const paidIncome = activeApps
       .filter(a => (a.status as string) === 'Paid' || a.invoicePaidDate)
       .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
-    const unpaidIncome = appointments
+    const unpaidIncome = activeApps
       .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate)
       .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
-    const totalFees = appointments.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+    const totalFees = activeApps.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
 
     return [
       { label: 'SIGNINGS', value: totalSignings.toString(), color: 'text-sky-600', help: true },
@@ -2863,7 +2868,7 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                     />
                   </td>
                   <td className="px-3 py-3">
-                    {app.status === 'Completed' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                    {(app.status === 'Completed' || app.status === 'Paid') && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
                   </td>
                   <td className="px-3 py-3 text-slate-600">
                     {format(parseSafeDateTime(app.date), 'M/d/yyyy')}<br />
@@ -3085,7 +3090,9 @@ const Clients = ({ clients, onNewClient, onEditClient, onDeleteClient }: { clien
 };
 
 const Accounting = ({ appointments, expenses, onNewExpense, onDeleteExpense }: { appointments: Appointment[]; expenses: Expense[]; onNewExpense: () => void; onDeleteExpense: (id: string) => void }) => {
-  const totalIncome = appointments.filter(a => a.status === 'Completed').reduce((sum, a) => sum + a.fee, 0);
+  const totalIncome = appointments
+    .filter(a => a.status === 'Completed' || a.status === 'Paid')
+    .reduce((sum, a) => sum + a.fee, 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
   const netProfit = totalIncome - totalExpenses;
 

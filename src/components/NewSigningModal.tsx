@@ -250,13 +250,13 @@ const NewSigningModal = ({
           {/* Status Section */}
           <div className="flex items-center gap-4">
             <label className="text-sm font-bold text-slate-700 w-20 text-right">Status:</label>
-            <div className="flex-1 flex gap-2">
-              {['Scheduled', 'Completed', 'Cancelled'].map((status) => (
+            <div className="flex-1 flex gap-2 flex-wrap">
+              {['Scheduled', 'Completed', 'Paid', 'Cancelled', 'No Show'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setFormData({ ...formData, status: status as AppointmentStatus })}
                   className={cn(
-                    "flex-1 py-2 text-xs font-bold rounded border transition-all",
+                    "flex-1 min-w-[80px] py-2 text-[10px] font-bold rounded border transition-all",
                     formData.status === status 
                       ? "bg-sky-50 border-sky-500 text-sky-700" 
                       : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
