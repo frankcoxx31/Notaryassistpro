@@ -2330,8 +2330,10 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
         };
       })
       .sort((a, b) => {
-        if (a.sortableDateTime < b.sortableDateTime) return 1;
-        if (a.sortableDateTime > b.sortableDateTime) return -1;
+        const dateA = a.sortableDateTime || '';
+        const dateB = b.sortableDateTime || '';
+        if (dateA < dateB) return 1;
+        if (dateA > dateB) return -1;
         return 0;
       });
   }, [appointments]);
@@ -2924,7 +2926,6 @@ const Appointments = ({ appointments, onNewSigning, onViewSigning, onDelete, onI
                       {app.invoiceNumber || "N/A"}
                     </button>
                   </td>
-                  <td className="px-3 py-3 text-slate-600">{app.mileage || "N/A"}</td>
                   <td className="px-3 py-3 text-slate-600">{app.orderNumber || "N/A"}</td>
                   <td className="px-3 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -3637,6 +3638,7 @@ export default function App() {
                   setModalInitialTab('Signer(s)');
                 }}
                 userId={user?.uid || 'mock-user'}
+                clients={clients}
               />
             )}
 

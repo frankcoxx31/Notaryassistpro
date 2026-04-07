@@ -6,7 +6,7 @@ import {
   List, Pencil 
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { Appointment, AppointmentStatus } from '../types';
+import { Appointment, AppointmentStatus, Client } from '../types';
 import { cn } from '../lib/utils';
 
 interface NewSigningModalProps {
@@ -16,6 +16,7 @@ interface NewSigningModalProps {
   onSave: (app: Appointment) => void;
   initialTab?: string;
   userId: string;
+  clients: Client[];
 }
 
 const NewSigningModal = ({ 
@@ -24,7 +25,8 @@ const NewSigningModal = ({
   appointment, 
   onSave, 
   initialTab = 'Signer(s)',
-  userId
+  userId,
+  clients
 }: NewSigningModalProps) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formData, setFormData] = useState<Partial<Appointment>>({});
@@ -404,13 +406,19 @@ const NewSigningModal = ({
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="text-sm font-bold text-slate-700 w-24 text-right">Customer:</label>
-                    <input 
-                      type="text" 
+                    <select 
                       value={formData.customer || ""}
                       onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                      placeholder="e.g. Rocket Close"
-                    />
+                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500 bg-white"
+                    >
+                      <option value="">Select a Customer</option>
+                      {clients.map(client => (
+                        <option key={client.id} value={client.name}>
+                          {client.name} {client.company ? `(${client.company})` : ''}
+                        </option>
+                      ))}
+                      <option value="Rocket Close">Rocket Close (Default)</option>
+                    </select>
                   </div>
                 </div>
               )}
