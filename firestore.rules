@@ -57,7 +57,7 @@ service cloud.firestore {
     function isValidAppointment(data) {
       return hasRequiredFields(['id', 'date', 'time', 'clientName', 'signingType', 'location', 'fee', 'status', 'userId']) &&
              data.fee is number && data.fee >= 0 &&
-             data.status in ['Scheduled', 'Completed', 'Cancelled', 'No Show'];
+             data.status in ['Scheduled', 'Completed', 'Paid', 'Cancelled', 'No Show'];
     }
 
     function isValidClient(data) {
