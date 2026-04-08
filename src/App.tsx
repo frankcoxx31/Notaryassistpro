@@ -322,16 +322,20 @@ const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]
     }
   });
 
-  try {
-    const data = JSON.parse(response.text || '[]');
-    return data.map((item: any) => {
-      const appointment = {
-        ...item,
-        id: Math.random().toString(36).substr(2, 9),
-        userId: userId,
-        status: item.status || 'Scheduled',
-        sortableDateTime: parseSafeDateTime(item.date, item.time).toISOString()
-      };
+    try {
+      const data = JSON.parse(response.text || '[]');
+      return data.map((item: any) => {
+        const now = new Date();
+        const dateStr = format(now, 'yyyyMMdd');
+        const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase();
+        const appointment = {
+          ...item,
+          id: Math.random().toString(36).substr(2, 9),
+          userId: userId,
+          status: item.status || 'Scheduled',
+          sortableDateTime: parseSafeDateTime(item.date, item.time).toISOString(),
+          invoiceNumber: item.invoiceNumber || `INV-${dateStr}-${randomStr}`
+        };
 
       // Ensure clientName is set if firstName/lastName are provided
       if (!appointment.clientName && (appointment.firstName || appointment.lastName)) {
@@ -1345,6 +1349,10 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onE
                 location = `${address}, ${city}, ${state} ${zip}`.trim().replace(/, ,/g, ',');
               }
 
+              const now = new Date();
+              const dateStr = format(now, 'yyyyMMdd');
+              const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase();
+
               newAppointments.push({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: userId,
@@ -1363,7 +1371,7 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onE
                 status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
                 notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`,
                 orderNumber: orderNumIdx !== -1 ? parts[orderNumIdx] : '',
-                invoiceNumber: invoiceNumIdx !== -1 ? parts[invoiceNumIdx] : '',
+                invoiceNumber: (invoiceNumIdx !== -1 ? parts[invoiceNumIdx] : '') || `INV-${dateStr}-${randomStr}`,
                 homePhone: homePhoneIdx !== -1 ? parts[homePhoneIdx] : '',
                 phone: cellPhoneIdx !== -1 ? parts[cellPhoneIdx] : '',
                 workPhone: workPhoneIdx !== -1 ? parts[workPhoneIdx] : '',
@@ -2702,6 +2710,10 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                 location = `${address}, ${city}, ${state} ${zip}`.trim().replace(/, ,/g, ',');
               }
 
+              const now = new Date();
+              const dateStr = format(now, 'yyyyMMdd');
+              const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase();
+
               newAppointments.push({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: userId,
@@ -2720,7 +2732,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                 status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
                 notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`,
                 orderNumber: orderNumIdx !== -1 ? parts[orderNumIdx] : '',
-                invoiceNumber: invoiceNumIdx !== -1 ? parts[invoiceNumIdx] : '',
+                invoiceNumber: (invoiceNumIdx !== -1 ? parts[invoiceNumIdx] : '') || `INV-${dateStr}-${randomStr}`,
                 homePhone: homePhoneIdx !== -1 ? parts[homePhoneIdx] : '',
                 phone: cellPhoneIdx !== -1 ? parts[cellPhoneIdx] : '',
                 workPhone: workPhoneIdx !== -1 ? parts[workPhoneIdx] : '',

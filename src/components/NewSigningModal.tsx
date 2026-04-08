@@ -80,16 +80,20 @@ const NewSigningModal = ({
       }
       setFormData(data);
     } else {
+      const now = new Date();
+      const dateStr = format(now, 'yyyyMMdd');
+      const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase();
       setFormData({
         id: Math.random().toString(36).substr(2, 9),
         userId: userId,
-        date: format(new Date(), 'yyyy-MM-dd'),
+        date: format(now, 'yyyy-MM-dd'),
         time: '10:00 AM',
         signingType: 'General Loan Signing Work',
         fee: 150,
         status: 'Scheduled',
         clientName: '',
-        location: ''
+        location: '',
+        invoiceNumber: `INV-${dateStr}-${randomStr}`
       });
     }
   }, [appointment, isOpen, userId]);
