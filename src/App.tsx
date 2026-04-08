@@ -1892,6 +1892,33 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
   const [chartType, setChartType] = useState<'signings' | 'income'>('signings');
   const [selectedYear, setSelectedYear] = useState('2026');
 
+  const todaySignings = useMemo(() => {
+    const now = new Date();
+    return appointments
+      .filter(a => {
+        const appDate = parseSafeDateTime(a.date);
+        return isSameDay(appDate, now) && a.status !== 'Cancelled' && a.status !== 'No Show';
+      })
+      .sort((a, b) => {
+        const timeA = parseSafeDateTime(a.date, a.time).getTime();
+        const timeB = parseSafeDateTime(b.date, b.time).getTime();
+        return timeA - timeB;
+      });
+  }, [appointments]);
+
+  const nextSigning = useMemo(() => {
+    const now = new Date();
+    if (todaySignings.length > 0) return todaySignings[0];
+    
+    return appointments
+      .filter(a => isAfter(parseSafeDateTime(a.date, a.time), now) && a.status !== 'Cancelled' && a.status !== 'No Show')
+      .sort((a, b) => {
+        const timeA = parseSafeDateTime(a.date, a.time).getTime();
+        const timeB = parseSafeDateTime(b.date, b.time).getTime();
+        return timeA - timeB;
+      })[0];
+  }, [appointments, todaySignings]);
+
   const monthlyData = useMemo(() => {
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -1947,16 +1974,36 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
         </div>
         
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 min-w-[300px]">
-          <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center">
+          <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
             <Clock className="w-6 h-6 text-indigo-600" />
           </div>
-          <div>
-            <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Next Signing</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-lg font-bold text-slate-900">3:00 PM</span>
-              <span className="text-sm text-slate-500">• Monroe</span>
-            </div>
-            <p className="text-xs text-slate-400 font-medium">Today</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
+              {todaySignings.length > 0 ? `Today's Signings (${todaySignings.length})` : 'Next Signing'}
+            </p>
+            {todaySignings.length > 0 ? (
+              <div className="mt-1 space-y-1">
+                {todaySignings.slice(0, 2).map((app) => (
+                  <div key={app.id} className="flex items-center gap-2 overflow-hidden">
+                    <span className="text-sm font-bold text-slate-900 shrink-0">{app.time}</span>
+                    <span className="text-xs text-slate-500 truncate">• {app.city || app.location.split(',')[1]?.trim() || 'TBD'}</span>
+                  </div>
+                ))}
+                {todaySignings.length > 2 && (
+                  <p className="text-[10px] text-slate-400 font-medium">+{todaySignings.length - 2} more today</p>
+                )}
+              </div>
+            ) : nextSigning ? (
+              <>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-lg font-bold text-slate-900">{nextSigning.time}</span>
+                  <span className="text-sm text-slate-500 truncate">• {nextSigning.city || nextSigning.location.split(',')[1]?.trim() || 'TBD'}</span>
+                </div>
+                <p className="text-xs text-slate-400 font-medium">{format(parseSafeDateTime(nextSigning.date), 'MMM d')}</p>
+              </>
+            ) : (
+              <p className="text-sm text-slate-500 mt-1 font-medium">No upcoming signings</p>
+            )}
           </div>
         </div>
       </div>
