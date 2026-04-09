@@ -2830,6 +2830,22 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
     ];
   }, [appointments]);
 
+  const customerStats = useMemo(() => {
+    if (customerFilter === 'All Customers') return null;
+    
+    const customerApps = appointments.filter(a => (a.customer || "Rocket Close") === customerFilter && a.status !== 'Cancelled' && a.status !== 'No Show');
+    const paid = customerApps
+      .filter(a => (a.status as string) === 'Paid' || a.invoicePaidDate)
+      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+    const unpaid = customerApps
+      .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate)
+      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+    
+    const total = paid + unpaid;
+      
+    return { paid, unpaid, total };
+  }, [appointments, customerFilter]);
+
   return (
     <div className="space-y-4 animate-in fade-in duration-700">
       {/* Top Action Bar */}
@@ -2950,6 +2966,22 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
             <option value="All Customers">All Customers</option>
             {customers.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          {customerStats && (
+            <div className="flex items-center gap-4 px-3 py-1 bg-white border border-slate-200 rounded text-[11px] font-medium animate-in fade-in slide-in-from-left-2 duration-300">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 uppercase tracking-wider">Paid:</span>
+                <span className="text-emerald-600">${customerStats.paid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
+                <span className="text-slate-400 uppercase tracking-wider">Unpaid:</span>
+                <span className="text-rose-700">${customerStats.unpaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
+                <span className="text-slate-400 uppercase tracking-wider">Total Income:</span>
+                <span className="text-slate-900 font-bold">${customerStats.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          )}
           <select 
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
