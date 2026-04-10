@@ -2821,14 +2821,17 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
       .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate)
       .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
     const totalFees = activeApps.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+    
+    const percentCollected = totalFees > 0 ? Math.round((paidIncome / totalFees) * 100) : 0;
 
-    return [
-      { label: 'SIGNINGS', value: totalSignings.toString(), color: 'text-sky-600', help: true },
-      { label: 'INCOME', value: `$${paidIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-sky-600', help: true },
-      { label: 'UNPAID', value: `$${unpaidIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-rose-700', help: false },
-      { label: 'TOTAL', value: `$${totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-slate-900', help: false },
-    ];
-  }, [appointments]);
+    return {
+      totalSignings,
+      paidIncome,
+      unpaidIncome,
+      totalFees,
+      percentCollected
+    };
+  }, [filteredAppointments]);
 
   const customerStats = useMemo(() => {
     if (customerFilter === 'All Customers') return null;
@@ -2846,49 +2849,95 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
     return { paid, unpaid, total };
   }, [appointments, customerFilter]);
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Paid':
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">Paid</span>;
+      case 'Completed':
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">Invoice Sent</span>;
+      case 'Scheduled':
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">Unpaid</span>;
+      case 'Cancelled':
+      case 'No Show':
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">Not Sent</span>;
+      default:
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">{status}</span>;
+    }
+  };
+
   return (
-    <div className="space-y-4 animate-in fade-in duration-700">
+    <div className="space-y-6 animate-in fade-in duration-700">
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Signings</p>
+          <p className="text-2xl font-black text-slate-900">{stats.totalSignings}</p>
+        </div>
+        
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Collected</p>
+          <p className="text-2xl font-black text-emerald-600">${stats.paidIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+          <p className="text-[10px] font-medium text-slate-500 mt-1">{stats.percentCollected}% collected</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border-2 border-amber-100 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Outstanding</p>
+            <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">Follow Up</span>
+          </div>
+          <p className="text-2xl font-black text-amber-600">${stats.unpaidIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+          <p className="text-[10px] font-medium text-slate-500 mt-1">Unpaid invoices</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Revenue</p>
+          <p className="text-2xl font-black text-[#111827]">${stats.totalFees.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+          <p className="text-[10px] font-medium text-slate-500 mt-1">This year</p>
+        </div>
+      </div>
+
       {/* Top Action Bar */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div className="flex flex-wrap items-center gap-px bg-slate-200 border border-slate-200 rounded-md">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3">
           <button 
             onClick={onNewSigning}
-            className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200"
+            className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
           >
-            <PlusCircle className="w-4 h-4 text-sky-600" /> Add Signing
+            <PlusCircle className="w-4 h-4" /> Add Signing
           </button>
           <button 
             onClick={handlePrint}
-            className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200"
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
           >
-            <Printer className="w-4 h-4 text-sky-600" /> Print
+            <Printer className="w-4 h-4" /> Print
           </button>
-          <button 
-            onClick={handleExport}
-            className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200"
-          >
-            <Download className="w-4 h-4 text-sky-600" /> Export
-          </button>
+          
           <div className="relative">
             <button 
               onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
-              className="bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2 border-r border-slate-200"
+              className={cn(
+                "px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm border",
+                selectedIds.length > 0 
+                  ? "bg-white border-slate-300 text-slate-700 hover:bg-slate-50" 
+                  : "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+              )}
+              disabled={selectedIds.length === 0}
             >
-              Batch Actions <ChevronDown className="w-3 h-3" />
+              Batch Actions {selectedIds.length > 0 && `(${selectedIds.length})`} <ChevronDown className="w-4 h-4" />
             </button>
-            {isBatchDropdownOpen && (
+            {isBatchDropdownOpen && selectedIds.length > 0 && (
               <>
                 <div 
                   className="fixed inset-0 z-40" 
                   onClick={() => setIsBatchDropdownOpen(false)}
                 />
-                <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-50 py-1 animate-in fade-in slide-in-from-top-2 duration-200">
                   <button 
                     onClick={() => {
                       handleApplyPayments();
                       setIsBatchDropdownOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
                   >
                     Apply Payments
                   </button>
@@ -2897,7 +2946,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                       handleBatchInvoice();
                       setIsBatchDropdownOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
                   >
                     Batch Invoice
                   </button>
@@ -2906,7 +2955,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                       handleDelete();
                       setIsBatchDropdownOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 font-medium flex items-center gap-2"
                   >
                     <Trash2 className="w-4 h-4" /> Delete Selected
                   </button>
@@ -2914,42 +2963,17 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
               </>
             )}
           </div>
-          <button 
-            onClick={handleImport}
-            disabled={isImporting}
-            className={cn(
-              "bg-white hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 flex items-center gap-2",
-              isImporting && "opacity-50 cursor-not-allowed"
-            )}
-          >
-            {isImporting ? (
-              <RefreshCw className="w-4 h-4 text-sky-600 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4 text-sky-600" />
-            )}
-            {isImporting ? 'Importing...' : 'Import'} <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px]">0</span>
-          </button>
-        </div>
-
-        <div className="flex gap-6">
-          {stats.map((s) => (
-            <div key={s.label} className="text-right">
-              <div className="flex items-center justify-end gap-1">
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider">{s.label}</span>
-              </div>
-              <p className={cn("text-lg font-medium", s.color)}>{s.value}</p>
-            </div>
-          ))}
         </div>
       </div>
 
+
       {/* Filter Bar */}
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-2 flex items-center justify-between">
-        <div className="flex flex-wrap gap-2">
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-2">
           <select 
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-32"
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
           >
             <option value="This year">This year</option>
             <option value="Last year">Last year</option>
@@ -2961,195 +2985,182 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
           <select 
             value={customerFilter}
             onChange={(e) => setCustomerFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-44"
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-44 shadow-sm"
           >
             <option value="All Customers">All Customers</option>
             {customers.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          
           {customerStats && (
-            <div className="flex items-center gap-4 px-3 py-1 bg-white border border-slate-200 rounded text-[11px] font-medium animate-in fade-in slide-in-from-left-2 duration-300">
+            <div className="flex items-center gap-4 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold animate-in fade-in slide-in-from-left-2 duration-300 shadow-sm">
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 uppercase tracking-wider">Paid:</span>
+                <span className="text-slate-400 uppercase tracking-widest">Paid:</span>
                 <span className="text-emerald-600">${customerStats.paid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
-                <span className="text-slate-400 uppercase tracking-wider">Unpaid:</span>
-                <span className="text-rose-700">${customerStats.unpaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-slate-400 uppercase tracking-widest">Unpaid:</span>
+                <span className="text-amber-600">${customerStats.unpaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
-                <span className="text-slate-400 uppercase tracking-wider">Total Income:</span>
-                <span className="text-slate-900 font-bold">${customerStats.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-slate-400 uppercase tracking-widest">Total:</span>
+                <span className="text-slate-900">${customerStats.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
           )}
+
           <select 
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-32"
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
           >
-            <option value="All">All</option>
+            <option value="All">All Status</option>
             <option value="Paid">Paid</option>
             <option value="Unpaid">Unpaid</option>
           </select>
           <select 
             value={workTypeFilter}
             onChange={(e) => setWorkTypeFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded px-3 py-1 text-xs focus:outline-none w-44"
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-44 shadow-sm"
           >
-            <option value="All Types of work">All Types of work</option>
+            <option value="All Types of work">All Types</option>
             {workTypes.map(w => <option key={w} value={w}>{w}</option>)}
           </select>
         </div>
-        <button className="p-1.5 bg-white border border-slate-300 rounded hover:bg-slate-50">
-          <Settings2 className="w-4 h-4 text-slate-600" />
-        </button>
+
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleExport}
+            className="text-slate-500 hover:text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
+          >
+            <Download className="w-3.5 h-3.5" /> Export
+          </button>
+          <button 
+            onClick={handleImport}
+            disabled={isImporting}
+            className="text-slate-500 hover:text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+          >
+            {isImporting ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Upload className="w-3.5 h-3.5" />
+            )}
+            {isImporting ? 'Importing...' : 'Import'}
+          </button>
+          <div className="w-px h-4 bg-slate-200 mx-1"></div>
+          <button className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-white rounded-lg transition-all">
+            <Settings2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm">
+      {/* Table Section */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-tight">
-                <th className="px-3 py-3 w-10">
+              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                <th className="px-4 py-3 w-10">
                   <input 
                     type="checkbox" 
-                    className="rounded" 
                     checked={selectedIds.length === paginatedAppointments.length && paginatedAppointments.length > 0}
                     onChange={toggleSelectAll}
+                    className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                   />
                 </th>
-                <th className="px-3 py-3 w-10"></th>
-                <th className="px-3 py-3">Date / Time <ChevronDown className="inline w-3 h-3" /></th>
+                <th className="px-3 py-3">Date & Time <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Last Name <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">Type of work <ChevronDown className="inline w-3 h-3" /></th>
+                <th className="px-3 py-3">Type <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">City <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">Customer <ChevronDown className="inline w-3 h-3" /></th>
+                <th className="px-3 py-3">Source <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Amount</th>
-                <th className="px-3 py-3">Invoice Sent <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">Invoice Paid</th>
-                <th className="px-3 py-3">Invoice Number <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">Mileage</th>
-                <th className="px-3 py-3">Order No.</th>
-                <th className="px-3 py-3"></th>
+                <th className="px-3 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="text-[13px] divide-y divide-slate-100">
-              {paginatedAppointments.map((app, idx) => (
-                <tr key={app.id} className={cn("hover:bg-sky-50/30 transition-colors group", selectedIds.includes(app.id) && "bg-sky-50")}>
-                  <td className="px-3 py-3">
-                    <input 
-                      type="checkbox" 
-                      className="rounded" 
-                      checked={selectedIds.includes(app.id)}
-                      onChange={() => toggleSelect(app.id)}
-                    />
-                  </td>
-                  <td className="px-3 py-3">
-                    {(app.status === 'Completed' || app.status === 'Paid') && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                  </td>
-                  <td className="px-3 py-3 text-slate-600">
-                    {format(parseSafeDateTime(app.date), 'M/d/yyyy')}<br />
-                    {app.time}
-                  </td>
-                  <td className="px-3 py-3">
-                    <button 
-                      onClick={() => onViewSigning(app)}
-                      className="text-sky-600 hover:underline font-medium"
-                    >
-                      {app.clientName.split(' ').pop()}
-                    </button>
-                  </td>
-                  <td className="px-3 py-3 text-slate-600">{app.signingType}</td>
-                  <td className="px-3 py-3">
-                    <button 
-                      onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(app.location)}`, '_blank')}
-                      className="text-sky-600 hover:underline"
-                    >
-                      {app.city || app.location.split(',')[1]?.trim() || app.location}
-                    </button>
-                  </td>
-                  <td className="px-3 py-3">
-                    <button 
-                      onClick={() => onViewSigning(app, 'Contacts')}
-                      className="text-slate-600 hover:text-sky-600 hover:underline"
-                    >
-                      {app.customer || "Rocket Close"}
-                    </button>
-                  </td>
-                  <td className="px-3 py-3 font-medium text-rose-700">${app.fee.toFixed(2)}</td>
-                  <td className="px-3 py-3">
-                    <input 
-                      type="date" 
-                      value={app.invoiceSentDate || ""}
-                      onChange={(e) => onUpdate({ ...app, invoiceSentDate: e.target.value })}
-                      className="text-xs border border-slate-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-sky-500"
-                    />
-                  </td>
-                  <td className="px-3 py-3">
-                    <input 
-                      type="date"
-                      value={app.invoicePaidDate || ""}
-                      onChange={(e) => {
-                        const newDate = e.target.value;
-                        onUpdate({ 
-                          ...app, 
-                          invoicePaidDate: newDate,
-                          status: newDate ? 'Paid' : (app.status === 'Paid' ? 'Completed' : app.status)
-                        });
-                      }}
-                      className="text-xs border border-slate-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-sky-500"
-                    />
-                  </td>
-                  <td className="px-3 py-3">
-                    <button 
-                      onClick={() => onViewSigning(app, 'Invoice')}
-                      className="text-sky-600 hover:underline"
-                    >
-                      {app.invoiceNumber || "N/A"}
-                    </button>
-                  </td>
-                  <td className="px-3 py-3 text-slate-600">{app.orderNumber || "N/A"}</td>
-                  <td className="px-3 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
+            <tbody className="divide-y divide-slate-100">
+              {paginatedAppointments.length > 0 ? (
+                paginatedAppointments.map((app) => (
+                  <tr key={app.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-4 py-3">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(app.id)}
+                        onChange={() => toggleSelect(app.id)}
+                        className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                      />
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="text-sm font-bold text-slate-900">{format(parseSafeDateTime(app.date), 'MM/dd/yyyy')}</div>
+                      <div className="text-[10px] font-medium text-slate-500">{app.time}</div>
+                    </td>
+                    <td className="px-3 py-3">
                       <button 
-                        onClick={() => handlePrintJob(app)}
-                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-sky-600"
-                        title="Print Job"
+                        onClick={() => onViewSigning(app)}
+                        className="text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline text-left"
                       >
-                        <Printer className="w-4 h-4" />
+                        {app.clientName.split(' ').pop()}
                       </button>
-                      <button 
-                        onClick={() => {
-                          onDelete([app.id]);
-                        }}
-                        className="p-1 hover:bg-rose-50 rounded text-slate-300 hover:text-rose-600 transition-colors"
-                        title="Delete Signing"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      <button className="p-1 hover:bg-slate-100 rounded text-slate-300 group-hover:text-slate-400">
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="text-xs font-medium text-slate-600">{app.signingType}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="text-xs font-medium text-slate-600">{app.city || app.location.split(',')[1]?.trim() || 'TBD'}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="text-xs font-medium text-slate-600">{app.customer || "Rocket Close"}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="text-sm font-bold text-[#111827]">${Number(app.fee).toFixed(2)}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      {getStatusBadge(app.status)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => onViewSigning(app, 'Invoice')}
+                          className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-all"
+                          title="Print Invoice"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => onDelete([app.id])}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={9} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <Calendar className="w-8 h-8 opacity-20" />
+                      <p className="text-sm font-medium">No signings found for this period</p>
                     </div>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination Controls */}
+        {/* Pagination Section */}
         {totalPages > 1 && (
-          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-            <div className="text-xs text-slate-500">
-              Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, sortedAppointments.length)}</span> of <span className="font-medium">{sortedAppointments.length}</span> signings
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <p className="text-xs font-medium text-slate-500">
+              Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filteredAppointments.length)}</span> of <span className="text-slate-900">{filteredAppointments.length}</span> signings
+            </p>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -3172,9 +3183,9 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
                       className={cn(
-                        "w-8 h-8 rounded text-xs font-medium transition-colors",
+                        "w-8 h-8 rounded text-xs font-bold transition-all",
                         currentPage === pageNum 
-                          ? "bg-sky-600 text-white" 
+                          ? "bg-sky-600 text-white shadow-sm" 
                           : "bg-white border border-slate-300 text-slate-600 hover:bg-slate-50"
                       )}
                     >
@@ -3184,10 +3195,10 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                 })}
               </div>
 
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
-                className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
