@@ -1960,60 +1960,100 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
   const metrics = [
     { label: 'Total Signings', value: totalSignings.toString(), icon: Calendar, color: 'text-slate-600', iconColor: 'text-slate-400', bg: 'bg-white' },
     { label: 'Paid Income', value: `$${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-emerald-600', iconColor: 'text-emerald-500', bg: 'bg-white' },
-    { label: 'Unpaid Amount', value: `$${totalUnpaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: AlertTriangle, color: 'text-rose-600', iconColor: 'text-rose-500', bg: 'bg-white' },
+    { label: 'Unpaid Amount', value: `$${totalUnpaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: AlertTriangle, color: 'text-amber-600', iconColor: 'text-amber-500', bg: 'bg-white', hasBadge: true },
     { label: 'Projected Total', value: `$${totalGross.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: TrendingUp, color: 'text-slate-900', iconColor: 'text-slate-400', bg: 'bg-white', isBold: true },
   ];
+
+  const monthlyGoal = 5000;
+  const goalProgress = Math.min(100, (totalPaid / monthlyGoal) * 100);
+
+  const recentSignings = useMemo(() => {
+    return [...appointments]
+      .sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime())
+      .slice(0, 5);
+  }, [appointments]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Paid': return 'bg-emerald-500';
+      case 'Completed': return 'bg-blue-500';
+      case 'Scheduled': return 'bg-amber-500';
+      default: return 'bg-slate-400';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'Paid': return 'Paid';
+      case 'Completed': return 'Sent';
+      case 'Scheduled': return 'Unpaid';
+      default: return 'Not Sent';
+    }
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'Paid': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+      case 'Completed': return 'bg-blue-50 text-blue-700 border-blue-100';
+      case 'Scheduled': return 'bg-amber-50 text-amber-700 border-amber-100';
+      default: return 'bg-slate-50 text-slate-600 border-slate-100';
+    }
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 bg-[#F9FAFB] -m-4 lg:-m-8 p-4 lg:p-8 min-h-screen">
       {/* User Hero Section */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+      <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-[#1E293B] tracking-tight">Frank Coxx</h1>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Good afternoon</p>
+          <h1 className="text-4xl font-black text-[#1E293B] tracking-tight">Frank Coxx</h1>
           <p className="text-slate-500 font-medium mt-1">{format(new Date(), 'EEEE, MMMM do, yyyy')}</p>
         </div>
         
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 min-w-[300px]">
-          <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
-            <Clock className="w-6 h-6 text-indigo-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
-              {todaySignings.length > 0 ? `Today's Signings (${todaySignings.length})` : 'Next Signing'}
-            </p>
-            {todaySignings.length > 0 ? (
-              <div className="mt-1 space-y-1">
-                {todaySignings.slice(0, 2).map((app) => (
-                  <div key={app.id} className="flex items-center gap-2 overflow-hidden">
-                    <span className="text-sm font-bold text-slate-900 shrink-0">{app.time}</span>
-                    <span className="text-xs text-slate-500 truncate">• {app.city || app.location.split(',')[1]?.trim() || 'TBD'}</span>
-                  </div>
-                ))}
-                {todaySignings.length > 2 && (
-                  <p className="text-[10px] text-slate-400 font-medium">+{todaySignings.length - 2} more today</p>
-                )}
+        {nextSigning && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 min-w-[320px] relative overflow-hidden group hover:shadow-md transition-all">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-sky-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
+            <div className="relative z-10">
+              <p className="text-[10px] font-black text-sky-600 uppercase tracking-[0.2em] mb-3">Next Signing</p>
+              <div className="flex items-baseline gap-2 mb-4">
+                <span className="text-3xl font-black text-slate-900">{nextSigning.time}</span>
               </div>
-            ) : nextSigning ? (
-              <>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-lg font-bold text-slate-900">{nextSigning.time}</span>
-                  <span className="text-sm text-slate-500 truncate">• {nextSigning.city || nextSigning.location.split(',')[1]?.trim() || 'TBD'}</span>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <MapPin className="w-4 h-4 text-sky-500" />
+                  <span className="text-sm font-bold truncate max-w-[150px]">
+                    {nextSigning.city || nextSigning.location.split(',')[1]?.trim() || 'TBD'}
+                  </span>
                 </div>
-                <p className="text-xs text-slate-400 font-medium">{format(parseSafeDateTime(nextSigning.date), 'MMM d')}</p>
-              </>
-            ) : (
-              <p className="text-sm text-slate-500 mt-1 font-medium">No upcoming signings</p>
-            )}
+                <span className="bg-sky-50 text-sky-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-wider">
+                  {format(parseSafeDateTime(nextSigning.date), 'MMM d')}
+                </span>
+              </div>
+              <div className="mt-4 pt-4 border-t border-slate-50 flex items-center gap-2 text-[11px] font-bold text-slate-400">
+                <span>{nextSigning.signingType}</span>
+                <span className="text-slate-200">•</span>
+                <span>{nextSigning.customer || "Rocket Close"}</span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Metrics Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {metrics.map((m) => (
-          <div key={m.label} className={cn("p-6 rounded-2xl shadow-sm border border-slate-100 transition-all hover:shadow-md", m.bg)}>
+          <div key={m.label} className={cn(
+            "p-6 rounded-2xl shadow-sm border transition-all hover:shadow-md", 
+            m.bg,
+            m.label === 'Unpaid Amount' ? "border-amber-100" : "border-slate-100"
+          )}>
             <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{m.label}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{m.label}</span>
+                {m.hasBadge && (
+                  <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">Follow Up</span>
+                )}
+              </div>
               <div className={cn("p-2 rounded-lg bg-slate-50", m.iconColor.replace('text-', 'bg-').replace('500', '50').replace('400', '50'))}>
                 <m.icon className={cn("w-5 h-5", m.iconColor)} />
               </div>
@@ -2025,105 +2065,173 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
         ))}
       </div>
 
-      {/* Main Chart Area */}
-      <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+      {/* Monthly Goal Progress */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Activity Overview</h2>
-            <p className="text-sm text-slate-500 mt-1">Track your monthly performance and growth</p>
+            <h3 className="text-lg font-bold text-slate-900">Monthly Revenue Goal</h3>
+            <p className="text-sm text-slate-500 font-medium mt-1">
+              <span className="text-sky-600 font-bold">${totalPaid.toLocaleString()}</span> earned toward your ${monthlyGoal.toLocaleString()} target
+            </p>
           </div>
-          
-          <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
-            <div className="relative">
-              <select 
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="appearance-none bg-white border border-slate-200 rounded-lg px-4 py-2 pr-10 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-sm"
-              >
-                <option>2026</option>
-                <option>2025</option>
-                <option>2024</option>
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <div className="text-right">
+            <span className="text-3xl font-black text-sky-600">{Math.round(goalProgress)}%</span>
+          </div>
+        </div>
+        <div className="relative h-3 w-full bg-slate-100 rounded-full overflow-hidden mb-3">
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ width: `${goalProgress}%` }}
+            transition={{ duration: 1, ease: "easeOut" }}
+            className="absolute top-0 left-0 h-full bg-sky-500 rounded-full shadow-[0_0_12px_rgba(14,165,233,0.3)]"
+          />
+        </div>
+        <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          <span>$0</span>
+          <span className="text-sky-600">${totalPaid.toLocaleString()}</span>
+          <span>${monthlyGoal.toLocaleString()} goal</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Chart Area */}
+        <div className="lg:col-span-2 bg-white border border-slate-100 rounded-3xl p-8 shadow-sm">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Activity Overview</h2>
+              <p className="text-sm text-slate-500 mt-1">Track your monthly performance and growth</p>
             </div>
             
-            <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-200">
-              <button 
-                onClick={() => setChartType('signings')}
-                className={cn(
-                  "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
-                  chartType === 'signings' ? "bg-[#1E293B] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                Signings
-              </button>
-              <button 
-                onClick={() => setChartType('income')}
-                className={cn(
-                  "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
-                  chartType === 'income' ? "bg-[#1E293B] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                Income
-              </button>
+            <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+              <div className="relative">
+                <select 
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="appearance-none bg-white border border-slate-200 rounded-lg px-4 py-2 pr-10 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-sm"
+                >
+                  <option>2026</option>
+                  <option>2025</option>
+                  <option>2024</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              
+              <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-200">
+                <button 
+                  onClick={() => setChartType('signings')}
+                  className={cn(
+                    "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
+                    chartType === 'signings' ? "bg-[#1E293B] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Signings
+                </button>
+                <button 
+                  onClick={() => setChartType('income')}
+                  className={cn(
+                    "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
+                    chartType === 'income' ? "bg-[#1E293B] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Income
+                </button>
+              </div>
             </div>
+          </div>
+
+          <div className="h-[400px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} 
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
+                  tickFormatter={(value) => chartType === 'income' ? `$${value}` : value}
+                />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc', radius: 12 }}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const value = payload[0].value;
+                      return (
+                        <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-xl animate-in zoom-in-95 duration-200">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                          <p className="text-lg font-black text-slate-900">
+                            {chartType === 'income' ? `$${Number(value).toLocaleString()}` : `${value} Signings`}
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar 
+                  dataKey={chartType} 
+                  fill={chartType === 'signings' ? "#3b82f6" : "#10b981"} 
+                  radius={[12, 12, 0, 0]}
+                  barSize={48}
+                >
+                  {monthlyData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.name === 'Jul' && entry[chartType] === 0 ? '#f1f5f9' : (chartType === 'signings' ? "#3b82f6" : "#10b981")}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="h-[450px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis 
-                dataKey="name" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} 
-                dy={10}
-              />
-              <YAxis 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
-                tickFormatter={(value) => chartType === 'income' ? `$${value}` : value}
-              />
-              <Tooltip 
-                cursor={{ fill: '#f8fafc', radius: 12 }}
-                content={({ active, payload, label }) => {
-                  if (active && payload && payload.length) {
-                    const value = payload[0].value;
-                    return (
-                      <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-xl animate-in zoom-in-95 duration-200">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-                        <p className="text-lg font-black text-slate-900">
-                          {chartType === 'income' ? `$${Number(value).toLocaleString()}` : `${value} Signings`}
-                        </p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Bar 
-                dataKey={chartType} 
-                fill={chartType === 'signings' ? "#3b82f6" : "#10b981"} 
-                radius={[12, 12, 0, 0]}
-                barSize={48}
-              >
-                {monthlyData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.name === 'Jul' && entry[chartType] === 0 ? '#f1f5f9' : (chartType === 'signings' ? "#3b82f6" : "#10b981")}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        
-        <div className="mt-4 flex items-center justify-center gap-2 text-xs font-medium text-slate-400">
-          <div className="w-2 h-2 rounded-full bg-slate-200"></div>
-          <span>Example: July had 0 signings during this period</span>
+        {/* Recent Signings Panel */}
+        <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-bold text-slate-900">Recent Signings</h2>
+            <Link to="/signings" className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 transition-colors">
+              View all <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          
+          <div className="space-y-4 flex-1">
+            {recentSignings.map((app) => (
+              <div key={app.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors group">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(app.status))}></div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">
+                      {app.clientName.split(' ').pop()}
+                    </p>
+                    <p className="text-[10px] font-medium text-slate-400 truncate">
+                      {format(parseSafeDateTime(app.date), 'MMM d')} • {app.time} • {app.city || app.location.split(',')[1]?.trim() || 'TBD'}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-black text-slate-900">${Number(app.fee).toFixed(2)}</p>
+                  <span className={cn(
+                    "text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider border mt-1 inline-block",
+                    getStatusBadgeClass(app.status)
+                  )}>
+                    {getStatusLabel(app.status)}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {recentSignings.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
+                <Calendar className="w-8 h-8 opacity-20 mb-2" />
+                <p className="text-sm font-medium">No recent signings</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
