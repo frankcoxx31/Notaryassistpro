@@ -3188,7 +3188,17 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
             <tbody className="divide-y divide-slate-100">
               {paginatedAppointments.length > 0 ? (
                 paginatedAppointments.map((app) => (
-                  <tr key={app.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <tr 
+                    key={app.id} 
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return;
+                      toggleSelect(app.id);
+                    }}
+                    className={cn(
+                      "transition-colors group cursor-pointer",
+                      selectedIds.includes(app.id) ? "bg-amber-50" : "hover:bg-slate-50/50"
+                    )}
+                  >
                     <td className="px-4 py-3">
                       <input 
                         type="checkbox" 
