@@ -30,6 +30,12 @@ export interface Appointment {
   invoiceSentDate?: string;
   invoicePaidDate?: string;
   sortableDateTime?: string;
+  idType?: string;
+  idNumber?: string;
+  idIssueDate?: string;
+  dob?: string;
+  idExpiration?: string;
+  signingCompany?: string;
 }
 
 export interface Client {

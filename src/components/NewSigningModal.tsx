@@ -119,7 +119,7 @@ const NewSigningModal = ({
             <div className="w-10 h-10 bg-sky-50 rounded-lg flex items-center justify-center border border-sky-100">
               <Edit2 className="w-6 h-6 text-sky-600" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800">{appointment ? 'View Signing' : 'New Signing'}:</h2>
+            <h2 className="text-2xl font-bold text-slate-800">{appointment ? 'View Entry' : 'New Entry'}:</h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <X className="w-6 h-6" />
@@ -134,21 +134,26 @@ const NewSigningModal = ({
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Type:</label>
                 <select 
-                  value={formData.signingType || "General Loan Signing Work"}
+                  value={formData.signingType || "Loan Signing — Refinance"}
                   onChange={(e) => setFormData({ ...formData, signingType: e.target.value })}
                   className="flex-1 bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none transition-all"
                 >
-                  <option>General Loan Signing Work</option>
-                  <option>Refinance</option>
-                  <option>Purchase</option>
-                  <option>Seller</option>
-                  <option>HELOC</option>
-                  <option>Reverse Mortgage</option>
-                  <option>Loan Modification</option>
-                  <option>Debt Settlement</option>
-                  <option>Power of Attorney</option>
-                  <option>Wills/Trusts</option>
-                  <option>Other</option>
+                  <optgroup label="Loan Signings">
+                    <option>Loan Signing — Refinance</option>
+                    <option>Loan Signing — Purchase (Buyer)</option>
+                    <option>Loan Signing — Seller Package</option>
+                    <option>Loan Signing — HELOC</option>
+                    <option>Loan Signing — Reverse Mortgage</option>
+                  </optgroup>
+                  <optgroup label="Traditional Acts">
+                    <option>Acknowledgment</option>
+                    <option>Jurat/Oath</option>
+                    <option>Verification/Proof</option>
+                    <option>Signature Witnessing</option>
+                    <option>Copy Certification</option>
+                    <option>Inventory of Safe Deposit Box</option>
+                    <option>Other</option>
+                  </optgroup>
                 </select>
               </div>
 
@@ -214,6 +219,17 @@ const NewSigningModal = ({
                   value={formData.loanNumber || ""}
                   onChange={(e) => setFormData({ ...formData, loanNumber: e.target.value })}
                   className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-bold text-slate-700 w-20 text-right">Company:</label>
+                <input 
+                  type="text" 
+                  value={formData.signingCompany || ""}
+                  onChange={(e) => setFormData({ ...formData, signingCompany: e.target.value })}
+                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                  placeholder="e.g. Rocket Closing, Snapdocs..."
                 />
               </div>
             </div>
@@ -386,6 +402,78 @@ const NewSigningModal = ({
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
+
+                  <div className="pt-4 border-t border-slate-100 mt-4 space-y-4">
+                    <div className="flex items-center gap-4">
+                      <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Type:</label>
+                      <select 
+                        value={formData.idType || ""}
+                        onChange={(e) => setFormData({ ...formData, idType: e.target.value })}
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500 bg-white"
+                      >
+                        <option value="">Select ID Type</option>
+                        <option>NC Driver's License</option>
+                        <option>Out-of-State Driver's License</option>
+                        <option>US Passport</option>
+                        <option>Military ID</option>
+                        <option>State-Issued ID Card</option>
+                        <option>Personal Knowledge</option>
+                        <option>Credible Witness</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Number:</label>
+                      <input 
+                        type="text" 
+                        value={formData.idNumber || ""}
+                        onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <label className="text-sm font-bold text-slate-700 w-24 text-right">Date of Birth:</label>
+                      <input 
+                        type="date" 
+                        value={formData.dob || ""}
+                        onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Expiration:</label>
+                      <input 
+                        type="date" 
+                        value={formData.idExpiration || ""}
+                        onChange={(e) => setFormData({ ...formData, idExpiration: e.target.value })}
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                      />
+                    </div>
+
+                    {(formData.idType === "NC Driver's License" || formData.idType === "Out-of-State Driver's License") && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="space-y-4"
+                      >
+                        <div className="flex items-center gap-4">
+                          <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Issue Date:</label>
+                          <div className="flex-1 flex items-center gap-2">
+                            <input 
+                              type="date" 
+                              value={formData.idIssueDate || ""}
+                              onChange={(e) => setFormData({ ...formData, idIssueDate: e.target.value })}
+                              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                            />
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">DL Only</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
               )}
               {activeTab === 'Contacts' && (
@@ -505,11 +593,11 @@ const NewSigningModal = ({
               )}
               {activeTab === 'Notes' && (
                 <div className="space-y-4">
-                  <label className="text-sm font-bold text-slate-700 block">Notes:</label>
+                  <label className="text-sm font-bold text-slate-700 block">Additional Notes (optional):</label>
                   <textarea 
                     value={formData.notes || ""}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Add any special instructions or notes here..."
+                    placeholder="Loan number, lender, title company, or any other details..."
                     className="w-full h-48 border border-slate-300 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-none transition-all"
                   />
                 </div>
