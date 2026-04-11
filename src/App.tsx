@@ -4607,6 +4607,7 @@ export default function App() {
                 }}
                 userId={user?.uid || 'mock-user'}
                 clients={clients}
+                appointments={appointments}
               />
             )}
 

@@ -17,6 +17,7 @@ interface NewSigningModalProps {
   initialTab?: string;
   userId: string;
   clients: Client[];
+  appointments: Appointment[];
 }
 
 const NewSigningModal = ({ 
@@ -26,10 +27,28 @@ const NewSigningModal = ({
   onSave, 
   initialTab = 'Signer(s)',
   userId,
-  clients
+  clients,
+  appointments
 }: NewSigningModalProps) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formData, setFormData] = useState<Partial<Appointment>>({});
+
+  const customers = React.useMemo(() => {
+    const clientNames = clients.map(c => c.name);
+    const appointmentCustomerNames = appointments.map(a => a.customer || "Rocket Close");
+    const unique = new Set([...clientNames, ...appointmentCustomerNames]);
+    return Array.from(unique).filter(Boolean).sort();
+  }, [clients, appointments]);
+
+  const uniqueCompanies = React.useMemo(() => {
+    const fromAppointments = appointments.map(a => a.signingCompany).filter(Boolean) as string[];
+    const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
+    
+    // Combine with customers list
+    const combined = [...defaults, ...fromAppointments, ...customers];
+    const unique = new Set(combined);
+    return Array.from(unique).sort();
+  }, [appointments, customers]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -230,14 +249,9 @@ const NewSigningModal = ({
                   className="flex-1 bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none transition-all"
                 >
                   <option value="">Select Company</option>
-                  <option>Rocket Close</option>
-                  <option>Snapdocs</option>
-                  <option>Amrock</option>
-                  <option>ServiceLink</option>
-                  <option>Xome</option>
-                  <option>Signature Closings</option>
-                  <option>Bancserv</option>
-                  <option>Other</option>
+                  {uniqueCompanies.map(company => (
+                    <option key={company} value={company}>{company}</option>
+                  ))}
                 </select>
               </div>
             </div>
