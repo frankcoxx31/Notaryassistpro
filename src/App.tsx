@@ -2530,28 +2530,28 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
         </div>
         
         {nextSigning && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 min-w-[320px] relative overflow-hidden group hover:shadow-md transition-all">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-sky-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 min-w-[260px] relative overflow-hidden group hover:shadow-md transition-all self-start">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-sky-50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-110"></div>
             <div className="relative z-10">
-              <p className="text-[10px] font-black text-sky-600 uppercase tracking-[0.2em] mb-3">Next Signing</p>
-              <div className="flex items-baseline gap-2 mb-4">
-                <span className="text-3xl font-black text-slate-900">{nextSigning.time}</span>
+              <p className="text-[9px] font-black text-sky-600 uppercase tracking-[0.2em] mb-2">Next Signing</p>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-2xl font-black text-slate-900">{nextSigning.time}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2 text-slate-600">
-                  <MapPin className="w-4 h-4 text-sky-500" />
-                  <span className="text-sm font-bold truncate max-w-[150px]">
+                  <MapPin className="w-3.5 h-3.5 text-sky-500" />
+                  <span className="text-xs font-bold truncate max-w-[120px]">
                     {nextSigning.city || nextSigning.location.split(',')[1]?.trim() || 'TBD'}
                   </span>
                 </div>
-                <span className="bg-sky-50 text-sky-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-wider">
+                <span className="bg-sky-50 text-sky-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
                   {format(parseSafeDateTime(nextSigning.date), 'MMM d')}
                 </span>
               </div>
-              <div className="mt-4 pt-4 border-t border-slate-50 flex items-center gap-2 text-[11px] font-bold text-slate-400">
-                <span>{nextSigning.signingType}</span>
+              <div className="mt-3 pt-3 border-t border-slate-50 flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                <span className="truncate max-w-[100px]">{nextSigning.signingType}</span>
                 <span className="text-slate-200">•</span>
-                <span>{nextSigning.customer || "Rocket Close"}</span>
+                <span className="truncate max-w-[80px]">{nextSigning.customer || "Rocket Close"}</span>
               </div>
             </div>
           </div>
@@ -3031,9 +3031,12 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
   const uniqueCompanies = useMemo(() => {
     const fromAppointments = appointments.map(a => a.signingCompany).filter(Boolean) as string[];
     const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
-    const unique = new Set([...defaults, ...fromAppointments]);
+    
+    // Combine with customers list
+    const combined = [...defaults, ...fromAppointments, ...customers];
+    const unique = new Set(combined);
     return Array.from(unique).sort();
-  }, [appointments]);
+  }, [appointments, customers]);
 
   const filteredAppointments = useMemo(() => {
     let filtered = appointments;
@@ -3271,18 +3274,6 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
       const app = appointments.find(a => a.id === id);
       if (app) {
         onUpdate({ ...app, signingCompany: newCompany });
-      }
-    });
-    
-    setSelectedIds([]);
-    setIsBatchDropdownOpen(false);
-  };
-
-  const handleBatchCustomerUpdate = (newCustomer: string) => {
-    selectedIds.forEach(id => {
-      const app = appointments.find(a => a.id === id);
-      if (app) {
-        onUpdate({ ...app, customer: newCustomer });
       }
     });
     
@@ -3663,7 +3654,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                   <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100">
                     Change Company
                   </div>
-                  <div className="max-h-32 overflow-y-auto border-b border-slate-100">
+                  <div className="max-h-48 overflow-y-auto border-b border-slate-100">
                     {uniqueCompanies.map(company => (
                       <button 
                         key={company}
@@ -3671,21 +3662,6 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                         className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100 last:border-0"
                       >
                         {company}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100">
-                    Change Customer
-                  </div>
-                  <div className="max-h-32 overflow-y-auto border-b border-slate-100">
-                    {customers.map(customer => (
-                      <button 
-                        key={customer}
-                        onClick={() => handleBatchCustomerUpdate(customer)}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100 last:border-0"
-                      >
-                        {customer}
                       </button>
                     ))}
                   </div>
