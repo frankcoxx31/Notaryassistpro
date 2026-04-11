@@ -130,6 +130,24 @@ import {
 } from 'firebase/firestore';
 
 // Robust date/time parsing for deterministic sorting and display
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'Paid': return 'Paid';
+    case 'Completed': return 'Sent';
+    case 'Scheduled': return 'Unpaid';
+    default: return 'Not Sent';
+  }
+};
+
+const getStatusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'Paid': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+    case 'Completed': return 'bg-blue-50 text-blue-700 border-blue-100';
+    case 'Scheduled': return 'bg-amber-50 text-amber-700 border-amber-100';
+    default: return 'bg-slate-50 text-slate-600 border-slate-100';
+  }
+};
+
 const parseSafeDateTime = (dateStr: string, timeStr: string = ''): Date => {
   try {
     if (!dateStr) return new Date();
@@ -1048,9 +1066,22 @@ const MileageView = ({ mileage, onNewMileage, onDeleteMileage }: { mileage: Mile
   );
 };
 
-const Reports = () => {
+const Reports = ({ 
+  appointments, 
+  expenses, 
+  mileage,
+  businessProfile
+}: { 
+  appointments: Appointment[]; 
+  expenses: Expense[]; 
+  mileage: Mileage[];
+  businessProfile: BusinessProfile;
+}) => {
   const location = useLocation();
   const currentPath = location.pathname;
+  const [dateRange, setDateRange] = useState('This Year');
+  const [selectedCustomer, setSelectedCustomer] = useState('All Customers');
+  const [selectedStatus, setSelectedStatus] = useState('All Statuses');
 
   const reports = [
     { id: 'income', title: 'Income Report', description: 'Detailed breakdown of all earnings and revenue sources.' },
@@ -1064,6 +1095,462 @@ const Reports = () => {
   ];
 
   const activeReport = reports.find(r => currentPath.includes(r.id)) || reports[0];
+
+  // Filter logic
+  const getFilteredData = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const filterByDate = (dateStr: string) => {
+      const date = parseSafeDateTime(dateStr);
+      if (dateRange === 'This Year') return date.getFullYear() === currentYear;
+      if (dateRange === 'Last Year') return date.getFullYear() === currentYear - 1;
+      if (dateRange === 'This Month') return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
+      if (dateRange === 'Last Month') {
+        const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+        const year = currentMonth === 0 ? currentYear - 1 : currentYear;
+        return date.getFullYear() === year && date.getMonth() === lastMonth;
+      }
+      return true;
+    };
+
+    const filteredAppointments = appointments.filter(app => {
+      const dateMatch = filterByDate(app.date);
+      const customerMatch = selectedCustomer === 'All Customers' || app.customer === selectedCustomer;
+      const statusMatch = selectedStatus === 'All Statuses' || 
+                         (selectedStatus === 'Paid' && app.status === 'Paid') ||
+                         (selectedStatus === 'Unpaid' && (app.status === 'Scheduled' || app.status === 'Completed'));
+      return dateMatch && customerMatch && statusMatch;
+    });
+
+    const filteredExpenses = expenses.filter(exp => filterByDate(exp.date));
+    const filteredMileage = mileage.filter(mil => filterByDate(mil.date));
+
+    return { filteredAppointments, filteredExpenses, filteredMileage };
+  };
+
+  const { filteredAppointments, filteredExpenses, filteredMileage } = getFilteredData();
+
+  const customers = Array.from(new Set(appointments.map(app => app.customer).filter(Boolean)));
+
+  const renderReportContent = () => {
+    if (activeReport.id === 'income') {
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Client</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Type</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Customer</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-right">Fee</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredAppointments.map(app => (
+                <tr key={app.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 text-sm text-slate-600">{format(parseSafeDateTime(app.date), 'MM/dd/yyyy')}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{app.clientName}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{app.signingType}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{app.customer}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900 text-right">${Number(app.fee).toFixed(2)}</td>
+                  <td className="px-6 py-4">
+                    <span className={cn("text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider", getStatusBadgeClass(app.status))}>
+                      {getStatusLabel(app.status)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {filteredAppointments.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">No income records found for the selected period.</td>
+                </tr>
+              )}
+            </tbody>
+            {filteredAppointments.length > 0 && (
+              <tfoot>
+                <tr className="bg-slate-50 font-bold">
+                  <td colSpan={4} className="px-6 py-4 text-sm text-slate-900 text-right">Total Income:</td>
+                  <td className="px-6 py-4 text-sm text-slate-900 text-right">
+                    ${filteredAppointments.reduce((sum, app) => sum + Number(app.fee), 0).toFixed(2)}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      );
+    }
+
+    if (activeReport.id === 'unpaid') {
+      const unpaidApps = filteredAppointments.filter(app => app.status === 'Scheduled' || app.status === 'Completed');
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Client</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Customer</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-right">Amount</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {unpaidApps.map(app => (
+                <tr key={app.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 text-sm text-slate-600">{format(parseSafeDateTime(app.date), 'MM/dd/yyyy')}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{app.clientName}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{app.customer}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-amber-600 text-right">${Number(app.fee).toFixed(2)}</td>
+                  <td className="px-6 py-4">
+                    <span className={cn("text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider", getStatusBadgeClass(app.status))}>
+                      {getStatusLabel(app.status)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {unpaidApps.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">No unpaid invoices found for the selected period.</td>
+                </tr>
+              )}
+            </tbody>
+            {unpaidApps.length > 0 && (
+              <tfoot>
+                <tr className="bg-slate-50 font-bold">
+                  <td colSpan={3} className="px-6 py-4 text-sm text-slate-900 text-right">Total Outstanding:</td>
+                  <td className="px-6 py-4 text-sm text-amber-600 text-right">
+                    ${unpaidApps.reduce((sum, app) => sum + Number(app.fee), 0).toFixed(2)}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      );
+    }
+
+    if (activeReport.id === 'signing-type') {
+      const typeStats = filteredAppointments.reduce((acc, app) => {
+        const type = app.signingType || 'Other';
+        if (!acc[type]) acc[type] = { count: 0, revenue: 0 };
+        acc[type].count += 1;
+        acc[type].revenue += Number(app.fee);
+        return acc;
+      }, {} as Record<string, { count: number, revenue: number }>);
+
+      const sortedTypes = Object.entries(typeStats).sort((a, b) => b[1].revenue - a[1].revenue);
+
+      return (
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Signing Type</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-center">Count</th>
+                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sortedTypes.map(([type, stats]) => (
+                    <tr key={type} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-slate-900">{type}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600 text-center">{stats.count}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900 text-right">${stats.revenue.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-col justify-center items-center bg-slate-50 rounded-xl p-8">
+              <h4 className="text-sm font-bold text-slate-500 uppercase mb-6">Revenue Mix</h4>
+              <div className="w-full max-w-[300px] h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={sortedTypes.map(([name, stats]) => ({ name, value: stats.revenue }))}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {sortedTypes.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981'][index % 6]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: number) => `$${value.toFixed(2)}`}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeReport.id === 'profit-loss') {
+      const totalIncome = filteredAppointments.reduce((sum, app) => sum + Number(app.fee), 0);
+      const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+      const netProfit = totalIncome - totalExpenses;
+
+      return (
+        <div className="p-8 max-w-2xl mx-auto">
+          <div className="space-y-8">
+            <div className="border-b border-slate-200 pb-4">
+              <h3 className="text-lg font-bold text-slate-900">Profit & Loss Statement</h3>
+              <p className="text-sm text-slate-500">{dateRange}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center py-2">
+                <span className="text-sm font-bold text-slate-700 uppercase tracking-wider">Total Income</span>
+                <span className="text-lg font-bold text-green-600">${totalIncome.toFixed(2)}</span>
+              </div>
+              <div className="pl-4 space-y-2">
+                <div className="flex justify-between text-sm text-slate-600">
+                  <span>Signing Fees</span>
+                  <span>${totalIncome.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center py-2 border-t border-slate-100">
+                <span className="text-sm font-bold text-slate-700 uppercase tracking-wider">Total Expenses</span>
+                <span className="text-lg font-bold text-rose-600">(${totalExpenses.toFixed(2)})</span>
+              </div>
+              <div className="pl-4 space-y-2">
+                {Object.entries(filteredExpenses.reduce((acc, exp) => {
+                  acc[exp.category] = (acc[exp.category] || 0) + Number(exp.amount);
+                  return acc;
+                }, {} as Record<string, number>)).map(([cat, amt]) => (
+                  <div key={cat} className="flex justify-between text-sm text-slate-600">
+                    <span>{cat}</span>
+                    <span>${amt.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-6 border-t-2 border-slate-900">
+              <div className="flex justify-between items-center">
+                <span className="text-lg font-black text-slate-900 uppercase tracking-tight">Net Profit</span>
+                <span className={cn("text-2xl font-black", netProfit >= 0 ? "text-indigo-600" : "text-rose-600")}>
+                  ${netProfit.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeReport.id === 'expenses') {
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Category</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Description</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredExpenses.map(exp => (
+                <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 text-sm text-slate-600">{format(parseSafeDateTime(exp.date), 'MM/dd/yyyy')}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{exp.category}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{exp.description}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900 text-right">${Number(exp.amount).toFixed(2)}</td>
+                </tr>
+              ))}
+              {filteredExpenses.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-slate-500">No expense records found for the selected period.</td>
+                </tr>
+              )}
+            </tbody>
+            {filteredExpenses.length > 0 && (
+              <tfoot>
+                <tr className="bg-slate-50 font-bold">
+                  <td colSpan={3} className="px-6 py-4 text-sm text-slate-900 text-right">Total Expenses:</td>
+                  <td className="px-6 py-4 text-sm text-slate-900 text-right">
+                    ${filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      );
+    }
+
+    if (activeReport.id === 'mileage') {
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Description</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-center">Miles</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-right">Deduction</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredMileage.map(mil => (
+                <tr key={mil.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 text-sm text-slate-600">{format(parseSafeDateTime(mil.date), 'MM/dd/yyyy')}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{mil.description}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 text-center">{mil.miles}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900 text-right">${(mil.miles * 0.67).toFixed(2)}</td>
+                </tr>
+              ))}
+              {filteredMileage.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-slate-500">No mileage records found for the selected period.</td>
+                </tr>
+              )}
+            </tbody>
+            {filteredMileage.length > 0 && (
+              <tfoot>
+                <tr className="bg-slate-50 font-bold">
+                  <td colSpan={2} className="px-6 py-4 text-sm text-slate-900 text-right">Totals:</td>
+                  <td className="px-6 py-4 text-sm text-slate-900 text-center">
+                    {filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0)} miles
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-900 text-right">
+                    ${(filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0) * 0.67).toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      );
+    }
+
+    if (activeReport.id === 'tax' || activeReport.id === 'tax-summary') {
+      const totalIncome = filteredAppointments.reduce((sum, app) => sum + Number(app.fee), 0);
+      const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+      const totalMileageDeduction = filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0) * 0.67;
+      const totalDeductions = totalExpenses + totalMileageDeduction;
+      const taxableIncome = Math.max(0, totalIncome - totalDeductions);
+      const estimatedTax = taxableIncome * 0.153; // Self-employment tax rate approx
+
+      return (
+        <div className="p-8 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
+              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Gross Income</p>
+              <p className="text-2xl font-black text-indigo-600">${totalIncome.toFixed(2)}</p>
+            </div>
+            <div className="bg-rose-50 p-6 rounded-2xl border border-rose-100">
+              <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Total Deductions</p>
+              <p className="text-2xl font-black text-rose-600">${totalDeductions.toFixed(2)}</p>
+            </div>
+            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Taxable Income</p>
+              <p className="text-2xl font-black text-emerald-600">${taxableIncome.toFixed(2)}</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
+            <h3 className="text-lg font-bold text-slate-900 mb-6">Tax Summary Details</h3>
+            <div className="space-y-4">
+              <div className="flex justify-between py-2 border-b border-slate-200">
+                <span className="text-slate-600">Business Expenses</span>
+                <span className="font-bold text-slate-900">${totalExpenses.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-slate-200">
+                <span className="text-slate-600">Mileage Deduction (Standard Rate)</span>
+                <span className="font-bold text-slate-900">${totalMileageDeduction.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-slate-200">
+                <span className="text-slate-600">Net Business Income</span>
+                <span className="font-bold text-slate-900">${taxableIncome.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between py-4 mt-4 bg-white px-4 rounded-xl border border-slate-200">
+                <span className="font-bold text-slate-900">Estimated Self-Employment Tax (15.3%)</span>
+                <span className="font-black text-indigo-600">${estimatedTax.toFixed(2)}</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-6 italic">
+              * This is an estimate for informational purposes only. Please consult with a tax professional for actual filing.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px] flex flex-col items-center justify-center p-12 text-center">
+        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
+          <Newspaper className="w-10 h-10 text-slate-300" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-2">No Data for Selected Period</h3>
+        <p className="text-slate-500 max-w-md mx-auto">
+          There are no records matching your current filter criteria for the {activeReport.title.toLowerCase()}. Try adjusting your date range or filters.
+        </p>
+      </div>
+    );
+  };
+
+  const renderReportSummary = () => {
+    if (activeReport.id === 'income') {
+      const total = filteredAppointments.reduce((sum, app) => sum + Number(app.fee), 0);
+      const paid = filteredAppointments.filter(app => app.status === 'Paid').reduce((sum, app) => sum + Number(app.fee), 0);
+      const pending = total - paid;
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Revenue</p>
+            <p className="text-xl font-black text-slate-900">${total.toFixed(2)}</p>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Collected</p>
+            <p className="text-xl font-black text-emerald-600">${paid.toFixed(2)}</p>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Outstanding</p>
+            <p className="text-xl font-black text-amber-600">${pending.toFixed(2)}</p>
+          </div>
+        </div>
+      );
+    }
+    if (activeReport.id === 'expenses') {
+      const total = filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+      const count = filteredExpenses.length;
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Expenses</p>
+            <p className="text-xl font-black text-rose-600">${total.toFixed(2)}</p>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Expense Count</p>
+            <p className="text-xl font-black text-slate-900">{count} records</p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -1086,25 +1573,38 @@ const Reports = () => {
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-4">
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date Range</label>
-          <select className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48">
+          <select 
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48"
+          >
             <option>This Year</option>
             <option>Last Year</option>
             <option>This Quarter</option>
             <option>Last Quarter</option>
             <option>This Month</option>
             <option>Last Month</option>
-            <option>Custom Range</option>
+            <option>All Time</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer</label>
-          <select className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48">
+          <select 
+            value={selectedCustomer}
+            onChange={(e) => setSelectedCustomer(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48"
+          >
             <option>All Customers</option>
+            {customers.map(c => <option key={c}>{c}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
-          <select className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48">
+          <select 
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48"
+          >
             <option>All Statuses</option>
             <option>Paid</option>
             <option>Unpaid</option>
@@ -1116,15 +1616,12 @@ const Reports = () => {
         </button>
       </div>
 
-      {/* Report Content Placeholder */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px] flex flex-col items-center justify-center p-12 text-center">
-        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-          <Newspaper className="w-10 h-10 text-slate-300" />
-        </div>
-        <h3 className="text-lg font-bold text-slate-900 mb-2">No Data for Selected Period</h3>
-        <p className="text-slate-500 max-w-md mx-auto">
-          There are no records matching your current filter criteria for the {activeReport.title.toLowerCase()}. Try adjusting your date range or filters.
-        </p>
+      {/* Report Summary */}
+      {renderReportSummary()}
+
+      {/* Report Content */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
+        {renderReportContent()}
       </div>
     </div>
   );
@@ -1796,18 +2293,22 @@ const Sidebar = ({
           {/* User Profile */}
           <div className="p-4 border-t border-white/5 bg-black/10">
             {user ? (
-              <div className={cn(
-                "flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group",
-                !isOpen && "justify-center"
-              )}>
-                <div className="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center overflow-hidden">
+              <div 
+                onClick={() => !isOpen && onSignOut()}
+                className={cn(
+                  "flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group",
+                  !isOpen && "justify-center"
+                )}
+                title={!isOpen ? "Sign Out" : ""}
+              >
+                <div className="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center overflow-hidden shrink-0">
                   {user.photoURL ? (
                     <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
                     <User className="w-6 h-6 text-indigo-400" />
                   )}
                 </div>
-                {isOpen && (
+                {isOpen ? (
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{user.displayName || 'Frank Cox'}</p>
                     <button 
@@ -1820,29 +2321,42 @@ const Sidebar = ({
                       <LogOut className="w-3 h-3" /> Sign Out
                     </button>
                   </div>
+                ) : (
+                  <div className="absolute left-full ml-4 px-3 py-2 bg-[#27285C] border border-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl">
+                    <p className="text-sm font-bold text-white">Sign Out</p>
+                  </div>
                 )}
               </div>
             ) : (
-              <div className={cn(
-                "flex flex-col gap-2 p-2 rounded-xl bg-white/5 transition-colors group",
-                !isOpen && "items-center"
-              )}>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center overflow-hidden">
-                    <User className="w-6 h-6 text-white" />
-                  </div>
-                  {isOpen && (
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">Demo User</p>
-                      <button 
-                        onClick={onSignOut}
-                        className="text-[10px] text-white/50 hover:text-rose-400 transition-colors flex items-center gap-1"
-                      >
-                        <LogOut className="w-3 h-3" /> Sign Out
-                      </button>
-                    </div>
-                  )}
+              <div 
+                onClick={() => !isOpen && onSignOut()}
+                className={cn(
+                  "flex items-center gap-3 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer group",
+                  !isOpen && "justify-center"
+                )}
+                title={!isOpen ? "Sign Out" : ""}
+              >
+                <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center overflow-hidden shrink-0">
+                  <User className="w-6 h-6 text-white" />
                 </div>
+                {isOpen ? (
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">Demo User</p>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSignOut();
+                      }}
+                      className="text-[10px] text-white/50 hover:text-rose-400 transition-colors flex items-center gap-1"
+                    >
+                      <LogOut className="w-3 h-3" /> Sign Out
+                    </button>
+                  </div>
+                ) : (
+                  <div className="absolute left-full ml-4 px-3 py-2 bg-[#27285C] border border-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl">
+                    <p className="text-sm font-bold text-white">Sign Out</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1852,7 +2366,7 @@ const Sidebar = ({
   );
 };
 
-const Header = ({ toggleSidebar, onNewSigning }: { toggleSidebar: () => void; onNewSigning: () => void }) => {
+const Header = ({ toggleSidebar, onNewSigning, onSignOut, user }: { toggleSidebar: () => void; onNewSigning: () => void; onSignOut: () => void; user: FirebaseUser | null }) => {
   return (
     <header className="h-16 bg-[#27285C] border-b border-white/10 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
       <div className="flex items-center gap-4">
@@ -1882,6 +2396,15 @@ const Header = ({ toggleSidebar, onNewSigning }: { toggleSidebar: () => void; on
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">New Signing</span>
+        </button>
+        
+        {/* Quick Sign Out for Header */}
+        <button 
+          onClick={onSignOut}
+          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          title="Sign Out"
+        >
+          <LogOut className="w-5 h-5 text-white/70" />
         </button>
       </div>
     </header>
@@ -1982,23 +2505,6 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'Paid': return 'Paid';
-      case 'Completed': return 'Sent';
-      case 'Scheduled': return 'Unpaid';
-      default: return 'Not Sent';
-    }
-  };
-
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'Paid': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-      case 'Completed': return 'bg-blue-50 text-blue-700 border-blue-100';
-      case 'Scheduled': return 'bg-amber-50 text-amber-700 border-amber-100';
-      default: return 'bg-slate-50 text-slate-600 border-slate-100';
-    }
-  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 bg-[#F9FAFB] -m-4 lg:-m-8 p-4 lg:p-8 min-h-screen">
@@ -3855,6 +4361,8 @@ export default function App() {
                 setSelectedAppointment(null);
                 setIsNewSigningModalOpen(true);
               }}
+              onSignOut={handleSignOut}
+              user={user}
             />
             
             <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
@@ -3913,7 +4421,14 @@ export default function App() {
                     />
                   } 
                 />
-                <Route path="/reports/*" element={<Reports />} />
+                <Route path="/reports/*" element={
+                  <Reports 
+                    appointments={appointments} 
+                    expenses={expenses} 
+                    mileage={mileage}
+                    businessProfile={businessProfile}
+                  />
+                } />
                 <Route 
                   path="/accounting" 
                   element={
