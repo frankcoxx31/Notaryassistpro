@@ -49,6 +49,7 @@ import {
   Settings2,
   PlusCircle,
   List,
+  Briefcase,
   RefreshCw,
   Phone,
   Banknote,
@@ -1866,7 +1867,7 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onE
                 zip: zip,
                 fee: feeIdx !== -1 ? parseFloat(parts[feeIdx]) || 0 : 0,
                 status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
-                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`,
+                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || '',
                 orderNumber: orderNumIdx !== -1 ? parts[orderNumIdx] : '',
                 invoiceNumber: (invoiceNumIdx !== -1 ? parts[invoiceNumIdx] : '') || `INV-${dateStr}-${randomStr}`,
                 homePhone: homePhoneIdx !== -1 ? parts[homePhoneIdx] : '',
@@ -2089,6 +2090,7 @@ const Sidebar = ({
 }) => {
   const location = useLocation();
   const [isSigningsOpen, setIsSigningsOpen] = useState(true);
+  const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [isExpensesOpen, setIsExpensesOpen] = useState(false);
   const [isMileageOpen, setIsMileageOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
@@ -2096,13 +2098,24 @@ const Sidebar = ({
   const navItems = [
     { name: 'Dashboard', icon: Gauge, path: '/' },
     { 
-      name: 'NC Journal', 
-      icon: PenLine, 
+      name: 'Signings', 
+      icon: Briefcase, 
       path: '/appointments',
       isOpen: isSigningsOpen,
       setIsOpen: setIsSigningsOpen,
       subItems: [
-        { name: 'View Journal', icon: List, path: '/appointments' },
+        { name: 'View Signings', icon: List, path: '/appointments' },
+        { name: 'New Signing', icon: PlusCircle, path: '#', onClick: onNewSigning },
+      ]
+    },
+    { 
+      name: 'NC Journal', 
+      icon: PenLine, 
+      path: '/journal',
+      isOpen: isJournalOpen,
+      setIsOpen: setIsJournalOpen,
+      subItems: [
+        { name: 'View Journal', icon: List, path: '/journal' },
         { name: 'New Entry', icon: PlusCircle, path: '#', onClick: onNewSigning },
       ]
     },
@@ -2988,7 +3001,7 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
   );
 };
 
-const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDelete, onImport, onUpdate, userId }: { appointments: Appointment[]; clients: Client[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void; onUpdate: (app: Appointment) => void; userId: string }) => {
+const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDelete, onImport, onUpdate, userId, viewMode = 'journal' }: { appointments: Appointment[]; clients: Client[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void; onUpdate: (app: Appointment) => void; userId: string; viewMode?: 'signings' | 'journal' }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
@@ -3398,7 +3411,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                 zip: zip,
                 fee: feeIdx !== -1 ? parseFloat(parts[feeIdx]) || 0 : 0,
                 status: (statusIdx !== -1 ? parts[statusIdx] as AppointmentStatus : 'Scheduled') || 'Scheduled',
-                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || `Imported from ${file.name}`,
+                notes: (notesIdx !== -1 ? parts[notesIdx] : '') || '',
                 orderNumber: orderNumIdx !== -1 ? parts[orderNumIdx] : '',
                 invoiceNumber: (invoiceNumIdx !== -1 ? parts[invoiceNumIdx] : '') || `INV-${dateStr}-${randomStr}`,
                 homePhone: homePhoneIdx !== -1 ? parts[homePhoneIdx] : '',
@@ -3516,16 +3529,18 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
           <p className="text-[10px] font-medium text-slate-500 mt-1">This year</p>
         </div>
 
-        <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 shadow-sm">
-          <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Retention Notice</p>
-          <p className="text-xs font-bold text-indigo-900 leading-tight">Journals must be kept for 10 years from the date of the last entry.</p>
-          <p className="text-[9px] text-indigo-400 mt-1">NC Requirement 18 NCAC 07I .0302</p>
-        </div>
+        {viewMode === 'journal' && (
+          <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 shadow-sm">
+            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Retention Notice</p>
+            <p className="text-xs font-bold text-indigo-900 leading-tight">Journals must be kept for 10 years from the date of the last entry.</p>
+            <p className="text-[9px] text-indigo-400 mt-1">NC Requirement 18 NCAC 07I .0302</p>
+          </div>
+        )}
       </div>
 
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">NC Notary Journal</h1>
-          <p className="text-slate-500">Official record of all notarial acts performed.</p>
+          <h1 className="text-2xl font-bold text-slate-900">{viewMode === 'journal' ? 'NC Notary Journal' : 'Signings'}</h1>
+          <p className="text-slate-500">{viewMode === 'journal' ? 'Official record of all notarial acts performed.' : 'Manage and track your signing appointments.'}</p>
         </div>
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-3">
@@ -3533,7 +3548,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
               onClick={onNewSigning}
               className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
             >
-              <PlusCircle className="w-4 h-4" /> Add Entry
+              <PlusCircle className="w-4 h-4" /> {viewMode === 'journal' ? 'Add Entry' : 'Add Signing'}
             </button>
           <button 
             onClick={handlePrint}
@@ -3698,13 +3713,13 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                   />
                 </th>
                 <th className="px-3 py-3">Date & Time <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">Last Name <ChevronDown className="inline w-3 h-3" /></th>
+                <th className="px-3 py-3">{viewMode === 'journal' ? 'Last Name' : 'Client Name'} <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Type <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">ID Type <ChevronDown className="inline w-3 h-3" /></th>
+                {viewMode === 'journal' && <th className="px-3 py-3">ID Type <ChevronDown className="inline w-3 h-3" /></th>}
                 <th className="px-3 py-3">City <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Amount</th>
                 <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Company & Notes</th>
+                <th className="px-3 py-3">Company</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -3739,21 +3754,23 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                         onClick={() => onViewSigning(app)}
                         className="text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline text-left"
                       >
-                        {app.clientName.split(' ').pop()}
+                        {viewMode === 'journal' ? app.clientName.split(' ').pop() : app.clientName}
                       </button>
                     </td>
                     <td className="px-3 py-3">
                       <div className="text-xs font-medium text-slate-600">{app.signingType}</div>
                     </td>
-                    <td className="px-3 py-3">
-                      <div className="text-xs font-bold text-slate-900">{app.idType || 'Not Logged'}</div>
-                      {app.idNumber && <div className="text-[10px] text-slate-500">#{app.idNumber}</div>}
-                      <div className="text-[9px] text-slate-400 mt-0.5">
-                        {app.dob && <span>DOB: {app.dob} </span>}
-                        {app.idIssueDate && <span>ISS: {app.idIssueDate}</span>}
-                      </div>
-                      {app.idExpiration && <div className="text-[9px] text-slate-400">EXP: {app.idExpiration}</div>}
-                    </td>
+                    {viewMode === 'journal' && (
+                      <td className="px-3 py-3">
+                        <div className="text-xs font-bold text-slate-900">{app.idType || 'Not Logged'}</div>
+                        {app.idNumber && <div className="text-[10px] text-slate-500">#{app.idNumber}</div>}
+                        <div className="text-[9px] text-slate-400 mt-0.5">
+                          {app.dob && <span>DOB: {app.dob} </span>}
+                          {app.idIssueDate && <span>ISS: {app.idIssueDate}</span>}
+                        </div>
+                        {app.idExpiration && <div className="text-[9px] text-slate-400">EXP: {app.idExpiration}</div>}
+                      </td>
+                    )}
                     <td className="px-3 py-3">
                       <div className="text-xs font-medium text-slate-600">{app.city || app.location.split(',')[1]?.trim() || 'TBD'}</div>
                     </td>
@@ -3765,7 +3782,6 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                     </td>
                     <td className="px-3 py-3">
                       {app.signingCompany && <div className="text-xs font-bold text-sky-600 mb-1">{app.signingCompany}</div>}
-                      {app.notes && <div className="text-[10px] text-slate-500 line-clamp-2 italic">{app.notes}</div>}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -4401,6 +4417,30 @@ export default function App() {
                     <Appointments 
                       appointments={appointments} 
                       clients={clients}
+                      viewMode="signings"
+                      onNewSigning={() => {
+                        setSelectedAppointment(null);
+                        setIsNewSigningModalOpen(true);
+                      }} 
+                      onViewSigning={(app, tab = 'Signer(s)') => {
+                        setSelectedAppointment(app);
+                        setModalInitialTab(tab);
+                        setIsNewSigningModalOpen(true);
+                      }}
+                      onDelete={handleDeleteAppointments}
+                      onImport={handleImport}
+                      onUpdate={handleSaveAppointment}
+                      userId={user?.uid || 'mock-user'}
+                    />
+                  } 
+                />
+                <Route 
+                  path="/journal" 
+                  element={
+                    <Appointments 
+                      appointments={appointments} 
+                      clients={clients}
+                      viewMode="journal"
                       onNewSigning={() => {
                         setSelectedAppointment(null);
                         setIsNewSigningModalOpen(true);
