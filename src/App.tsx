@@ -3028,6 +3028,13 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
     return Array.from(unique).sort();
   }, [appointments]);
 
+  const uniqueCompanies = useMemo(() => {
+    const fromAppointments = appointments.map(a => a.signingCompany).filter(Boolean) as string[];
+    const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
+    const unique = new Set([...defaults, ...fromAppointments]);
+    return Array.from(unique).sort();
+  }, [appointments]);
+
   const filteredAppointments = useMemo(() => {
     let filtered = appointments;
 
@@ -3238,12 +3245,57 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
     }
   };
 
+  const handleBatchStatusUpdate = (newStatus: AppointmentStatus) => {
+    const updatedAppointments = appointments.map(app => {
+      if (selectedIds.includes(app.id)) {
+        return { ...app, status: newStatus };
+      }
+      return app;
+    });
+    
+    // Call onUpdate for each selected appointment or a bulk update if available
+    // Since we only have onUpdate for single appointment, we'll call it in a loop
+    selectedIds.forEach(id => {
+      const app = appointments.find(a => a.id === id);
+      if (app) {
+        onUpdate({ ...app, status: newStatus });
+      }
+    });
+    
+    setSelectedIds([]);
+    setIsBatchDropdownOpen(false);
+  };
+
+  const handleBatchCompanyUpdate = (newCompany: string) => {
+    selectedIds.forEach(id => {
+      const app = appointments.find(a => a.id === id);
+      if (app) {
+        onUpdate({ ...app, signingCompany: newCompany });
+      }
+    });
+    
+    setSelectedIds([]);
+    setIsBatchDropdownOpen(false);
+  };
+
+  const handleBatchCustomerUpdate = (newCustomer: string) => {
+    selectedIds.forEach(id => {
+      const app = appointments.find(a => a.id === id);
+      if (app) {
+        onUpdate({ ...app, customer: newCustomer });
+      }
+    });
+    
+    setSelectedIds([]);
+    setIsBatchDropdownOpen(false);
+  };
+
   const handleApplyPayments = () => {
-    console.log("Apply Payments action triggered for selected signings.");
+    handleBatchStatusUpdate('Paid');
   };
 
   const handleBatchInvoice = () => {
-    console.log("Batch Invoice action triggered for selected signings.");
+    handleBatchStatusUpdate('Completed');
   };
 
   const handleExport = () => {
@@ -3584,7 +3636,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
                   >
-                    Apply Payments
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Mark as Paid
                   </button>
                   <button 
                     onClick={() => {
@@ -3593,8 +3645,51 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
                   >
-                    Batch Invoice
+                    <Printer className="w-4 h-4 text-blue-500" /> Invoice Sent
                   </button>
+                  <button 
+                    onClick={() => handleBatchStatusUpdate('Completed')}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-blue-500" /> Mark Completed
+                  </button>
+                  <button 
+                    onClick={() => handleBatchStatusUpdate('Cancelled')}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
+                  >
+                    <X className="w-4 h-4 text-rose-500" /> Mark Canceled
+                  </button>
+                  
+                  <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100">
+                    Change Company
+                  </div>
+                  <div className="max-h-32 overflow-y-auto border-b border-slate-100">
+                    {uniqueCompanies.map(company => (
+                      <button 
+                        key={company}
+                        onClick={() => handleBatchCompanyUpdate(company)}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100 last:border-0"
+                      >
+                        {company}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100">
+                    Change Customer
+                  </div>
+                  <div className="max-h-32 overflow-y-auto border-b border-slate-100">
+                    {customers.map(customer => (
+                      <button 
+                        key={customer}
+                        onClick={() => handleBatchCustomerUpdate(customer)}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100 last:border-0"
+                      >
+                        {customer}
+                      </button>
+                    ))}
+                  </div>
+
                   <button 
                     onClick={() => {
                       handleDelete();
