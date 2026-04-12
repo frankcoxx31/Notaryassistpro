@@ -39,10 +39,22 @@ const NewSigningModal = ({
     {
       title: 'Loan Signing Documents',
       items: [
-        'Deed of Trust', 'Promissory Note', 'Closing Disclosure', 'Right to Cancel',
-        'Initial Escrow Disclosure', 'HUD-1 Settlement', 'Mortgage/Security Instrument',
-        'Title Documents', 'Compliance Agreement', 'Borrower\'s Certification',
-        'Occupancy Affidavit', 'W-9', '1099 Info Sheet', 'Seller Closing Package'
+        'Closing / Disbursement Instructions',
+        'Title Company Client Acknowledgement (Owner\'s Affidavit)',
+        'Loan Proceeds Delivery Instructions',
+        'Correction Agreement',
+        'Identity Verification & Acknowledgment Certification',
+        'Deed of Trust / Mortgage / Security Instrument',
+        'Note',
+        'Occupancy Statement',
+        'Signature / Name Affidavit (Borrower)',
+        'Signature / Name Affidavit (Non-Borrowing Party)',
+        'Errors and Omissions / Compliance Agreement',
+        'Closing Disclosure (CD)',
+        'Right to Cancel (3-Day Rescission Notice)',
+        'Truth-in-Lending Disclosure (TIL)',
+        'Affidavit of Understanding and Indemnity (NCLTA / E-Courts)',
+        'Preliminary Limited Title Opinion'
       ]
     },
     {
