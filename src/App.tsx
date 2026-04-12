@@ -127,7 +127,8 @@ import {
   updateDoc,
   getDoc,
   writeBatch,
-  getDocFromServer
+  getDocFromServer,
+  arrayUnion
 } from 'firebase/firestore';
 
 // Robust date/time parsing for deterministic sorting and display
@@ -3001,12 +3002,67 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
   );
 };
 
-const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDelete, onImport, onUpdate, userId, viewMode = 'journal' }: { appointments: Appointment[]; clients: Client[]; onNewSigning: () => void; onViewSigning: (app: Appointment, tab?: string) => void; onDelete: (ids: string[]) => void; onImport: (apps: Appointment[]) => void; onUpdate: (app: Appointment) => void; userId: string; viewMode?: 'signings' | 'journal' }) => {
+const Appointments = ({ 
+  appointments, 
+  clients, 
+  onNewSigning, 
+  onViewSigning, 
+  onDelete, 
+  onImport, 
+  onUpdate, 
+  onBulkUpdateDocs,
+  userId, 
+  viewMode = 'journal' 
+}: { 
+  appointments: Appointment[]; 
+  clients: Client[]; 
+  onNewSigning: () => void; 
+  onViewSigning: (app: Appointment, tab?: string) => void; 
+  onDelete: (ids: string[]) => void; 
+  onImport: (apps: Appointment[]) => void; 
+  onUpdate: (app: Appointment) => void; 
+  onBulkUpdateDocs: (ids: string[], docs: string[]) => Promise<void>;
+  userId: string; 
+  viewMode?: 'signings' | 'journal' 
+}) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
+
+  // Bulk Add Documents state
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedDocsForBulk, setSelectedDocsForBulk] = useState<string[]>([]);
+  const [isBulkDocsDropdownOpen, setIsBulkDocsDropdownOpen] = useState(false);
+  const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
+
+  const loanSigningDocs = [
+    'Closing / Disbursement Instructions',
+    'Title Company Client Acknowledgement (Owner\'s Affidavit)',
+    'Loan Proceeds Delivery Instructions',
+    'Correction Agreement',
+    'Identity Verification & Acknowledgment Certification',
+    'Deed of Trust / Mortgage / Security Instrument',
+    'Note',
+    'Occupancy Statement',
+    'Signature / Name Affidavit (Borrower)',
+    'Signature / Name Affidavit (Non-Borrowing Party)',
+    'Errors and Omissions / Compliance Agreement',
+    'Closing Disclosure (CD)',
+    'Right to Cancel (3-Day Rescission Notice)',
+    'Truth-in-Lending Disclosure (TIL)',
+    'Affidavit of Understanding and Indemnity (NCLTA / E-Courts)',
+    'Preliminary Limited Title Opinion'
+  ];
+
+  const notarialActs = [
+    'Acknowledgment',
+    'Jurat / Oath',
+    'Affirmation',
+    'Signature Witnessing',
+    'Copy Certification'
+  ];
 
   // Filter state
   const [dateFilter, setDateFilter] = useState('This year');
@@ -3600,6 +3656,21 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
             <Printer className="w-4 h-4" /> Print
           </button>
           
+          <button 
+            onClick={() => {
+              setIsSelectMode(!isSelectMode);
+              if (isSelectMode) setSelectedIds([]);
+            }}
+            className={cn(
+              "px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm border",
+              isSelectMode 
+                ? "bg-indigo-50 border-indigo-300 text-indigo-700" 
+                : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+            )}
+          >
+            <CheckCircle2 className="w-4 h-4" /> {isSelectMode ? 'Exit Selection' : 'Select Entries'}
+          </button>
+          
           <div className="relative">
             <button 
               onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
@@ -3769,20 +3840,151 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
         </div>
       </div>
 
+      {/* Bulk Add Documents Toolbar */}
+      {isSelectMode && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-indigo-900 text-white p-4 rounded-xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-bold bg-indigo-800 px-3 py-1 rounded-full border border-indigo-700">
+              {selectedIds.length} entries selected
+            </span>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={toggleSelectAll}
+                className="text-xs font-bold hover:text-indigo-200 transition-colors"
+              >
+                Select All
+              </button>
+              <span className="text-indigo-700">|</span>
+              <button 
+                onClick={() => setSelectedIds([])}
+                className="text-xs font-bold hover:text-indigo-200 transition-colors"
+              >
+                Deselect All
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+            <div className="relative w-full md:w-64">
+              <button 
+                onClick={() => setIsBulkDocsDropdownOpen(!isBulkDocsDropdownOpen)}
+                className="w-full bg-indigo-800 border border-indigo-700 rounded-lg px-4 py-2 text-sm font-bold flex items-center justify-between hover:bg-indigo-700 transition-all"
+              >
+                <span className="truncate">
+                  {selectedDocsForBulk.length === 0 
+                    ? "Add Documents to Selected" 
+                    : `${selectedDocsForBulk.length} documents chosen`}
+                </span>
+                <ChevronDown className={cn("w-4 h-4 transition-transform", isBulkDocsDropdownOpen && "rotate-180")} />
+              </button>
+
+              {isBulkDocsDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setIsBulkDocsDropdownOpen(false)} />
+                  <div className="absolute bottom-full md:bottom-auto md:top-full left-0 mt-2 w-full md:w-72 bg-white text-slate-800 rounded-xl shadow-2xl z-[70] py-2 border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
+                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 mb-1">
+                      Loan Signing Documents
+                    </div>
+                    {loanSigningDocs.map(doc => (
+                      <label key={doc} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
+                        <input 
+                          type="checkbox"
+                          checked={selectedDocsForBulk.includes(doc)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedDocsForBulk([...selectedDocsForBulk, doc]);
+                            else setSelectedDocsForBulk(selectedDocsForBulk.filter(d => d !== doc));
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-xs font-medium">{doc}</span>
+                      </label>
+                    ))}
+                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 my-1">
+                      Notarial Acts
+                    </div>
+                    {notarialActs.map(doc => (
+                      <label key={doc} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
+                        <input 
+                          type="checkbox"
+                          checked={selectedDocsForBulk.includes(doc)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedDocsForBulk([...selectedDocsForBulk, doc]);
+                            else setSelectedDocsForBulk(selectedDocsForBulk.filter(d => d !== doc));
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-xs font-medium">{doc}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <button 
+                onClick={async () => {
+                  if (selectedIds.length > 0 && selectedDocsForBulk.length > 0) {
+                    await onBulkUpdateDocs(selectedIds, selectedDocsForBulk);
+                    setBulkSuccessMessage(`Documents added to ${selectedIds.length} entries`);
+                    setTimeout(() => setBulkSuccessMessage(null), 3000);
+                    setIsSelectMode(false);
+                    setSelectedIds([]);
+                    setSelectedDocsForBulk([]);
+                  }
+                }}
+                disabled={selectedIds.length === 0 || selectedDocsForBulk.length === 0}
+                className="flex-1 md:flex-none bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg text-sm font-bold transition-all shadow-sm"
+              >
+                Apply
+              </button>
+              <button 
+                onClick={() => {
+                  setIsSelectMode(false);
+                  setSelectedIds([]);
+                  setSelectedDocsForBulk([]);
+                }}
+                className="flex-1 md:flex-none bg-indigo-800 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-bold transition-all border border-indigo-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {bulkSuccessMessage && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl z-[100] flex items-center gap-3 font-bold"
+        >
+          <CheckCircle2 className="w-5 h-5" />
+          {bulkSuccessMessage}
+        </motion.div>
+      )}
+
       {/* Table Section */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                <th className="px-4 py-3 w-10">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedIds.length === paginatedAppointments.length && paginatedAppointments.length > 0}
-                    onChange={toggleSelectAll}
-                    className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-                  />
-                </th>
+                {isSelectMode && (
+                  <th className="px-4 py-3 w-10">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedIds.length === paginatedAppointments.length && paginatedAppointments.length > 0}
+                      onChange={toggleSelectAll}
+                      className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                    />
+                  </th>
+                )}
                 <th className="px-3 py-3">Date & Time <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">{viewMode === 'journal' ? 'Last Name' : 'Client Name'} <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">{viewMode === 'journal' ? 'Documents Signed' : 'Type'} <ChevronDown className="inline w-3 h-3" /></th>
@@ -3808,14 +4010,16 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                       selectedIds.includes(app.id) ? "bg-amber-50" : "hover:bg-slate-50/50"
                     )}
                   >
-                    <td className="px-4 py-3">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedIds.includes(app.id)}
-                        onChange={() => toggleSelect(app.id)}
-                        className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-                      />
-                    </td>
+                    {isSelectMode && (
+                      <td className="px-4 py-3">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedIds.includes(app.id)}
+                          onChange={() => toggleSelect(app.id)}
+                          className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                        />
+                      </td>
+                    )}
                     <td className="px-3 py-3">
                       <div className="text-sm font-bold text-slate-900">{format(parseSafeDateTime(app.date), 'MM/dd/yyyy')}</div>
                       <div className="text-[10px] font-medium text-slate-500">{app.time}</div>
@@ -4279,6 +4483,20 @@ export default function App() {
     }
   }, []);
 
+  const handleBulkUpdateDocs = async (ids: string[], docsToAdd: string[]) => {
+    if (!user || ids.length === 0 || docsToAdd.length === 0) return;
+    try {
+      const promises = ids.map(id => 
+        updateDoc(doc(db, 'appointments', id), {
+          docs: arrayUnion(...docsToAdd)
+        })
+      );
+      await Promise.all(promises);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `appointments/bulk-docs`);
+    }
+  };
+
   const handleSaveAppointment = async (app: Appointment) => {
     if (!user) {
       setAppointments(prev => {
@@ -4519,6 +4737,7 @@ export default function App() {
                       onDelete={handleDeleteAppointments}
                       onImport={handleImport}
                       onUpdate={handleSaveAppointment}
+                      onBulkUpdateDocs={handleBulkUpdateDocs}
                       userId={user?.uid || 'mock-user'}
                     />
                   } 
@@ -4542,6 +4761,7 @@ export default function App() {
                       onDelete={handleDeleteAppointments}
                       onImport={handleImport}
                       onUpdate={handleSaveAppointment}
+                      onBulkUpdateDocs={handleBulkUpdateDocs}
                       userId={user?.uid || 'mock-user'}
                     />
                   } 
