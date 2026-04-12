@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { 
   X, Edit2, MapPin, User, Calendar, Clock, 
   HelpCircle, CheckCircle2, Phone, Banknote, 
-  List, Pencil 
+  List, Pencil, Plus, Trash2 
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Appointment, AppointmentStatus, Client } from '../types';
@@ -32,6 +32,32 @@ const NewSigningModal = ({
 }: NewSigningModalProps) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formData, setFormData] = useState<Partial<Appointment>>({});
+  const [customDoc, setCustomDoc] = useState('');
+  const [showDocError, setShowDocError] = useState(false);
+
+  const docGroups = [
+    {
+      title: 'Loan Signing Documents',
+      items: [
+        'Deed of Trust', 'Promissory Note', 'Closing Disclosure', 'Right to Cancel',
+        'Initial Escrow Disclosure', 'HUD-1 Settlement', 'Mortgage/Security Instrument',
+        'Title Documents', 'Compliance Agreement', 'Borrower\'s Certification',
+        'Occupancy Affidavit', 'W-9', '1099 Info Sheet', 'Seller Closing Package'
+      ]
+    },
+    {
+      title: 'Notarial Acts',
+      items: [
+        'Acknowledgment', 'Jurat', 'Oath / Affirmation', 'Signature Witnessing', 'Copy Certification'
+      ]
+    },
+    {
+      title: 'Other',
+      items: [
+        'Power of Attorney', 'Affidavit of Identity', 'Living Trust'
+      ]
+    }
+  ];
 
   const customers = React.useMemo(() => {
     const clientNames = clients.map(c => c.name);
@@ -121,7 +147,28 @@ const NewSigningModal = ({
 
   const handleSave = () => {
     if (formData.id && formData.date && formData.time && formData.clientName && formData.signingType && formData.location && formData.fee !== undefined && formData.status) {
+      if (!formData.docs || formData.docs.length === 0) {
+        setShowDocError(true);
+        setActiveTab('Documents');
+        return;
+      }
       onSave(formData as Appointment);
+    }
+  };
+
+  const toggleDoc = (doc: string) => {
+    const currentDocs = formData.docs || [];
+    const newDocs = currentDocs.includes(doc)
+      ? currentDocs.filter(d => d !== doc)
+      : [...currentDocs, doc];
+    setFormData({ ...formData, docs: newDocs });
+    if (newDocs.length > 0) setShowDocError(false);
+  };
+
+  const addCustomDoc = () => {
+    if (customDoc.trim()) {
+      toggleDoc(customDoc.trim());
+      setCustomDoc('');
     }
   };
 
@@ -317,7 +364,7 @@ const NewSigningModal = ({
                 { name: 'Signer(s)', icon: User },
                 { name: 'Contacts', icon: Phone },
                 { name: 'Invoice', icon: Banknote },
-                { name: 'Tracking', icon: List },
+                { name: 'Documents', icon: List },
                 { name: 'Notes', icon: Pencil },
               ].map((tab) => (
                 <button
@@ -456,16 +503,6 @@ const NewSigningModal = ({
                     </div>
 
                     <div className="flex items-center gap-4">
-                      <label className="text-sm font-bold text-slate-700 w-24 text-right">Date of Birth:</label>
-                      <input 
-                        type="date" 
-                        value={formData.dob || ""}
-                        onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-4">
                       <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Expiration:</label>
                       <input 
                         type="date" 
@@ -481,6 +518,16 @@ const NewSigningModal = ({
                         animate={{ opacity: 1, height: 'auto' }}
                         className="space-y-4"
                       >
+                        <div className="flex items-center gap-4">
+                          <label className="text-sm font-bold text-slate-700 w-24 text-right">Date of Birth:</label>
+                          <input 
+                            type="date" 
+                            value={formData.dob || ""}
+                            onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                            className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                          />
+                        </div>
+
                         <div className="flex items-center gap-4">
                           <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Issue Date:</label>
                           <div className="flex-1 flex items-center gap-2">
@@ -609,6 +656,87 @@ const NewSigningModal = ({
                         <option>Cancelled</option>
                         <option>No Show</option>
                       </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {activeTab === 'Documents' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-bold text-slate-700">Documents Signed:</label>
+                    {showDocError && (
+                      <span className="text-xs font-bold text-rose-500 animate-pulse">
+                        At least one document must be selected
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                    {docGroups.map((group) => (
+                      <div key={group.title} className="space-y-3">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">
+                          {group.title}
+                        </h4>
+                        <div className="space-y-2">
+                          {group.items.map((item) => (
+                            <label key={item} className="flex items-center gap-2 cursor-pointer group">
+                              <input 
+                                type="checkbox"
+                                checked={(formData.docs || []).includes(item)}
+                                onChange={() => toggleDoc(item)}
+                                className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                              />
+                              <span className="text-xs text-slate-600 group-hover:text-slate-900 transition-colors">
+                                {item}
+                              </span>
+                            </label>
+                          ))}
+                          {group.title === 'Other' && (
+                            <div className="pt-2 space-y-2">
+                              <div className="flex gap-2">
+                                <input 
+                                  type="text"
+                                  value={customDoc}
+                                  onChange={(e) => setCustomDoc(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomDoc())}
+                                  placeholder="Custom document..."
+                                  className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-sky-500"
+                                />
+                                <button 
+                                  onClick={addCustomDoc}
+                                  className="p-1 bg-sky-100 text-sky-600 rounded hover:bg-sky-200 transition-colors"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Selected Documents:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(formData.docs || []).length > 0 ? (
+                        (formData.docs || []).map((doc) => (
+                          <span 
+                            key={doc}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-sky-50 text-sky-700 rounded-full text-[10px] font-bold border border-sky-100 group"
+                          >
+                            {doc}
+                            <button 
+                              onClick={() => toggleDoc(doc)}
+                              className="hover:text-rose-500 transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-xs italic text-slate-400">No documents selected</p>
+                      )}
                     </div>
                   </div>
                 </div>

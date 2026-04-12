@@ -3291,7 +3291,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
 
   const handleExport = () => {
     const headers = [
-      "Entry #", "Date", "Time", "Type of Act", "Document", "Principal Name", 
+      "Entry #", "Date", "Time", "Type of Act", "Documents Signed", "Principal Name", 
       "Principal Address", "ID Type", "ID Number", "Date of Birth", 
       "ID Issue Date", "ID Expiration", "Fee Charged", "Signing Company", "Notes"
     ];
@@ -3308,7 +3308,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
       app.date,
       app.time,
       app.signingType,
-      app.loanNumber || app.orderNumber || '',
+      (app.docs || []).join("; "),
       app.clientName,
       app.location,
       app.idType || '',
@@ -3785,7 +3785,7 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                 </th>
                 <th className="px-3 py-3">Date & Time <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">{viewMode === 'journal' ? 'Last Name' : 'Client Name'} <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">Type <ChevronDown className="inline w-3 h-3" /></th>
+                <th className="px-3 py-3">{viewMode === 'journal' ? 'Documents Signed' : 'Type'} <ChevronDown className="inline w-3 h-3" /></th>
                 {viewMode === 'journal' && <th className="px-3 py-3">ID Type <ChevronDown className="inline w-3 h-3" /></th>}
                 <th className="px-3 py-3">City <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">Amount</th>
@@ -3829,7 +3829,25 @@ const Appointments = ({ appointments, clients, onNewSigning, onViewSigning, onDe
                       </button>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="text-xs font-medium text-slate-600">{app.signingType}</div>
+                      {viewMode === 'journal' ? (
+                        <div className="flex flex-wrap gap-1 max-w-[200px]">
+                          {(app.docs || []).slice(0, 3).map(doc => (
+                            <span key={doc} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold border border-slate-200 truncate max-w-[80px]">
+                              {doc}
+                            </span>
+                          ))}
+                          {(app.docs || []).length > 3 && (
+                            <span className="px-1.5 py-0.5 bg-sky-50 text-sky-600 rounded text-[9px] font-bold border border-sky-100">
+                              +{(app.docs || []).length - 3} more
+                            </span>
+                          )}
+                          {(app.docs || []).length === 0 && (
+                            <div className="text-xs font-medium text-slate-400 italic">No docs</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-xs font-medium text-slate-600">{app.signingType}</div>
+                      )}
                     </td>
                     {viewMode === 'journal' && (
                       <td className="px-3 py-3">

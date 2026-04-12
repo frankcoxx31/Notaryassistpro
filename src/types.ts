@@ -36,6 +36,7 @@ export interface Appointment {
   dob?: string;
   idExpiration?: string;
   signingCompany?: string;
+  docs?: string[];
 }
 
 export interface Client {
