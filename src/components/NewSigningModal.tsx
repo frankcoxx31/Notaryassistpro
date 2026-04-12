@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Edit2, MapPin, User, Calendar, Clock, 
   HelpCircle, CheckCircle2, Phone, Banknote, 
-  List, Pencil, Plus, Trash2 
+  List, Pencil, Plus, Trash2, Camera, Loader2, AlertCircle
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { Appointment, AppointmentStatus, Client } from '../types';
 import { cn } from '../lib/utils';
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface NewSigningModalProps {
   isOpen: boolean;
@@ -34,6 +35,136 @@ const NewSigningModal = ({
   const [formData, setFormData] = useState<Partial<Appointment>>({});
   const [customDoc, setCustomDoc] = useState('');
   const [showDocError, setShowDocError] = useState(false);
+  
+  // Scanner state
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanSuccess, setScanSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const formatDateForInput = (dateStr: string) => {
+    if (!dateStr) return "";
+    // Try to parse MM/DD/YYYY
+    try {
+      const parsedDate = parse(dateStr, 'MM/dd/yyyy', new Date());
+      if (!isNaN(parsedDate.getTime())) {
+        return format(parsedDate, 'yyyy-MM-dd');
+      }
+    } catch (e) {
+      console.error("Error parsing date:", dateStr, e);
+    }
+    return dateStr;
+  };
+
+  const handleScanLicense = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    setScanError(null);
+    setScanSuccess(false);
+
+    try {
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+      });
+      reader.readAsDataURL(file);
+      const base64Data = await base64Promise;
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const prompt = `Extract the following information from this driver's license image and return it as a JSON object with these exact keys:
+{
+  "fullName": (full legal name as printed),
+  "address": (full address including city, state, zip),
+  "idNumber": (license number),
+  "dateOfBirth": (format MM/DD/YYYY),
+  "issueDate": (format MM/DD/YYYY),
+  "expirationDate": (format MM/DD/YYYY),
+  "state": (issuing state, 2-letter abbreviation)
+}
+Return only the JSON object, no additional text.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            parts: [
+              { inlineData: { mimeType: file.type, data: base64Data } },
+              { text: prompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              fullName: { type: Type.STRING },
+              address: { type: Type.STRING },
+              idNumber: { type: Type.STRING },
+              dateOfBirth: { type: Type.STRING },
+              issueDate: { type: Type.STRING },
+              expirationDate: { type: Type.STRING },
+              state: { type: Type.STRING }
+            },
+            required: ["fullName", "address", "idNumber", "dateOfBirth", "issueDate", "expirationDate", "state"]
+          }
+        }
+      });
+
+      const result = JSON.parse(response.text || "{}");
+      
+      if (result.fullName) {
+        // Parse address to extract city, state, zip if possible
+        const addrParts = result.address.split(',').map((p: string) => p.trim());
+        let city = "";
+        let state = result.state || "";
+        let zip = "";
+        
+        if (addrParts.length > 1) {
+          city = addrParts[1];
+          const zipMatch = city.match(/\d{5}(-\d{4})?$/);
+          if (zipMatch) {
+            zip = zipMatch[0];
+            city = city.replace(zipMatch[0], '').trim();
+          }
+        }
+
+        const firstName = result.fullName.split(' ')[0] || "";
+        const lastName = result.fullName.split(' ').slice(1).join(' ') || "";
+
+        setFormData(prev => ({
+          ...prev,
+          clientName: result.fullName,
+          firstName,
+          lastName,
+          address: addrParts[0] || "",
+          city: city,
+          state: state,
+          zip: zip,
+          location: result.address,
+          idNumber: result.idNumber,
+          dob: formatDateForInput(result.dateOfBirth),
+          idIssueDate: formatDateForInput(result.issueDate),
+          idExpiration: formatDateForInput(result.expirationDate)
+        }));
+        setScanSuccess(true);
+      } else {
+        throw new Error("Could not extract data");
+      }
+    } catch (error) {
+      console.error("Scan error:", error);
+      setScanError("Could not read license. Please enter information manually.");
+    } finally {
+      setIsScanning(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const docGroups = [
     {
@@ -503,6 +634,70 @@ const NewSigningModal = ({
                         <option>Other</option>
                       </select>
                     </div>
+
+                    {(formData.idType === "NC Driver's License" || formData.idType === "Out-of-State Driver's License") && (
+                      <div className="flex flex-col gap-2 ml-24">
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          capture="environment"
+                          className="hidden" 
+                          ref={fileInputRef}
+                          onChange={handleScanLicense}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isScanning}
+                          className={cn(
+                            "flex items-center justify-center gap-2 px-4 py-2 rounded text-sm font-bold transition-all shadow-sm",
+                            isScanning 
+                              ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                              : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95"
+                          )}
+                        >
+                          {isScanning ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Scanning...
+                            </>
+                          ) : (
+                            <>
+                              <Camera className="w-4 h-4" />
+                              Scan License
+                            </>
+                          )}
+                        </button>
+                        <p className="text-[10px] text-slate-400 italic">
+                          License image is used for field extraction only and is never stored.
+                        </p>
+                        
+                        <AnimatePresence>
+                          {scanSuccess && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0 }}
+                              className="flex items-center gap-2 text-emerald-600 text-[11px] font-bold bg-emerald-50 p-2 rounded border border-emerald-100"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              License scanned successfully — please verify all fields.
+                            </motion.div>
+                          )}
+                          {scanError && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0 }}
+                              className="flex items-center gap-2 text-rose-600 text-[11px] font-bold bg-rose-50 p-2 rounded border border-rose-100"
+                            >
+                              <AlertCircle className="w-3 h-3" />
+                              {scanError}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-4">
                       <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Number:</label>
