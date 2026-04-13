@@ -54,6 +54,7 @@ import {
   Phone,
   Banknote,
   Pencil,
+  Calculator,
   Map as MapIcon,
   Mail,
   Save,
@@ -1986,6 +1987,273 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onE
   );
 };
 
+const FeeCalculator = () => {
+  const [baseFee, setBaseFee] = useState<number>(0);
+  const [oneWayMiles, setOneWayMiles] = useState<number>(0);
+  const [scanbacks, setScanbacks] = useState<boolean>(false);
+  const [afterHours, setAfterHours] = useState<boolean>(false);
+  const [companyName, setCompanyName] = useState<string>('');
+
+  const roundTripMiles = oneWayMiles * 2;
+  const travelValue = roundTripMiles * 1.25;
+  const scanbackFee = scanbacks ? 25 : 0;
+  const afterHoursPremium = afterHours ? 25 : 0;
+  const trueTargetFee = 90 + travelValue + scanbackFee + afterHoursPremium;
+  const effectiveRatePerMile = roundTripMiles > 0 ? baseFee / roundTripMiles : null;
+
+  const getDecision = () => {
+    const isLongDistanceLowPay = roundTripMiles > 50 && (effectiveRatePerMile !== null && effectiveRatePerMile < 1.00);
+    
+    if (baseFee >= trueTargetFee || (effectiveRatePerMile !== null && effectiveRatePerMile >= 1.75)) {
+      return {
+        zone: 'GREEN',
+        message: "This job meets your standards. Accept it.",
+        color: 'bg-emerald-500',
+        textColor: 'text-white',
+        bgColor: 'bg-emerald-50',
+        borderColor: 'border-emerald-200',
+        accentColor: 'text-emerald-700'
+      };
+    }
+    if (baseFee >= 100 && baseFee < trueTargetFee) {
+      return {
+        zone: 'YELLOW',
+        message: "Below your target but may be worth it. Consider your schedule and whether you want to build this client.",
+        color: 'bg-amber-500',
+        textColor: 'text-white',
+        bgColor: 'bg-amber-50',
+        borderColor: 'border-amber-200',
+        accentColor: 'text-amber-700'
+      };
+    }
+    
+    return {
+      zone: 'RED',
+      message: "This job is below your minimum. Decline or counter.",
+      color: 'bg-rose-500',
+      textColor: 'text-white',
+      bgColor: 'bg-rose-50',
+      borderColor: 'border-rose-200',
+      accentColor: 'text-rose-700'
+    };
+  };
+
+  const decision = getDecision();
+  const counterOffer = Math.ceil(trueTargetFee / 5) * 5;
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Fee Calculator</h1>
+        <p className="text-slate-500">Evaluate signing offers against your personal standards.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* SECTION 1: JOB EVALUATOR */}
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                <Calculator className="w-5 h-5 text-indigo-600" />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg">Job Evaluator</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Base Fee Offered ($)</label>
+                <input 
+                  type="number" 
+                  value={baseFee || ''}
+                  onChange={(e) => setBaseFee(Number(e.target.value))}
+                  placeholder="0"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">One-Way Miles</label>
+                <input 
+                  type="number" 
+                  value={oneWayMiles || ''}
+                  onChange={(e) => setOneWayMiles(Number(e.target.value))}
+                  placeholder="0"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-6">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <div className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={scanbacks}
+                    onChange={(e) => setScanbacks(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </div>
+                <span className="text-sm font-bold text-slate-700">Scanbacks Required</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <div className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={afterHours}
+                    onChange={(e) => setAfterHours(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </div>
+                <span className="text-sm font-bold text-slate-700">After Hours (6PM+)</span>
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">Signing Company (Optional)</label>
+              <input 
+                type="text" 
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Name of company"
+                className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              />
+            </div>
+
+            {/* Calculations Summary Card */}
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Round Trip</p>
+                  <p className="text-lg font-bold text-slate-700">{roundTripMiles} miles</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Travel Value</p>
+                  <p className="text-lg font-bold text-slate-700">${travelValue.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scanback Fee</p>
+                  <p className="text-lg font-bold text-slate-700">${scanbackFee}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">After Hours</p>
+                  <p className="text-lg font-bold text-slate-700">${afterHoursPremium}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Effective Rate</p>
+                  <p className="text-lg font-bold text-slate-700">{effectiveRatePerMile !== null ? `$${effectiveRatePerMile.toFixed(2)}/mi` : 'N/A'}</p>
+                </div>
+                <div className="bg-indigo-100/50 p-2 rounded-lg border border-indigo-100">
+                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">TRUE Target</p>
+                  <p className="text-lg font-bold text-indigo-700">${trueTargetFee.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Decision Zone Banner */}
+            <div className={cn("p-6 rounded-2xl border transition-all duration-500", decision.bgColor, decision.borderColor)}>
+              <div className="flex items-start gap-4">
+                <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", decision.color)}>
+                  {decision.zone === 'GREEN' && <CheckCircle2 className="w-6 h-6 text-white" />}
+                  {decision.zone === 'YELLOW' && <AlertTriangle className="w-6 h-6 text-white" />}
+                  {decision.zone === 'RED' && <X className="w-6 h-6 text-white" />}
+                </div>
+                <div className="space-y-1">
+                  <div className={cn("text-xs font-black uppercase tracking-widest", decision.accentColor)}>
+                    {decision.zone === 'GREEN' ? 'Auto Accept' : decision.zone === 'YELLOW' ? 'Review It' : 'Decline or Counter'}
+                  </div>
+                  <p className="font-bold text-slate-900 leading-tight">{decision.message}</p>
+                  {(decision.zone === 'YELLOW' || decision.zone === 'RED') && (
+                    <div className="mt-4 pt-4 border-t border-slate-200/50">
+                      <p className="text-sm font-bold text-slate-700">
+                        Suggested counter: <span className="text-indigo-600 text-lg ml-1">${counterOffer}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 2: MY FEE MATRIX */}
+        <div className="space-y-6">
+          <div className="bg-[#27285C] text-white p-8 rounded-2xl shadow-xl space-y-8 border border-white/5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
+                <Library className="w-5 h-5 text-indigo-300" />
+              </div>
+              <h3 className="font-bold text-xl">My Fee Matrix</h3>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-4">Minimum Standards (Non-Negotiable)</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                    <p className="text-xs text-white/50 mb-1">Base Fee</p>
+                    <p className="font-bold text-lg">$90</p>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                    <p className="text-xs text-white/50 mb-1">Travel Rate</p>
+                    <p className="font-bold text-lg">$1.25/mi</p>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                    <p className="text-xs text-white/50 mb-1">Scanbacks</p>
+                    <p className="font-bold text-lg">+$25</p>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                    <p className="text-xs text-white/50 mb-1">After Hours</p>
+                    <p className="font-bold text-lg">+$25</p>
+                  </div>
+                </div>
+                <p className="mt-4 text-xs text-indigo-200 italic font-medium">Rule: If it doesn't hit these → Decline or Counter</p>
+              </div>
+
+              <div className="bg-indigo-500/20 p-6 rounded-2xl border border-indigo-500/30">
+                <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-2">Quick Formula</h4>
+                <p className="text-sm font-medium leading-relaxed">
+                  Minimum Fee = <span className="text-white font-bold">$90 base</span> + ($1.25 × round trip miles) + scanbacks + after hours premium
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-2">Decision Zones</h4>
+                
+                <div className="flex items-start gap-4 group">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 mt-2 shrink-0 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                  <div>
+                    <p className="text-sm font-bold text-white">GREEN — Auto Accept</p>
+                    <p className="text-xs text-white/60">$140+ local OR $1.75+/mile effective rate</p>
+                    <p className="text-xs text-white/60 italic">Easy borrower, reputable company</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 group">
+                  <div className="w-2 h-2 rounded-full bg-amber-500 mt-2 shrink-0 shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
+                  <div>
+                    <p className="text-sm font-bold text-white">YELLOW — Case by Case ($100–$140)</p>
+                    <p className="text-xs text-white/60">Ask: Is my schedule open? Do I want to build this client?</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 group">
+                  <div className="w-2 h-2 rounded-full bg-rose-500 mt-2 shrink-0 shadow-[0_0_10px_rgba(244,63,94,0.5)]" />
+                  <div>
+                    <p className="text-sm font-bold text-white">RED — Decline or Counter</p>
+                    <p className="text-xs text-white/60">Under $90 base, long distance + low pay, or rush with no premium</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ToolsView = () => {
   const [signingDate, setSigningDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
@@ -2164,6 +2432,7 @@ const Sidebar = ({
       ]
     },
     { name: 'Settings', icon: Settings, path: '/settings' },
+    { name: 'Fee Calculator', icon: Calculator, path: '/fee-calculator' },
     { name: 'Tools', icon: Wrench, path: '/tools' },
     !user ? { name: 'Firestore Login', icon: ShieldCheck, path: '#', onClick: onSignIn } : null,
   ].filter(Boolean) as any[];
@@ -4817,6 +5086,7 @@ export default function App() {
                   } 
                 />
                 <Route path="/tools" element={<ToolsView />} />
+                <Route path="/fee-calculator" element={<FeeCalculator />} />
                 <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} user={user} onSignIn={handleSignIn} onImport={handleImport} userId={user?.uid || 'mock-user'} />} />
               </Routes>
             </main>
