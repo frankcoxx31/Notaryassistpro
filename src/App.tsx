@@ -2255,6 +2255,7 @@ const FeeCalculator = () => {
 };
 
 const ToolsView = () => {
+  const [activeTab, setActiveTab] = useState<'recession' | 'calculator'>('recession');
   const [signingDate, setSigningDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
   // Federal Holidays 2026 (Simplified)
@@ -2292,43 +2293,74 @@ const ToolsView = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Tools</h1>
-        <p className="text-slate-500">Helpful utilities for your daily notary work.</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Tools</h1>
+          <p className="text-slate-500">Helpful utilities for your daily notary work.</p>
+        </div>
+        
+        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 w-fit">
+          <button 
+            onClick={() => setActiveTab('recession')}
+            className={cn(
+              "px-4 py-2 rounded-lg text-sm font-bold transition-all",
+              activeTab === 'recession' 
+                ? "bg-white text-indigo-600 shadow-sm" 
+                : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Recession Calendar
+          </button>
+          <button 
+            onClick={() => setActiveTab('calculator')}
+            className={cn(
+              "px-4 py-2 rounded-lg text-sm font-bold transition-all",
+              activeTab === 'calculator' 
+                ? "bg-white text-indigo-600 shadow-sm" 
+                : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Fee Calculator
+          </button>
+        </div>
       </div>
 
-      <div className="max-w-2xl">
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-amber-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-xl">Recession Calendar</h3>
-              <p className="text-sm text-slate-500">Calculate the "Right to Cancel" date for loan signings.</p>
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4 border-t border-slate-100">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-bold text-slate-700">Signing Date</label>
-              <input 
-                type="date" 
-                value={signingDate}
-                onChange={(e) => setSigningDate(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-              />
+      <div className="max-w-full">
+        {activeTab === 'recession' ? (
+          <div className="max-w-2xl bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex items-center gap-4 mb-2">
+              <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-xl">Recession Calendar</h3>
+                <p className="text-sm text-slate-500">Calculate the "Right to Cancel" date for loan signings.</p>
+              </div>
             </div>
 
-            <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 mt-6">
-              <p className="text-xs font-bold text-amber-700 uppercase tracking-widest mb-2">Recession Ends At Midnight On:</p>
-              <p className="text-2xl font-bold text-amber-900">{calculateRecessionDate(signingDate)}</p>
-              <p className="text-xs text-amber-600 mt-4 italic">
-                * Calculation assumes standard 3-day rescission period. Always verify against specific lender instructions and federal holiday schedules.
-              </p>
+            <div className="space-y-4 pt-4 border-t border-slate-100">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-bold text-slate-700">Signing Date</label>
+                <input 
+                  type="date" 
+                  value={signingDate}
+                  onChange={(e) => setSigningDate(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                />
+              </div>
+
+              <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 mt-6">
+                <p className="text-xs font-black text-amber-700 uppercase tracking-widest mb-2">Recession Ends At Midnight On:</p>
+                <p className="text-2xl font-bold text-amber-900">{calculateRecessionDate(signingDate)}</p>
+                <p className="text-xs text-amber-600 mt-4 italic">
+                  * Calculation assumes standard 3-day rescission period. Always verify against specific lender instructions and federal holiday schedules.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <FeeCalculator />
+        )}
       </div>
     </div>
   );
@@ -2363,6 +2395,7 @@ const Sidebar = ({
   const [isExpensesOpen, setIsExpensesOpen] = useState(false);
   const [isMileageOpen, setIsMileageOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
+  const [isToolsOpen, setIsToolsOpen] = useState(false);
   
   const navItems = [
     { name: 'Dashboard', icon: Gauge, path: '/' },
@@ -2432,8 +2465,17 @@ const Sidebar = ({
       ]
     },
     { name: 'Settings', icon: Settings, path: '/settings' },
-    { name: 'Fee Calculator', icon: Calculator, path: '/fee-calculator' },
-    { name: 'Tools', icon: Wrench, path: '/tools' },
+    { 
+      name: 'Tools', 
+      icon: Wrench, 
+      path: '/tools',
+      isOpen: isToolsOpen,
+      setIsOpen: setIsToolsOpen,
+      subItems: [
+        { name: 'Recession Calendar', icon: Calendar, path: '/tools' },
+        { name: 'Fee Calculator', icon: Calculator, path: '/fee-calculator' },
+      ]
+    },
     !user ? { name: 'Firestore Login', icon: ShieldCheck, path: '#', onClick: onSignIn } : null,
   ].filter(Boolean) as any[];
 
