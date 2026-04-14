@@ -5,7 +5,8 @@ import {
   Route, 
   Link, 
   useLocation,
-  useNavigate
+  useNavigate,
+  useSearchParams
 } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -58,7 +59,14 @@ import {
   Map as MapIcon,
   Mail,
   Save,
-  ShieldCheck
+  ShieldCheck,
+  Scan,
+  Navigation,
+  CreditCard,
+  Activity,
+  ArrowUpRight,
+  ArrowDownRight,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -2751,8 +2759,18 @@ const Header = ({ toggleSidebar, onNewSigning, onSignOut, user }: { toggleSideba
   );
 };
 
-const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; expenses: Expense[] }) => {
-  const [chartType, setChartType] = useState<'signings' | 'income'>('signings');
+const Dashboard = ({ 
+  appointments, 
+  expenses, 
+  onNewSigning, 
+  onViewSigning 
+}: { 
+  appointments: Appointment[]; 
+  expenses: Expense[];
+  onNewSigning: () => void;
+  onViewSigning: (app: Appointment, tab?: string) => void;
+}) => {
+  const navigate = useNavigate();
   const [selectedYear, setSelectedYear] = useState('2026');
 
   const todaySignings = useMemo(() => {
@@ -2771,7 +2789,10 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
 
   const nextSigning = useMemo(() => {
     const now = new Date();
-    if (todaySignings.length > 0) return todaySignings[0];
+    if (todaySignings.length > 0) {
+      const upcomingToday = todaySignings.filter(a => isAfter(parseSafeDateTime(a.date, a.time), now));
+      if (upcomingToday.length > 0) return upcomingToday[0];
+    }
     
     return appointments
       .filter(a => isAfter(parseSafeDateTime(a.date, a.time), now) && a.status !== 'Cancelled' && a.status !== 'No Show')
@@ -2782,302 +2803,396 @@ const Dashboard = ({ appointments, expenses }: { appointments: Appointment[]; ex
       })[0];
   }, [appointments, todaySignings]);
 
-  const monthlyData = useMemo(() => {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
+  const totalDueToday = useMemo(() => {
+    return todaySignings.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  }, [todaySignings]);
 
-    return months.map((month, index) => {
-      const monthAppointments = appointments.filter(a => {
-        const date = parseSafeDateTime(a.date);
-        return date.getMonth() === index && date.getFullYear().toString() === selectedYear;
-      });
+  const followUpsNeeded = useMemo(() => {
+    return appointments.filter(a => 
+      (a.status as string) !== 'Paid' && 
+      !a.invoicePaidDate && 
+      isBefore(parseSafeDateTime(a.date), new Date()) &&
+      a.status !== 'Cancelled' && 
+      a.status !== 'No Show'
+    ).length;
+  }, [appointments]);
 
-      const signingsCount = monthAppointments.length;
-      const totalIncome = monthAppointments
-        .filter(a => a.status === 'Completed' || a.status === 'Paid')
-        .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  const totalPaid = useMemo(() => {
+    return appointments
+      .filter(a => ((a.status as string) === 'Paid' || a.invoicePaidDate) && a.status !== 'Cancelled' && a.status !== 'No Show')
+      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  }, [appointments]);
 
-      return {
-        name: month,
-        signings: signingsCount,
-        income: totalIncome
-      };
-    });
-  }, [appointments, selectedYear]);
+  const totalGross = useMemo(() => {
+    return appointments
+      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
+      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  }, [appointments]);
 
-  const totalSignings = appointments.length;
-  const totalGross = appointments
-    .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
-    .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
-  const totalPaid = appointments
-    .filter(a => ((a.status as string) === 'Paid' || a.invoicePaidDate) && a.status !== 'Cancelled' && a.status !== 'No Show')
-    .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
-  const totalUnpaid = appointments
-    .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate && a.status !== 'Cancelled' && a.status !== 'No Show')
-    .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  const netTotal = totalGross - totalExpenses;
+  const totalUnpaid = useMemo(() => {
+    return appointments
+      .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate && a.status !== 'Cancelled' && a.status !== 'No Show')
+      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  }, [appointments]);
 
-  const metrics = [
-    { label: 'Total Signings', value: totalSignings.toString(), icon: Calendar, color: 'text-slate-600', iconColor: 'text-slate-400', bg: 'bg-white' },
-    { label: 'Paid Income', value: `$${totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-emerald-600', iconColor: 'text-emerald-500', bg: 'bg-white' },
-    { label: 'Unpaid Amount', value: `$${totalUnpaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: AlertTriangle, color: 'text-amber-600', iconColor: 'text-amber-500', bg: 'bg-white', hasBadge: true },
-    { label: 'Projected Total', value: `$${totalGross.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: TrendingUp, color: 'text-slate-900', iconColor: 'text-slate-400', bg: 'bg-white', isBold: true },
-  ];
+  const thisWeekIncome = useMemo(() => {
+    const now = new Date();
+    return appointments
+      .filter(a => isSameWeek(parseSafeDateTime(a.date), now) && (a.status === 'Completed' || a.status === 'Paid'))
+      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+  }, [appointments]);
 
   const monthlyGoal = 5000;
   const goalProgress = Math.min(100, (totalPaid / monthlyGoal) * 100);
 
+  const lanes = useMemo(() => {
+    const now = new Date();
+    return [
+      { id: 'today', title: 'Today', items: todaySignings, color: 'text-teal-400', bg: 'bg-teal-400/10', icon: Zap },
+      { id: 'scanbacks', title: 'Needs Scanbacks', items: appointments.filter(a => a.status === 'Completed').slice(0, 5), color: 'text-amber-400', bg: 'bg-amber-400/10', icon: RefreshCw },
+      { id: 'payment', title: 'Follow Up for Payment', items: appointments.filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate && isBefore(parseSafeDateTime(a.date), now) && a.status !== 'Cancelled' && a.status !== 'No Show').slice(0, 5), color: 'text-rose-400', bg: 'bg-rose-400/10', icon: DollarSign },
+      { id: 'completed', title: 'Completed', items: appointments.filter(a => a.status === 'Paid').slice(0, 5), color: 'text-emerald-400', bg: 'bg-emerald-400/10', icon: CheckCircle2 },
+    ];
+  }, [appointments, todaySignings]);
+
   const recentSignings = useMemo(() => {
     return [...appointments]
       .sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime())
-      .slice(0, 5);
+      .slice(0, 8);
   }, [appointments]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Paid': return 'bg-emerald-500';
-      case 'Completed': return 'bg-blue-500';
-      case 'Scheduled': return 'bg-amber-500';
-      default: return 'bg-slate-400';
-    }
-  };
-
-
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 bg-[#F9FAFB] -m-4 lg:-m-8 p-4 lg:p-8 min-h-screen">
-      {/* User Hero Section */}
-      <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
-        <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Good afternoon</p>
-          <h1 className="text-4xl font-black text-[#1E293B] tracking-tight">Frank Coxx</h1>
-          <p className="text-slate-500 font-medium mt-1">{format(new Date(), 'EEEE, MMMM do, yyyy')}</p>
+    <div className="min-h-screen bg-slate-50 text-slate-900 -m-4 lg:-m-8 p-4 lg:p-8 space-y-8 font-sans">
+      {/* 1. TOP HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Today's Work</h1>
+          <p className="text-slate-500 font-medium">{format(new Date(), 'EEEE, MMMM do, yyyy')}</p>
         </div>
         
-        {nextSigning && (
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 min-w-[260px] relative overflow-hidden group hover:shadow-md transition-all self-start">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-sky-50 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-110"></div>
-            <div className="relative z-10">
-              <p className="text-[9px] font-black text-sky-600 uppercase tracking-[0.2em] mb-2">Next Signing</p>
-              <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-2xl font-black text-slate-900">{nextSigning.time}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <MapPin className="w-3.5 h-3.5 text-sky-500" />
-                  <span className="text-xs font-bold truncate max-w-[120px]">
-                    {nextSigning.city || nextSigning.location.split(',')[1]?.trim() || 'TBD'}
-                  </span>
-                </div>
-                <span className="bg-sky-50 text-sky-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  {format(parseSafeDateTime(nextSigning.date), 'MMM d')}
-                </span>
-              </div>
-              <div className="mt-3 pt-3 border-t border-slate-50 flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                <span className="truncate max-w-[100px]">{nextSigning.signingType}</span>
-                <span className="text-slate-200">•</span>
-                <span className="truncate max-w-[80px]">{nextSigning.customer || "Rocket Close"}</span>
-              </div>
-            </div>
+        <div className="flex flex-wrap gap-3">
+          <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-sm">
+            <div className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></div>
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{todaySignings.length} Signings Today</span>
           </div>
-        )}
-      </div>
-
-      {/* Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {metrics.map((m) => (
-          <div key={m.label} className={cn(
-            "p-6 rounded-2xl shadow-sm border transition-all hover:shadow-md", 
-            m.bg,
-            m.label === 'Unpaid Amount' ? "border-amber-100" : "border-slate-100"
-          )}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{m.label}</span>
-                {m.hasBadge && (
-                  <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">Follow Up</span>
-                )}
-              </div>
-              <div className={cn("p-2 rounded-lg bg-slate-50", m.iconColor.replace('text-', 'bg-').replace('500', '50').replace('400', '50'))}>
-                <m.icon className={cn("w-5 h-5", m.iconColor)} />
-              </div>
-            </div>
-            <p className={cn("text-2xl tracking-tight", m.isBold ? "font-black" : "font-bold", m.color)}>
-              {m.value}
-            </p>
+          <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-sm">
+            <DollarSign className="w-3 h-3 text-emerald-600" />
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">${totalDueToday.toLocaleString()} Due</span>
           </div>
-        ))}
-      </div>
-
-      {/* Monthly Goal Progress */}
-      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">Monthly Revenue Goal</h3>
-            <p className="text-sm text-slate-500 font-medium mt-1">
-              <span className="text-sky-600 font-bold">${totalPaid.toLocaleString()}</span> earned toward your ${monthlyGoal.toLocaleString()} target
-            </p>
+          <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-sm">
+            <AlertTriangle className="w-3 h-3 text-amber-600" />
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{followUpsNeeded} Follow-ups</span>
           </div>
-          <div className="text-right">
-            <span className="text-3xl font-black text-sky-600">{Math.round(goalProgress)}%</span>
-          </div>
-        </div>
-        <div className="relative h-3 w-full bg-slate-100 rounded-full overflow-hidden mb-3">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: `${goalProgress}%` }}
-            transition={{ duration: 1, ease: "easeOut" }}
-            className="absolute top-0 left-0 h-full bg-sky-500 rounded-full shadow-[0_0_12px_rgba(14,165,233,0.3)]"
-          />
-        </div>
-        <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          <span>$0</span>
-          <span className="text-sky-600">${totalPaid.toLocaleString()}</span>
-          <span>${monthlyGoal.toLocaleString()} goal</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Chart Area */}
-        <div className="lg:col-span-2 bg-white border border-slate-100 rounded-3xl p-8 shadow-sm">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">Activity Overview</h2>
-              <p className="text-sm text-slate-500 mt-1">Track your monthly performance and growth</p>
-            </div>
-            
-            <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
-              <div className="relative">
-                <select 
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="appearance-none bg-white border border-slate-200 rounded-lg px-4 py-2 pr-10 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-sm"
-                >
-                  <option>2026</option>
-                  <option>2025</option>
-                  <option>2024</option>
-                </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-              
-              <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-200">
-                <button 
-                  onClick={() => setChartType('signings')}
-                  className={cn(
-                    "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
-                    chartType === 'signings' ? "bg-[#1E293B] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  Signings
-                </button>
-                <button 
-                  onClick={() => setChartType('income')}
-                  className={cn(
-                    "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
-                    chartType === 'income' ? "bg-[#1E293B] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  Income
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="h-[400px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} 
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
-                  tickFormatter={(value) => chartType === 'income' ? `$${value}` : value}
-                />
-                <Tooltip 
-                  cursor={{ fill: '#f8fafc', radius: 12 }}
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const value = payload[0].value;
-                      return (
-                        <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-xl animate-in zoom-in-95 duration-200">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-                          <p className="text-lg font-black text-slate-900">
-                            {chartType === 'income' ? `$${Number(value).toLocaleString()}` : `${value} Signings`}
-                          </p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Bar 
-                  dataKey={chartType} 
-                  fill={chartType === 'signings' ? "#3b82f6" : "#10b981"} 
-                  radius={[12, 12, 0, 0]}
-                  barSize={48}
-                >
-                  {monthlyData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.name === 'Jul' && entry[chartType] === 0 ? '#f1f5f9' : (chartType === 'signings' ? "#3b82f6" : "#10b981")}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Recent Signings Panel */}
-        <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-slate-900">Recent Signings</h2>
-            <Link to="/signings" className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 transition-colors">
-              View all <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* LEFT COLUMN: MAIN OPS */}
+        <div className="lg:col-span-8 space-y-8">
           
-          <div className="space-y-4 flex-1">
-            {recentSignings.map((app) => (
-              <div key={app.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors group">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(app.status))}></div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-900 truncate">
-                      {app.clientName.split(' ').pop()}
-                    </p>
-                    <p className="text-[10px] font-medium text-slate-400 truncate">
-                      {format(parseSafeDateTime(app.date), 'MMM d')} • {app.time} • {app.city || app.location.split(',')[1]?.trim() || 'TBD'}
-                    </p>
+          {/* 2. HERO CARD: NEXT SIGNING */}
+          {nextSigning ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative bg-white rounded-[2rem] p-8 border border-slate-200 shadow-xl overflow-hidden group"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/5 rounded-full -mr-32 -mt-32 blur-3xl transition-all group-hover:bg-teal-500/10"></div>
+              
+              <div className="relative z-10 flex flex-col md:flex-row justify-between gap-8">
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 bg-teal-50 text-teal-600 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-teal-100">
+                      Next Signing
+                    </span>
+                    <span className="text-slate-400 text-xs font-bold">
+                      {isSameDay(parseSafeDateTime(nextSigning.date), new Date()) ? 'Starting soon' : format(parseSafeDateTime(nextSigning.date), 'MMM d')}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-baseline gap-3">
+                      <h2 className="text-5xl font-black text-slate-900 tracking-tighter">{nextSigning.time}</h2>
+                      <span className="text-teal-600 font-bold text-lg">${Number(nextSigning.fee).toFixed(2)}</span>
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-800">{nextSigning.clientName}</h3>
+                  </div>
+
+                  <div className="flex flex-wrap gap-6 text-slate-500">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-teal-500" />
+                      <span className="text-sm font-medium">{nextSigning.city || nextSigning.location.split(',')[1]?.trim() || 'TBD'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-teal-500" />
+                      <span className="text-sm font-medium">{nextSigning.signingType}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-teal-500" />
+                      <span className="text-sm font-medium">{nextSigning.customer || "Rocket Close"}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-black text-slate-900">${Number(app.fee).toFixed(2)}</p>
-                  <span className={cn(
-                    "text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider border mt-1 inline-block",
-                    getStatusBadgeClass(app.status)
-                  )}>
-                    {getStatusLabel(app.status)}
-                  </span>
+
+                  <div className="flex flex-col justify-end gap-3 min-w-[200px]">
+                    <button 
+                      onClick={() => onViewSigning(nextSigning)}
+                      className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white font-black rounded-2xl shadow-lg shadow-teal-100 transition-all flex items-center justify-center gap-2 group"
+                    >
+                      <FileText className="w-5 h-5" />
+                      Open File
+                    </button>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        onClick={() => {
+                          if (nextSigning.location && nextSigning.location !== 'TBD') {
+                            window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nextSigning.location)}`, '_blank');
+                          } else {
+                            alert('Navigation not set up yet: No address provided for this signing.');
+                          }
+                        }}
+                        className="py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                      >
+                        <Navigation className="w-4 h-4 text-teal-600" />
+                        Nav
+                      </button>
+                      <button 
+                        onClick={() => onViewSigning(nextSigning, 'Status')}
+                        className="py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Done
+                      </button>
+                    </div>
+                  </div>
+              </div>
+            </motion.div>
+          ) : (
+            <div className="bg-white rounded-[2rem] p-12 border border-slate-200 border-dashed text-center space-y-4">
+              <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto">
+                <Calendar className="w-8 h-8 text-slate-300" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold text-slate-900">No upcoming signings</h3>
+                <p className="text-slate-500">Your schedule is clear for now. Time to market!</p>
+              </div>
+              <button 
+                onClick={() => navigate('/signings')}
+                className="px-6 py-2 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition-all"
+              >
+                Schedule New
+              </button>
+            </div>
+          )}
+
+          {/* 3. QUICK ACTIONS DOCK */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[
+              { label: 'New Signing', icon: Plus, onClick: onNewSigning, color: 'bg-teal-500' },
+              { label: 'Add Journal', icon: BookOpen, onClick: () => navigate('/journal'), color: 'bg-indigo-500' },
+              { label: 'Upload ID', icon: Upload, onClick: () => navigate('/journal'), color: 'bg-slate-400' },
+              { label: 'Job Evaluator', icon: Calculator, onClick: () => navigate('/fee-calculator'), color: 'bg-emerald-500' },
+              { label: 'Laws Lookup', icon: Library, onClick: () => navigate('/laws-lookup'), color: 'bg-amber-500' },
+            ].map((action) => (
+              <button 
+                key={action.label}
+                onClick={action.onClick}
+                className="bg-white border border-slate-200 p-6 rounded-3xl flex flex-col items-center justify-center gap-4 hover:bg-slate-50 hover:border-slate-300 transition-all group shadow-sm"
+              >
+                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-110", action.color)}>
+                  <action.icon className="w-6 h-6 text-white" />
                 </div>
-              </div>
+                <span className="text-xs font-black text-slate-600 uppercase tracking-widest text-center leading-tight">{action.label}</span>
+              </button>
             ))}
-            {recentSignings.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
-                <Calendar className="w-8 h-8 opacity-20 mb-2" />
-                <p className="text-sm font-medium">No recent signings</p>
-              </div>
-            )}
           </div>
+
+          {/* 4. MONEY STRIP */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: 'Collected', value: totalPaid, icon: CreditCard, color: 'text-emerald-600', onClick: () => navigate('/appointments?status=Paid') },
+              { label: 'Outstanding', value: totalUnpaid, icon: AlertTriangle, color: 'text-amber-600', onClick: () => navigate('/appointments?status=Unpaid') },
+              { label: 'This Week', value: thisWeekIncome, icon: TrendingUp, color: 'text-teal-600', onClick: () => navigate('/appointments?date=This week') },
+              { label: 'Month Goal', value: monthlyGoal, icon: Zap, color: 'text-indigo-600', isGoal: true, onClick: () => navigate('/reports/income') },
+            ].map((stat) => (
+              <button 
+                key={stat.label} 
+                onClick={stat.onClick}
+                className="bg-white border border-slate-200 p-5 rounded-3xl space-y-3 shadow-sm text-left w-full hover:bg-slate-50 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</span>
+                  <stat.icon className={cn("w-4 h-4", stat.color)} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-2xl font-black text-slate-900">${stat.value.toLocaleString()}</p>
+                  {stat.isGoal && (
+                    <div className="space-y-2">
+                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${goalProgress}%` }}
+                          className="h-full bg-indigo-500 rounded-full"
+                        />
+                      </div>
+                      <p className="text-[9px] font-bold text-slate-400">{Math.round(goalProgress)}% of target</p>
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* 5. TASK LANES / WORKFLOW SECTION */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Workflow Status</h2>
+              <Link to="/signings" className="text-xs font-bold text-teal-600 hover:underline uppercase tracking-widest">View Pipeline</Link>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {lanes.map((lane) => (
+                <div key={lane.id} className="space-y-4">
+                  <div className="flex items-center gap-2 px-2">
+                    <lane.icon className={cn("w-4 h-4", lane.color.replace('400', '600'))} />
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{lane.title}</h3>
+                    <span className="ml-auto bg-slate-200 text-slate-600 text-[10px] font-black px-2 py-0.5 rounded-full">
+                      {lane.items.length}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {lane.items.map((item) => (
+                      <button 
+                        key={item.id} 
+                        onClick={() => onViewSigning(item)}
+                        className="w-full text-left bg-white border border-slate-200 p-4 rounded-2xl hover:border-slate-300 transition-all group shadow-sm"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="text-sm font-bold text-slate-900 truncate max-w-[100px]">{item.clientName.split(' ').pop()}</p>
+                          <span className="text-[10px] font-black text-teal-600">${Number(item.fee).toFixed(0)}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-medium truncate mb-3">
+                          {format(parseSafeDateTime(item.date), 'MMM d')} • {item.time}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className={cn(
+                            "text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider border",
+                            getStatusBadgeClass(item.status)
+                          )}>
+                            {getStatusLabel(item.status)}
+                          </span>
+                          <div className="p-1.5 bg-slate-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ChevronRight className="w-3 h-3 text-slate-400" />
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                    {lane.items.length === 0 && (
+                      <div className="border border-slate-200 border-dashed rounded-2xl p-8 text-center bg-white/50">
+                        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Clear</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: RECENT ACTIVITY & INSIGHTS */}
+        <div className="lg:col-span-4 space-y-8">
+          
+          {/* 6. RECENT RECORDS PANEL */}
+          <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden flex flex-col shadow-xl">
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-lg font-black text-slate-900">Recent Activity</h2>
+              <Activity className="w-4 h-4 text-teal-600" />
+            </div>
+            <div className="divide-y divide-slate-100">
+              {recentSignings.map((app) => (
+                <button 
+                  key={app.id} 
+                  onClick={() => onViewSigning(app)}
+                  className="w-full text-left p-5 hover:bg-slate-50 transition-colors flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", 
+                      app.status === 'Paid' ? 'bg-emerald-50' : 'bg-teal-50'
+                    )}>
+                      {app.status === 'Paid' ? <DollarSign className="w-5 h-5 text-emerald-600" /> : <Calendar className="w-5 h-5 text-teal-600" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">{app.clientName}</p>
+                      <p className="text-[10px] font-medium text-slate-500 truncate">
+                        {format(parseSafeDateTime(app.date), 'MMM d')} • {app.signingType}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-black text-slate-900">${Number(app.fee).toFixed(2)}</p>
+                    <div className="flex items-center gap-1 justify-end mt-1">
+                      {app.status === 'Paid' ? (
+                        <ArrowUpRight className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <Clock className="w-3 h-3 text-amber-400" />
+                      )}
+                      <span className={cn("text-[8px] font-black uppercase tracking-widest", 
+                        app.status === 'Paid' ? 'text-emerald-600' : 'text-amber-600'
+                      )}>
+                        {app.status}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            
+            <Link to="/signings" className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-teal-600 transition-colors bg-slate-50/50">
+              View Full History
+            </Link>
+          </div>
+
+          {/* 7. OPTIONAL SMALL INSIGHTS: MONTH PROGRESS */}
+          <div className="bg-gradient-to-br from-indigo-50 to-teal-50 border border-indigo-100 rounded-[2rem] p-8 space-y-6 relative overflow-hidden shadow-sm">
+            <div className="absolute top-0 right-0 p-4">
+              <Zap className="w-8 h-8 text-indigo-200" />
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">Performance Insight</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                You've collected <span className="text-emerald-600 font-bold">${totalPaid.toLocaleString()}</span> this month. 
+                You are <span className="text-indigo-600 font-bold">{Math.round(goalProgress)}%</span> of the way to your goal.
+              </p>
+            </div>
+
+            <div className="relative pt-4">
+              <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                <span>Progress</span>
+                <span>${monthlyGoal.toLocaleString()} Goal</span>
+              </div>
+              <div className="h-4 w-full bg-white rounded-full overflow-hidden p-1 shadow-inner">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${goalProgress}%` }}
+                  className="h-full bg-gradient-to-r from-indigo-500 to-teal-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-4">
+              <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Avg Fee</p>
+                <p className="text-lg font-black text-slate-900">${appointments.length > 0 ? (totalGross / appointments.length).toFixed(0) : 0}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Profit</p>
+                <p className="text-lg font-black text-emerald-600">${(totalGross - expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)).toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -3354,6 +3469,7 @@ const Appointments = ({
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [searchParams] = useSearchParams();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
@@ -3391,10 +3507,22 @@ const Appointments = ({
   ];
 
   // Filter state
-  const [dateFilter, setDateFilter] = useState('This year');
-  const [customerFilter, setCustomerFilter] = useState('All Customers');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [workTypeFilter, setWorkTypeFilter] = useState('All Types of work');
+  const [dateFilter, setDateFilter] = useState(searchParams.get('date') || 'This year');
+  const [customerFilter, setCustomerFilter] = useState(searchParams.get('customer') || 'All Customers');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'All');
+  const [workTypeFilter, setWorkTypeFilter] = useState(searchParams.get('type') || 'All Types of work');
+
+  useEffect(() => {
+    const date = searchParams.get('date');
+    const status = searchParams.get('status');
+    const customer = searchParams.get('customer');
+    const type = searchParams.get('type');
+    
+    if (date) setDateFilter(date);
+    if (status) setStatusFilter(status);
+    if (customer) setCustomerFilter(customer);
+    if (type) setWorkTypeFilter(type);
+  }, [searchParams]);
 
   const customers = useMemo(() => {
     // Use the clients list as the source of truth for customers
@@ -5043,7 +5171,21 @@ export default function App() {
             
             <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
               <Routes>
-                <Route path="/" element={<Dashboard appointments={appointments} expenses={expenses} />} />
+                <Route path="/" element={
+                  <Dashboard 
+                    appointments={appointments} 
+                    expenses={expenses} 
+                    onNewSigning={() => {
+                      setSelectedAppointment(null);
+                      setIsNewSigningModalOpen(true);
+                    }}
+                    onViewSigning={(app, tab = 'Signer(s)') => {
+                      setSelectedAppointment(app);
+                      setModalInitialTab(tab);
+                      setIsNewSigningModalOpen(true);
+                    }}
+                  />
+                } />
                 <Route 
                   path="/appointments" 
                   element={
