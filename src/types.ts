@@ -74,6 +74,7 @@ export interface BusinessProfile {
   email: string;
   phone: string;
   address: string;
+  state?: string;
   commissionNumber: string;
   commissionExpiration: string;
 }
@@ -83,4 +84,41 @@ export interface DashboardStats {
   totalExpenses: number;
   upcomingSignings: number;
   completedSignings: number;
+}
+
+export interface LawItem {
+  id: string;
+  state: string;
+  topic: string;
+  title: string;
+  summary: string;
+  officialSourceName: string;
+  officialSourceUrl: string;
+  secondarySourceName?: string;
+  secondarySourceUrl?: string;
+  lastVerifiedAt: string;
+  effectiveDate?: string;
+  keywords: string[];
+  searchKeywords?: string[];
+  isOfficial: boolean;
+  disclaimerVersion: string;
+}
+
+export interface SavedLookup {
+  id: string;
+  userId: string;
+  lawId: string;
+  savedAt: string;
+  lawTitle: string;
+  state: string;
+  topic: string;
+}
+
+export interface RecentSearch {
+  id: string;
+  userId: string;
+  query: string;
+  state: string;
+  topic: string;
+  searchedAt: string;
 }

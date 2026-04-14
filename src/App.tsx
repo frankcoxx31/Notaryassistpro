@@ -110,6 +110,7 @@ import { auth, db, provider } from './firebase';
 import LoginPage from './components/LoginPage';
 import NewSigningModal from './components/NewSigningModal';
 import NewClientModal from './components/NewClientModal';
+import LawsLookup from './components/LawsLookup';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -2254,8 +2255,8 @@ const FeeCalculator = () => {
   );
 };
 
-const ToolsView = () => {
-  const [activeTab, setActiveTab] = useState<'recession' | 'calculator'>('recession');
+const ToolsView = ({ userId, userState }: { userId: string, userState?: string }) => {
+  const [activeTab, setActiveTab] = useState<'recession' | 'calculator' | 'laws'>('recession');
   const [signingDate, setSigningDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
   // Federal Holidays 2026 (Simplified)
@@ -2322,6 +2323,17 @@ const ToolsView = () => {
           >
             Fee Calculator
           </button>
+          <button 
+            onClick={() => setActiveTab('laws')}
+            className={cn(
+              "px-4 py-2 rounded-lg text-sm font-bold transition-all",
+              activeTab === 'laws' 
+                ? "bg-white text-indigo-600 shadow-sm" 
+                : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Laws Lookup
+          </button>
         </div>
       </div>
 
@@ -2358,8 +2370,10 @@ const ToolsView = () => {
               </div>
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'calculator' ? (
           <FeeCalculator />
+        ) : (
+          <LawsLookup userId={userId} userState={userState} />
         )}
       </div>
     </div>
@@ -2474,6 +2488,7 @@ const Sidebar = ({
       subItems: [
         { name: 'Recession Calendar', icon: Calendar, path: '/tools' },
         { name: 'Fee Calculator', icon: Calculator, path: '/fee-calculator' },
+        { name: 'Laws Lookup', icon: BookOpen, path: '/laws-lookup' },
       ]
     },
     !user ? { name: 'Firestore Login', icon: ShieldCheck, path: '#', onClick: onSignIn } : null,
@@ -2717,7 +2732,7 @@ const Header = ({ toggleSidebar, onNewSigning, onSignOut, user }: { toggleSideba
         </button>
         <button 
           onClick={onNewSigning}
-          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-[#27285C] px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-black/20"
+          className="flex items-center gap-2 bg-[#27285C] hover:bg-[#1e1f4a] text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-black/20 border border-white/10"
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">New Signing</span>
@@ -3956,7 +3971,7 @@ const Appointments = ({
           <div className="flex items-center gap-3">
             <button 
               onClick={onNewSigning}
-              className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+              className="bg-[#27285C] hover:bg-[#1e1f4a] text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-white/10"
             >
               <PlusCircle className="w-4 h-4" /> {viewMode === 'journal' ? 'Add Entry' : 'Add Signing'}
             </button>
@@ -5127,8 +5142,9 @@ export default function App() {
                     />
                   } 
                 />
-                <Route path="/tools" element={<ToolsView />} />
+                <Route path="/tools" element={<ToolsView userId={user?.uid || 'mock-user'} userState={businessProfile?.state} />} />
                 <Route path="/fee-calculator" element={<FeeCalculator />} />
+                <Route path="/laws-lookup" element={<LawsLookup userId={user?.uid || 'mock-user'} userState={businessProfile?.state} />} />
                 <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} user={user} onSignIn={handleSignIn} onImport={handleImport} userId={user?.uid || 'mock-user'} />} />
               </Routes>
             </main>

@@ -18,6 +18,12 @@ service cloud.firestore {
     //
     // Collection: profiles
     // Fields: name, companyName, email, phone, address, commissionNumber, commissionExpiration, userId
+    //
+    // Collection: savedLookups
+    // Fields: id, userId, lawId, savedAt, lawTitle, state, topic
+    //
+    // Collection: recentSearches
+    // Fields: id, userId, query, state, topic, searchedAt
     // ===============================================================
 
     // ===============================================================
@@ -77,7 +83,15 @@ service cloud.firestore {
     }
 
     function isValidProfile(data) {
-      return hasRequiredFields(['name', 'companyName', 'email', 'phone', 'address', 'commissionNumber', 'commissionExpiration', 'userId']);
+      return hasRequiredFields(['name', 'companyName', 'email', 'phone', 'address', 'state', 'commissionNumber', 'commissionExpiration', 'userId']);
+    }
+
+    function isValidSavedLookup(data) {
+      return hasRequiredFields(['id', 'userId', 'lawId', 'savedAt', 'lawTitle', 'state', 'topic']);
+    }
+
+    function isValidRecentSearch(data) {
+      return hasRequiredFields(['id', 'userId', 'query', 'state', 'topic', 'searchedAt']);
     }
 
     // ===============================================================
@@ -116,6 +130,20 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidProfile(request.resource.data);
       allow update: if isOwner(userId) && isValidProfile(request.resource.data) && uidNotModified();
       allow delete: if isOwner(userId);
+    }
+
+    match /savedLookups/{lookupId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidSavedLookup(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidSavedLookup(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /recentSearches/{searchId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidRecentSearch(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidRecentSearch(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
     }
   }
 }

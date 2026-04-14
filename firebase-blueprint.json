@@ -91,11 +91,41 @@
         "email": { "type": "string" },
         "phone": { "type": "string" },
         "address": { "type": "string" },
+        "state": { "type": "string" },
         "commissionNumber": { "type": "string" },
         "commissionExpiration": { "type": "string" },
         "userId": { "type": "string" }
       },
       "required": ["name", "companyName", "email", "phone", "address", "commissionNumber", "commissionExpiration", "userId"]
+    },
+    "SavedLookup": {
+      "title": "SavedLookup",
+      "description": "A law lookup item saved by the user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "lawId": { "type": "string" },
+        "savedAt": { "type": "string" },
+        "lawTitle": { "type": "string" },
+        "state": { "type": "string" },
+        "topic": { "type": "string" }
+      },
+      "required": ["id", "userId", "lawId", "savedAt", "lawTitle", "state", "topic"]
+    },
+    "RecentSearch": {
+      "title": "RecentSearch",
+      "description": "A recent law search performed by the user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "query": { "type": "string" },
+        "state": { "type": "string" },
+        "topic": { "type": "string" },
+        "searchedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "query", "state", "topic", "searchedAt"]
     }
   },
   "firestore": {
@@ -118,6 +148,14 @@
     "/profiles/{userId}": {
       "schema": "BusinessProfile",
       "description": "User's business profile"
+    },
+    "/savedLookups/{lookupId}": {
+      "schema": "SavedLookup",
+      "description": "User's saved law lookups"
+    },
+    "/recentSearches/{searchId}": {
+      "schema": "RecentSearch",
+      "description": "User's recent law searches"
     }
   }
 }
