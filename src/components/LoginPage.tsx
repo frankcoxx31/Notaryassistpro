@@ -6,9 +6,10 @@ import { signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 
 interface LoginPageProps {
   onSignIn?: () => void;
+  onEnterDemo?: () => void;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onSignIn }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onEnterDemo }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -215,6 +216,27 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn }) => {
                   <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
                   <span>Google Account</span>
                 </button>
+
+                {onEnterDemo && (
+                  <div className="pt-4 mt-4 border-t border-white/5 space-y-4">
+                    <div className="text-center">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Want to explore first?</p>
+                      <button 
+                        type="button"
+                        onClick={onEnterDemo}
+                        className="w-full bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 text-sky-400 font-bold py-3.5 rounded-2xl transition-all active:scale-[0.98] flex flex-col items-center justify-center gap-1 group"
+                      >
+                        <span className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                          Try Demo Mode
+                        </span>
+                        <span className="text-[9px] font-medium text-sky-500/60 lowercase tracking-normal">
+                          Explore with sample data saved only in this browser
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </form>
           </div>
 

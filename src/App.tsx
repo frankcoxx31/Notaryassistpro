@@ -5609,7 +5609,7 @@ export default function App() {
             }} 
           />
         ) : (
-          <LoginPage onSignIn={handleSignIn} />
+          <LoginPage onSignIn={handleSignIn} onEnterDemo={handleDemoSignIn} />
         )
       ) : (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
