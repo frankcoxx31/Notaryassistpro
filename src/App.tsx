@@ -2783,31 +2783,31 @@ const Header = ({ toggleSidebar, onNewSigning, onSignOut, user, isDemoMode, onRe
           </button>
         </div>
       )}
-      <div className="h-16 bg-[#27285C] border-b border-white/10 flex items-center justify-between px-4 lg:px-8">
+      <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8">
         <div className="flex items-center gap-4">
           <button 
             onClick={toggleSidebar}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors lg:hidden"
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors lg:hidden"
           >
-            <Menu className="w-5 h-5 text-white/70" />
+            <Menu className="w-5 h-5 text-slate-600" />
           </button>
           <div className="relative hidden md:block">
-            <Search className="w-4 h-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input 
               type="text" 
               placeholder="Search clients, addresses, signings..." 
-              className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/50 w-[350px] transition-all"
+              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500/50 w-[350px] transition-all"
             />
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-4">
-          <button className="p-2 hover:bg-white/10 rounded-lg transition-colors relative">
-            <Bell className="w-5 h-5 text-white/70" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-[#27285C]"></span>
+          <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative">
+            <Bell className="w-5 h-5 text-slate-600" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
           </button>
           <button 
             onClick={onNewSigning}
-            className="flex items-center gap-2 bg-[#27285C] hover:bg-[#1e1f4a] text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-black/20 border border-white/10"
+            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-sky-600/20 border border-sky-500/50"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">New Signing</span>
@@ -2816,10 +2816,10 @@ const Header = ({ toggleSidebar, onNewSigning, onSignOut, user, isDemoMode, onRe
           {/* Quick Sign Out for Header */}
           <button 
             onClick={onSignOut}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
             title="Sign Out"
           >
-            <LogOut className="w-5 h-5 text-white/70" />
+            <LogOut className="w-5 h-5 text-slate-600" />
           </button>
         </div>
       </div>
