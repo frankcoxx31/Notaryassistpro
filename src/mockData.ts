@@ -1,5 +1,5 @@
 import { format, subDays, addDays } from 'date-fns';
-import { Appointment, Client, Expense, Mileage, BusinessProfile } from './types';
+import { Appointment, Client, Expense, Mileage, BusinessProfile, SigningCompany } from './types';
 
 export const MOCK_APPOINTMENTS: Appointment[] = [
   {
@@ -91,3 +91,36 @@ export const MOCK_PROFILE: BusinessProfile = {
   commissionNumber: '123456789',
   commissionExpiration: '2028-12-31'
 };
+
+export const MOCK_COMPANIES: SigningCompany[] = [
+  {
+    id: '1',
+    userId: 'mock-user',
+    companyName: 'Rocket Close',
+    contactName: 'Jane Smith',
+    email: 'jane@rocketclose.com',
+    phone: '(555) 123-4567',
+    status: 'Active',
+    paymentTerms: 'Net 30',
+    rating: 5,
+    favorite: true,
+    tags: ['High Volume', 'Reliable'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: '2',
+    userId: 'mock-user',
+    companyName: 'Elite Signings',
+    contactName: 'Bob Wilson',
+    email: 'bob@elitesignings.com',
+    phone: '(555) 987-6543',
+    status: 'Watch',
+    paymentTerms: 'Net 45',
+    rating: 3,
+    favorite: false,
+    tags: ['Slow Pay'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];

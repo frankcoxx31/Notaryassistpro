@@ -3,12 +3,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Edit2, MapPin, User, Calendar, Clock, 
   HelpCircle, CheckCircle2, Phone, Banknote, 
-  List, Pencil, Plus, Trash2, Camera, Loader2, AlertCircle
+  List, Pencil, Plus, Trash2, Camera, Loader2, AlertCircle,
+  Car, TrendingUp, PlusCircle
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
-import { Appointment, AppointmentStatus, Client } from '../types';
+import { Appointment, AppointmentStatus, Client, SigningCompany } from '../types';
 import { cn } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
+import SigningCompanyModal from './SigningCompanyModal';
 
 interface NewSigningModalProps {
   isOpen: boolean;
@@ -19,7 +21,11 @@ interface NewSigningModalProps {
   userId: string;
   clients: Client[];
   appointments: Appointment[];
+  companies: SigningCompany[];
+  onSaveCompany: (company: SigningCompany) => void;
 }
+
+const DEFAULT_MILEAGE_RATE = 0.67;
 
 const NewSigningModal = ({ 
   isOpen, 
@@ -29,12 +35,15 @@ const NewSigningModal = ({
   initialTab = 'Signer(s)',
   userId,
   clients,
-  appointments
+  appointments,
+  companies,
+  onSaveCompany
 }: NewSigningModalProps) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formData, setFormData] = useState<Partial<Appointment>>({});
   const [customDoc, setCustomDoc] = useState('');
   const [showDocError, setShowDocError] = useState(false);
+  const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState(false);
   
   // Scanner state
   const [isScanning, setIsScanning] = useState(false);
@@ -211,13 +220,14 @@ Return only the JSON object, no additional text.`;
 
   const uniqueCompanies = React.useMemo(() => {
     const fromAppointments = appointments.map(a => a.signingCompany).filter(Boolean) as string[];
+    const fromDatabase = companies.map(c => c.companyName);
     const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
     
     // Combine with customers list
-    const combined = [...defaults, ...fromAppointments, ...customers];
+    const combined = [...defaults, ...fromAppointments, ...fromDatabase, ...customers];
     const unique = new Set(combined);
     return Array.from(unique).sort();
-  }, [appointments, customers]);
+  }, [appointments, customers, companies]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -232,6 +242,35 @@ Return only the JSON object, no additional text.`;
         if (!data.firstName) data.firstName = parts[0] || '';
         if (!data.lastName) data.lastName = parts.slice(1).join(' ') || '';
       }
+      // Initialize fee tracking fields if missing
+      if (data.agreedFee === undefined) data.agreedFee = data.fee || 0;
+      if (data.offeredFee === undefined) data.offeredFee = data.agreedFee;
+      if (data.amountCollected === undefined) data.amountCollected = 0;
+      if (data.amountOutstanding === undefined) data.amountOutstanding = (data.agreedFee || 0) - (data.amountCollected || 0);
+      if (!data.paymentStatus) {
+        if (data.status === 'Paid') data.paymentStatus = 'Paid';
+        else data.paymentStatus = 'Not Sent';
+      }
+
+      // Initialize mileage & profit fields if missing
+      if (data.milesDriven === undefined) data.milesDriven = 0;
+      if (data.mileageRate === undefined) data.mileageRate = DEFAULT_MILEAGE_RATE;
+      if (data.parkingTollsCost === undefined) data.parkingTollsCost = 0;
+      if (data.printingCost === undefined) data.printingCost = 0;
+      if (data.otherSigningCost === undefined) data.otherSigningCost = 0;
+      if (data.roundTripMiles === undefined) data.roundTripMiles = true;
+      
+      // Calculate derived fields
+      const travelCost = (data.milesDriven || 0) * (data.mileageRate || DEFAULT_MILEAGE_RATE);
+      const totalJobCost = travelCost + (data.parkingTollsCost || 0) + (data.printingCost || 0) + (data.otherSigningCost || 0);
+      const estimatedProfit = (data.agreedFee || 0) - totalJobCost;
+      const profitMarginPercent = (data.agreedFee || 0) > 0 ? (estimatedProfit / (data.agreedFee || 0)) * 100 : 0;
+      
+      data.travelCost = travelCost;
+      data.totalJobCost = totalJobCost;
+      data.estimatedProfit = estimatedProfit;
+      data.profitMarginPercent = profitMarginPercent;
+      
       // Derive address/city/state/zip if missing
       if (data.location && (!data.address || !data.city || !data.state || !data.zip)) {
         const parts = data.location.split(',').map((p: string) => p.trim());
@@ -278,10 +317,26 @@ Return only the JSON object, no additional text.`;
         time: '10:00 AM',
         signingType: 'General Loan Signing Work',
         fee: 150,
+        agreedFee: 150,
+        offeredFee: 150,
+        amountCollected: 0,
+        amountOutstanding: 150,
+        paymentStatus: 'Not Sent',
+        invoiceSent: false,
         status: 'Scheduled',
         clientName: '',
         location: '',
-        invoiceNumber: `INV-${dateStr}-${randomStr}`
+        invoiceNumber: `INV-${dateStr}-${randomStr}`,
+        milesDriven: 0,
+        mileageRate: DEFAULT_MILEAGE_RATE,
+        parkingTollsCost: 0,
+        printingCost: 0,
+        otherSigningCost: 0,
+        travelCost: 0,
+        totalJobCost: 0,
+        estimatedProfit: 150, // agreedFee (150) - totalJobCost (0)
+        profitMarginPercent: 100,
+        roundTripMiles: true
       });
     }
   }, [appointment, isOpen, userId]);
@@ -295,8 +350,39 @@ Return only the JSON object, no additional text.`;
         setActiveTab('Documents');
         return;
       }
-      onSave(formData as Appointment);
+      
+      // Ensure fee and agreedFee are in sync
+      const finalData = { 
+        ...formData, 
+        fee: formData.agreedFee || formData.fee || 0,
+        agreedFee: formData.agreedFee || formData.fee || 0
+      };
+      
+      onSave(finalData as Appointment);
     }
+  };
+
+  const updateProfitFields = (updatedData: Partial<Appointment>) => {
+    const miles = updatedData.milesDriven !== undefined ? updatedData.milesDriven : (formData.milesDriven || 0);
+    const rate = updatedData.mileageRate !== undefined ? updatedData.mileageRate : (formData.mileageRate || DEFAULT_MILEAGE_RATE);
+    const parkingTolls = updatedData.parkingTollsCost !== undefined ? updatedData.parkingTollsCost : (formData.parkingTollsCost || 0);
+    const printing = updatedData.printingCost !== undefined ? updatedData.printingCost : (formData.printingCost || 0);
+    const other = updatedData.otherSigningCost !== undefined ? updatedData.otherSigningCost : (formData.otherSigningCost || 0);
+    const agreed = updatedData.agreedFee !== undefined ? updatedData.agreedFee : (formData.agreedFee || 0);
+
+    const travelCost = miles * rate;
+    const totalJobCost = travelCost + parkingTolls + printing + other;
+    const estimatedProfit = agreed - totalJobCost;
+    const profitMarginPercent = agreed > 0 ? (estimatedProfit / agreed) * 100 : 0;
+
+    setFormData(prev => ({
+      ...prev,
+      ...updatedData,
+      travelCost,
+      totalJobCost,
+      estimatedProfit,
+      profitMarginPercent
+    }));
   };
 
   const toggleDoc = (doc: string) => {
@@ -433,19 +519,48 @@ Return only the JSON object, no additional text.`;
 
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Company:</label>
-                <select 
-                  value={formData.signingCompany || ""}
-                  onChange={(e) => setFormData({ ...formData, signingCompany: e.target.value })}
-                  className="flex-1 bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none transition-all"
-                >
-                  <option value="">Select Company</option>
-                  {uniqueCompanies.map(company => (
-                    <option key={company} value={company}>{company}</option>
-                  ))}
-                </select>
+                <div className="flex-1 flex gap-2">
+                  <select 
+                    value={formData.signingCompany || ""}
+                    onChange={(e) => {
+                      const selectedName = e.target.value;
+                      const company = companies.find(c => c.companyName === selectedName);
+                      setFormData({ 
+                        ...formData, 
+                        signingCompany: selectedName,
+                        companyId: company?.id || undefined
+                      });
+                    }}
+                    className="flex-1 bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none transition-all"
+                  >
+                    <option value="">Select Company</option>
+                    {uniqueCompanies.map(company => (
+                      <option key={company} value={company}>{company}</option>
+                    ))}
+                  </select>
+                  <button 
+                    type="button"
+                    onClick={() => setIsNewCompanyModalOpen(true)}
+                    className="p-2 bg-sky-50 text-sky-600 border border-sky-100 rounded hover:bg-sky-100 transition-all"
+                    title="Add New Company to Database"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
+
+          <SigningCompanyModal 
+            isOpen={isNewCompanyModalOpen}
+            onClose={() => setIsNewCompanyModalOpen(false)}
+            onSave={(c) => {
+              onSaveCompany(c);
+              setFormData({ ...formData, signingCompany: c.companyName, companyId: c.id });
+              setIsNewCompanyModalOpen(false);
+            }}
+            userId={userId}
+          />
 
 
           {/* Location Section */}
@@ -792,78 +907,319 @@ Return only the JSON object, no additional text.`;
               )}
               {activeTab === 'Invoice' && (
                 <div className="space-y-6">
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-bold text-slate-800">Invoice Details</h3>
-                      <span className={cn(
-                        "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider",
-                        formData.status === 'Paid' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                      )}>
-                        {formData.status}
-                      </span>
+                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <Banknote className="w-5 h-5 text-emerald-600" />
+                        Fee Tracking & Billing
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Payment Status:</span>
+                        <select 
+                          value={formData.paymentStatus || "Not Sent"}
+                          onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value as any })}
+                          className={cn(
+                            "px-3 py-1 rounded text-[10px] font-black uppercase tracking-wider border outline-none",
+                            formData.paymentStatus === 'Paid' ? "bg-emerald-50 border-emerald-200 text-emerald-700" : 
+                            formData.paymentStatus === 'Partial' ? "bg-sky-50 border-sky-200 text-sky-700" :
+                            formData.paymentStatus === 'Follow Up' ? "bg-amber-50 border-amber-200 text-amber-700" :
+                            "bg-slate-100 border-slate-200 text-slate-600"
+                          )}
+                        >
+                          <option>Not Sent</option>
+                          <option>Sent</option>
+                          <option>Partial</option>
+                          <option>Paid</option>
+                          <option>Follow Up</option>
+                        </select>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Offered Fee</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                            <input 
+                              type="number" 
+                              value={formData.offeredFee || 0}
+                              onChange={(e) => setFormData({ ...formData, offeredFee: parseFloat(e.target.value) })}
+                              className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Agreed Fee</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                            <input 
+                              type="number" 
+                              value={formData.agreedFee || 0}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                updateProfitFields({ 
+                                  agreedFee: val,
+                                  fee: val,
+                                  amountOutstanding: val - (formData.amountCollected || 0)
+                                });
+                              }}
+                              className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm font-bold outline-none focus:ring-1 focus:ring-sky-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Amount Collected</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                            <input 
+                              type="number" 
+                              value={formData.amountCollected || 0}
+                              onChange={(e) => {
+                                const collected = parseFloat(e.target.value);
+                                const agreed = formData.agreedFee || 0;
+                                const outstanding = agreed - collected;
+                                
+                                let status = formData.paymentStatus;
+                                if (collected >= agreed && agreed > 0) status = 'Paid';
+                                else if (collected > 0 && collected < agreed) status = 'Partial';
+                                
+                                setFormData({ 
+                                  ...formData, 
+                                  amountCollected: collected,
+                                  amountOutstanding: outstanding,
+                                  paymentStatus: status as any
+                                });
+                              }}
+                              className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Outstanding</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                            <input 
+                              type="number" 
+                              readOnly
+                              value={formData.amountOutstanding || 0}
+                              className="w-full pl-7 pr-3 py-2 bg-slate-100 border border-slate-200 rounded text-sm font-bold text-rose-600 outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Payment Method</label>
+                          <select 
+                            value={formData.paymentMethod || ""}
+                            onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                            className="w-full px-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500 bg-white"
+                          >
+                            <option value="">Select Method</option>
+                            <option>Check</option>
+                            <option>Direct Deposit / ACH</option>
+                            <option>Zelle</option>
+                            <option>Venmo</option>
+                            <option>Cash</option>
+                            <option>Credit Card</option>
+                            <option>Snapdocs Pay</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center justify-between pt-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice Sent</label>
+                          <button 
+                            onClick={() => setFormData({ ...formData, invoiceSent: !formData.invoiceSent })}
+                            className={cn(
+                              "w-12 h-6 rounded-full transition-all relative",
+                              formData.invoiceSent ? "bg-emerald-500" : "bg-slate-300"
+                            )}
+                          >
+                            <div className={cn(
+                              "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                              formData.invoiceSent ? "left-7" : "left-1"
+                            )} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6 mt-6 pt-6 border-t border-slate-200">
                       <div>
-                        <p className="text-slate-500 text-xs mb-1">Invoice Number</p>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Payment Due Date</label>
                         <input 
-                          type="text" 
-                          value={formData.invoiceNumber || ""}
-                          onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
-                          className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                          placeholder="INV-000"
+                          type="date" 
+                          value={formData.paymentDueDate || ""}
+                          onChange={(e) => setFormData({ ...formData, paymentDueDate: e.target.value })}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                       <div>
-                        <p className="text-slate-500 text-xs mb-1">Fee Amount</p>
-                        <p className="font-bold text-slate-900">${formData.fee?.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Invoice Date</p>
-                        <p className="font-bold text-slate-900">{formData.date}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Invoice Sent Date</p>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Payment Received Date</label>
                         <input 
                           type="date" 
-                          value={formData.invoiceSentDate || ""}
-                          onChange={(e) => setFormData({ ...formData, invoiceSentDate: e.target.value })}
-                          className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                        />
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Invoice Paid Date</p>
-                        <input 
-                          type="date" 
-                          value={formData.invoicePaidDate || ""}
+                          value={formData.paymentReceivedDate || ""}
                           onChange={(e) => {
-                            const newDate = e.target.value;
+                            const date = e.target.value;
                             setFormData({ 
                               ...formData, 
-                              invoicePaidDate: newDate,
-                              status: newDate ? 'Paid' : (formData.status === 'Paid' ? 'Completed' : formData.status)
+                              paymentReceivedDate: date,
+                              paymentStatus: date ? 'Paid' : formData.paymentStatus,
+                              amountCollected: date ? (formData.agreedFee || formData.fee || 0) : formData.amountCollected,
+                              amountOutstanding: date ? 0 : (formData.agreedFee || 0) - (formData.amountCollected || 0)
                             });
                           }}
-                          className="w-full border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <label className="text-sm font-bold text-slate-700 w-24 text-right">Status:</label>
-                      <select 
-                        value={formData.status || "Scheduled"}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value as AppointmentStatus })}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                      >
-                        <option>Scheduled</option>
-                        <option>Completed</option>
-                        <option>Paid</option>
-                        <option>Cancelled</option>
-                        <option>No Show</option>
-                      </select>
+
+                  {/* Travel & Profit Section */}
+                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <Car className="w-5 h-5 text-indigo-600" />
+                        Travel & Profit
+                      </h3>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Round Trip:</span>
+                          <button 
+                            onClick={() => updateProfitFields({ roundTripMiles: !formData.roundTripMiles })}
+                            className={cn(
+                              "w-10 h-5 rounded-full transition-all relative",
+                              formData.roundTripMiles ? "bg-indigo-500" : "bg-slate-300"
+                            )}
+                          >
+                            <div className={cn(
+                              "absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all",
+                              formData.roundTripMiles ? "left-5.5" : "left-0.5"
+                            )} />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Margin:</span>
+                          <div className={cn(
+                            "px-3 py-1 rounded text-[10px] font-black uppercase tracking-wider border",
+                            (formData.profitMarginPercent || 0) >= 70 ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+                            (formData.profitMarginPercent || 0) >= 40 ? "bg-amber-50 border-amber-200 text-amber-700" :
+                            "bg-rose-50 border-rose-200 text-rose-700"
+                          )}>
+                            {Math.round(formData.profitMarginPercent || 0)}%
+                          </div>
+                        </div>
+                      </div>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Miles Driven</label>
+                        <input 
+                          type="number" 
+                          value={formData.milesDriven || 0}
+                          onChange={(e) => updateProfitFields({ milesDriven: parseFloat(e.target.value) })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Mileage Rate</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={formData.mileageRate || DEFAULT_MILEAGE_RATE}
+                            onChange={(e) => updateProfitFields({ mileageRate: parseFloat(e.target.value) })}
+                            className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Travel Cost</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                          <input 
+                            type="number" 
+                            readOnly
+                            value={formData.travelCost?.toFixed(2) || 0}
+                            className="w-full pl-7 pr-3 py-2 bg-slate-100 border border-slate-200 rounded text-sm outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="bg-indigo-50/50 p-3 rounded-lg border border-indigo-100 flex flex-col justify-center">
+                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block mb-1">Profit Amount</span>
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-indigo-600" />
+                          <span className="text-lg font-black text-indigo-700">${formData.estimatedProfit?.toFixed(2) || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Parking/Tolls</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                          <input 
+                            type="number" 
+                            value={formData.parkingTollsCost || 0}
+                            onChange={(e) => updateProfitFields({ parkingTollsCost: parseFloat(e.target.value) })}
+                            className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Printing</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                          <input 
+                            type="number" 
+                            value={formData.printingCost || 0}
+                            onChange={(e) => updateProfitFields({ printingCost: parseFloat(e.target.value) })}
+                            className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Other Exp.</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                          <input 
+                            type="number" 
+                            value={formData.otherSigningCost || 0}
+                            onChange={(e) => updateProfitFields({ otherSigningCost: parseFloat(e.target.value) })}
+                            className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total Exp.</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                          <input 
+                            type="number" 
+                            readOnly
+                            value={formData.totalJobCost?.toFixed(2) || 0}
+                            className="w-full pl-7 pr-3 py-2 bg-slate-100 border border-slate-200 rounded text-sm font-bold outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Billing Notes:</label>
+                    <textarea 
+                      value={formData.notesBilling || ""}
+                      onChange={(e) => setFormData({ ...formData, notesBilling: e.target.value })}
+                      placeholder="Payment terms, follow-up history, etc..."
+                      className="w-full h-24 border border-slate-300 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-none transition-all"
+                    />
                   </div>
                 </div>
               )}

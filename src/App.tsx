@@ -46,6 +46,7 @@ import {
   Printer,
   Download,
   ChevronDown,
+  ChevronUp,
   Upload,
   Settings2,
   PlusCircle,
@@ -106,7 +107,7 @@ import {
   Pie 
 } from 'recharts';
 import { cn } from './lib/utils';
-import { Appointment, Client, Expense, AppointmentStatus, Mileage, BusinessProfile } from './types';
+import { Appointment, Client, Expense, AppointmentStatus, Mileage, BusinessProfile, SigningCompany } from './types';
 import { 
   MOCK_PROFILE, 
   MOCK_APPOINTMENTS, 
@@ -115,9 +116,12 @@ import {
   MOCK_MILEAGE 
 } from './mockData';
 import { auth, db, provider } from './firebase';
+import { demoStorage } from './lib/demoStorage';
 import LoginPage from './components/LoginPage';
 import NewSigningModal from './components/NewSigningModal';
 import NewClientModal from './components/NewClientModal';
+import SigningCompanyModal from './components/SigningCompanyModal';
+import SigningCompaniesPage from './components/SigningCompaniesPage';
 import LawsLookup from './components/LawsLookup';
 import { 
   onAuthStateChanged, 
@@ -1754,7 +1758,23 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
   );
 };
 
-const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onEditProfile: () => void, user: FirebaseUser | null, onSignIn: () => void, onImport: (appointments: Appointment[]) => void, userId: string }) => {
+const SettingsView = ({ 
+  onEditProfile, 
+  user, 
+  onSignIn, 
+  onImport, 
+  userId,
+  isDemoMode,
+  onResetDemo
+}: { 
+  onEditProfile: () => void, 
+  user: FirebaseUser | null, 
+  onSignIn: () => void, 
+  onImport: (appointments: Appointment[]) => void, 
+  userId: string,
+  isDemoMode: boolean,
+  onResetDemo: () => void
+}) => {
   const [isImporting, setIsImporting] = useState(false);
 
   const handleFileImport = (type: 'pdf' | 'csv') => {
@@ -1971,6 +1991,26 @@ const SettingsView = ({ onEditProfile, user, onSignIn, onImport, userId }: { onE
             Edit Profile
           </button>
         </div>
+
+        {/* Demo Mode Settings */}
+        {isDemoMode && (
+          <div className="bg-white p-6 rounded-2xl border border-amber-100 shadow-sm space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 text-amber-600" />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg">Demo Mode</h3>
+            </div>
+            <p className="text-sm text-slate-500">You are currently in Demo Mode. All data is stored locally in your browser and will not be synced to Firestore.</p>
+            <button 
+              onClick={onResetDemo}
+              className="w-full py-2.5 bg-amber-500 rounded-xl text-sm font-semibold text-white hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Reset Demo Data
+            </button>
+          </div>
+        )}
 
         {/* Firestore Settings */}
         {!user && (
@@ -2445,6 +2485,7 @@ const Sidebar = ({
     },
     { name: 'Calendar', icon: Calendar, path: '/calendar' },
     { name: 'Customers', icon: Users, path: '/clients' },
+    { name: 'Signing Companies', icon: Building2, path: '/companies' },
     { 
       name: 'Expenses', 
       icon: DollarSign, 
@@ -2714,46 +2755,69 @@ const Sidebar = ({
   );
 };
 
-const Header = ({ toggleSidebar, onNewSigning, onSignOut, user }: { toggleSidebar: () => void; onNewSigning: () => void; onSignOut: () => void; user: FirebaseUser | null }) => {
+const Header = ({ toggleSidebar, onNewSigning, onSignOut, user, isDemoMode, onResetDemo }: { 
+  toggleSidebar: () => void; 
+  onNewSigning: () => void; 
+  onSignOut: () => void; 
+  user: FirebaseUser | null;
+  isDemoMode: boolean;
+  onResetDemo: () => void;
+}) => {
   return (
-    <header className="h-16 bg-[#27285C] border-b border-white/10 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
-      <div className="flex items-center gap-4">
-        <button 
-          onClick={toggleSidebar}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors lg:hidden"
-        >
-          <Menu className="w-5 h-5 text-white/70" />
-        </button>
-        <div className="relative hidden md:block">
-          <Search className="w-4 h-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input 
-            type="text" 
-            placeholder="Search clients, addresses, signings..." 
-            className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/50 w-[350px] transition-all"
-          />
+    <header className="flex flex-col sticky top-0 z-30">
+      {isDemoMode && (
+        <div className="bg-amber-500 text-white px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-4 shadow-inner">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-3 h-3" />
+            <span>Demo Mode — changes saved only in this browser</span>
+          </div>
+          <button 
+            onClick={onResetDemo}
+            className="bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors flex items-center gap-1"
+          >
+            <RefreshCw className="w-2.5 h-2.5" /> Reset Data
+          </button>
         </div>
-      </div>
-      <div className="flex items-center gap-2 md:gap-4">
-        <button className="p-2 hover:bg-white/10 rounded-lg transition-colors relative">
-          <Bell className="w-5 h-5 text-white/70" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-[#27285C]"></span>
-        </button>
-        <button 
-          onClick={onNewSigning}
-          className="flex items-center gap-2 bg-[#27285C] hover:bg-[#1e1f4a] text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-black/20 border border-white/10"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">New Signing</span>
-        </button>
-        
-        {/* Quick Sign Out for Header */}
-        <button 
-          onClick={onSignOut}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          title="Sign Out"
-        >
-          <LogOut className="w-5 h-5 text-white/70" />
-        </button>
+      )}
+      <div className="h-16 bg-[#27285C] border-b border-white/10 flex items-center justify-between px-4 lg:px-8">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={toggleSidebar}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors lg:hidden"
+          >
+            <Menu className="w-5 h-5 text-white/70" />
+          </button>
+          <div className="relative hidden md:block">
+            <Search className="w-4 h-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input 
+              type="text" 
+              placeholder="Search clients, addresses, signings..." 
+              className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/50 w-[350px] transition-all"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 md:gap-4">
+          <button className="p-2 hover:bg-white/10 rounded-lg transition-colors relative">
+            <Bell className="w-5 h-5 text-white/70" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-[#27285C]"></span>
+          </button>
+          <button 
+            onClick={onNewSigning}
+            className="flex items-center gap-2 bg-[#27285C] hover:bg-[#1e1f4a] text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-black/20 border border-white/10"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">New Signing</span>
+          </button>
+          
+          {/* Quick Sign Out for Header */}
+          <button 
+            onClick={onSignOut}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            title="Sign Out"
+          >
+            <LogOut className="w-5 h-5 text-white/70" />
+          </button>
+        </div>
       </div>
     </header>
   );
@@ -2762,11 +2826,13 @@ const Header = ({ toggleSidebar, onNewSigning, onSignOut, user }: { toggleSideba
 const Dashboard = ({ 
   appointments, 
   expenses, 
+  companies,
   onNewSigning, 
   onViewSigning 
 }: { 
   appointments: Appointment[]; 
   expenses: Expense[];
+  companies: SigningCompany[];
   onNewSigning: () => void;
   onViewSigning: (app: Appointment, tab?: string) => void;
 }) => {
@@ -2819,20 +2885,32 @@ const Dashboard = ({
 
   const totalPaid = useMemo(() => {
     return appointments
-      .filter(a => ((a.status as string) === 'Paid' || a.invoicePaidDate) && a.status !== 'Cancelled' && a.status !== 'No Show')
-      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
+      .reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0), 0);
   }, [appointments]);
 
   const totalGross = useMemo(() => {
     return appointments
       .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
-      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+      .reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
   }, [appointments]);
 
   const totalUnpaid = useMemo(() => {
     return appointments
-      .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate && a.status !== 'Cancelled' && a.status !== 'No Show')
-      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
+      .reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0), 0);
+  }, [appointments]);
+
+  const totalExpenses = useMemo(() => {
+    return appointments
+      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
+      .reduce((sum, a) => sum + (Number(a.totalJobCost) || 0), 0);
+  }, [appointments]);
+
+  const totalProfit = useMemo(() => {
+    return appointments
+      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
+      .reduce((sum, a) => sum + (Number(a.estimatedProfit) || 0), 0);
   }, [appointments]);
 
   const thisWeekIncome = useMemo(() => {
@@ -2859,6 +2937,22 @@ const Dashboard = ({
     return [...appointments]
       .sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime())
       .slice(0, 8);
+  }, [appointments]);
+
+  const topCompanies = useMemo(() => {
+    const companyStats = appointments.reduce((acc, app) => {
+      const name = app.signingCompany || 'Unknown';
+      if (!acc[name]) {
+        acc[name] = { name, count: 0, total: 0 };
+      }
+      acc[name].count += 1;
+      acc[name].total += Number(app.fee) || 0;
+      return acc;
+    }, {} as Record<string, { name: string; count: number; total: number }>);
+
+    return Object.values(companyStats)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
   }, [appointments]);
 
   return (
@@ -3010,9 +3104,9 @@ const Dashboard = ({
           {/* 4. MONEY STRIP */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Collected', value: totalPaid, icon: CreditCard, color: 'text-emerald-600', onClick: () => navigate('/appointments?status=Paid') },
-              { label: 'Outstanding', value: totalUnpaid, icon: AlertTriangle, color: 'text-amber-600', onClick: () => navigate('/appointments?status=Unpaid') },
-              { label: 'This Week', value: thisWeekIncome, icon: TrendingUp, color: 'text-teal-600', onClick: () => navigate('/appointments?date=This week') },
+              { label: 'Collected', value: totalPaid, icon: CreditCard, color: 'text-emerald-600', onClick: () => navigate('/appointments?paymentStatus=Paid') },
+              { label: 'Outstanding', value: totalUnpaid, icon: AlertTriangle, color: 'text-rose-600', onClick: () => navigate('/appointments?paymentStatus=Follow Up') },
+              { label: 'Total Agreed', value: totalGross, icon: TrendingUp, color: 'text-teal-600', onClick: () => navigate('/appointments') },
               { label: 'Month Goal', value: monthlyGoal, icon: Zap, color: 'text-indigo-600', isGoal: true, onClick: () => navigate('/reports/income') },
             ].map((stat) => (
               <button 
@@ -3191,6 +3285,39 @@ const Dashboard = ({
                 <p className="text-lg font-black text-emerald-600">${(totalGross - expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)).toLocaleString()}</p>
               </div>
             </div>
+          </div>
+
+          {/* 8. TOP COMPANIES WIDGET */}
+          <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden flex flex-col shadow-xl">
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-lg font-black text-slate-900">Top Companies</h2>
+              <Building2 className="w-4 h-4 text-indigo-600" />
+            </div>
+            <div className="p-6 space-y-4">
+              {topCompanies.map((company, idx) => (
+                <div key={company.name} className="flex items-center justify-between group cursor-pointer" onClick={() => navigate('/companies')}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-xs font-bold text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{company.name}</p>
+                      <p className="text-[10px] font-medium text-slate-400">{company.count} signings</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-slate-900">${company.total.toLocaleString()}</p>
+                    <p className="text-[10px] font-bold text-emerald-600">Avg: ${(company.total / company.count).toFixed(0)}</p>
+                  </div>
+                </div>
+              ))}
+              {topCompanies.length === 0 && (
+                <p className="text-center text-sm text-slate-400 py-4 italic">No company data yet</p>
+              )}
+            </div>
+            <Link to="/companies" className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-indigo-600 transition-colors bg-slate-50/50">
+              Manage Database
+            </Link>
           </div>
 
         </div>
@@ -3511,6 +3638,11 @@ const Appointments = ({
   const [customerFilter, setCustomerFilter] = useState(searchParams.get('customer') || 'All Customers');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'All');
   const [workTypeFilter, setWorkTypeFilter] = useState(searchParams.get('type') || 'All Types of work');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('All');
+  const [invoiceSentFilter, setInvoiceSentFilter] = useState('All');
+  const [profitFilter, setProfitFilter] = useState('All');
+  const [sortField, setSortField] = useState<'date' | 'agreedFee' | 'amountCollected' | 'amountOutstanding' | 'paymentDueDate' | 'estimatedProfit' | 'profitMarginPercent'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     const date = searchParams.get('date');
@@ -3522,6 +3654,9 @@ const Appointments = ({
     if (status) setStatusFilter(status);
     if (customer) setCustomerFilter(customer);
     if (type) setWorkTypeFilter(type);
+    
+    const paymentStatus = searchParams.get('paymentStatus');
+    if (paymentStatus) setPaymentStatusFilter(paymentStatus);
   }, [searchParams]);
 
   const customers = useMemo(() => {
@@ -3584,8 +3719,29 @@ const Appointments = ({
       filtered = filtered.filter(a => a.signingType === workTypeFilter);
     }
 
+    // Payment Status Filter
+    if (paymentStatusFilter !== 'All') {
+      filtered = filtered.filter(a => a.paymentStatus === paymentStatusFilter);
+    }
+
+    // Invoice Sent Filter
+    if (invoiceSentFilter === 'Sent') {
+      filtered = filtered.filter(a => a.invoiceSent === true);
+    } else if (invoiceSentFilter === 'Not Sent') {
+      filtered = filtered.filter(a => a.invoiceSent === false);
+    }
+
+    // Profit Filter
+    if (profitFilter === 'High Profit') {
+      filtered = filtered.filter(a => (a.profitMarginPercent || 0) >= 70);
+    } else if (profitFilter === 'Low Profit') {
+      filtered = filtered.filter(a => (a.profitMarginPercent || 0) < 40 && (a.profitMarginPercent || 0) >= 0);
+    } else if (profitFilter === 'Unprofitable') {
+      filtered = filtered.filter(a => (a.estimatedProfit || 0) < 0);
+    }
+
     return filtered;
-  }, [appointments, dateFilter, customerFilter, statusFilter, workTypeFilter]);
+  }, [appointments, dateFilter, customerFilter, statusFilter, workTypeFilter, paymentStatusFilter, invoiceSentFilter, profitFilter]);
 
   // Sort appointments by combined date and time in descending order (newest at the top)
   const sortedAppointments = useMemo(() => {
@@ -3598,13 +3754,48 @@ const Appointments = ({
         };
       })
       .sort((a, b) => {
-        const dateA = a.sortableDateTime || '';
-        const dateB = b.sortableDateTime || '';
-        if (dateA < dateB) return 1;
-        if (dateA > dateB) return -1;
+        let valA: any;
+        let valB: any;
+
+        switch (sortField) {
+          case 'date':
+            valA = a.sortableDateTime || '';
+            valB = b.sortableDateTime || '';
+            break;
+          case 'agreedFee':
+            valA = Number(a.agreedFee) || Number(a.fee) || 0;
+            valB = Number(b.agreedFee) || Number(b.fee) || 0;
+            break;
+          case 'amountCollected':
+            valA = Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0;
+            valB = Number(b.amountCollected) || (b.status === 'Paid' ? Number(b.fee) : 0) || 0;
+            break;
+          case 'amountOutstanding':
+            valA = Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0;
+            valB = Number(b.amountOutstanding) || ((b.status !== 'Paid' && !b.invoicePaidDate) ? Number(b.fee) : 0) || 0;
+            break;
+          case 'paymentDueDate':
+            valA = a.paymentDueDate || '9999-99-99';
+            valB = b.paymentDueDate || '9999-99-99';
+            break;
+          case 'estimatedProfit':
+            valA = Number(a.estimatedProfit) || 0;
+            valB = Number(b.estimatedProfit) || 0;
+            break;
+          case 'profitMarginPercent':
+            valA = Number(a.profitMarginPercent) || 0;
+            valB = Number(b.profitMarginPercent) || 0;
+            break;
+          default:
+            valA = a.sortableDateTime || '';
+            valB = b.sortableDateTime || '';
+        }
+
+        if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
         return 0;
       });
-  }, [filteredAppointments]);
+  }, [filteredAppointments, sortField, sortOrder]);
 
   const totalPages = Math.ceil(sortedAppointments.length / itemsPerPage);
   const paginatedAppointments = useMemo(() => {
@@ -4002,12 +4193,24 @@ const Appointments = ({
     const activeApps = filteredAppointments.filter(a => a.status !== 'Cancelled' && a.status !== 'No Show');
     const totalSignings = activeApps.length;
     const paidIncome = activeApps
-      .filter(a => (a.status as string) === 'Paid' || a.invoicePaidDate)
-      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+      .reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0), 0);
     const unpaidIncome = activeApps
-      .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate)
-      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
-    const totalFees = activeApps.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+      .reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0), 0);
+    const totalFees = activeApps.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
+    const totalExpenses = activeApps.reduce((sum, a) => sum + (Number(a.totalJobCost) || 0), 0);
+    const totalProfit = activeApps.reduce((sum, a) => sum + (Number(a.estimatedProfit) || 0), 0);
+    const avgProfit = totalSignings > 0 ? totalProfit / totalSignings : 0;
+    
+    const now = new Date();
+    const monthlyProfit = activeApps
+      .filter(a => isSameMonth(parseSafeDateTime(a.date, a.time), now))
+      .reduce((sum, a) => sum + (Number(a.estimatedProfit) || 0), 0);
+      
+    const highestProfit = activeApps.length > 0 
+      ? Math.max(...activeApps.map(a => Number(a.estimatedProfit) || 0)) 
+      : 0;
+
+    const lowProfitCount = activeApps.filter(a => (a.profitMarginPercent || 0) < 40).length;
     
     const percentCollected = totalFees > 0 ? Math.round((paidIncome / totalFees) * 100) : 0;
 
@@ -4016,6 +4219,12 @@ const Appointments = ({
       paidIncome,
       unpaidIncome,
       totalFees,
+      totalExpenses,
+      totalProfit,
+      avgProfit,
+      monthlyProfit,
+      highestProfit,
+      lowProfitCount,
       percentCollected
     };
   }, [filteredAppointments]);
@@ -4036,7 +4245,24 @@ const Appointments = ({
     return { paid, unpaid, total };
   }, [appointments, customerFilter]);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, app?: Appointment) => {
+    // If we have a specific payment status, use that
+    if (app?.paymentStatus) {
+      switch (app.paymentStatus) {
+        case 'Paid':
+          return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">Paid</span>;
+        case 'Partial':
+          return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700 border border-sky-200">Partial</span>;
+        case 'Follow Up':
+          return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">Follow Up</span>;
+        case 'Sent':
+          return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">Sent</span>;
+        case 'Not Sent':
+          return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">Not Sent</span>;
+      }
+    }
+
+    // Fallback to legacy status logic
     switch (status) {
       case 'Paid':
         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">Paid</span>;
@@ -4049,6 +4275,15 @@ const Appointments = ({
         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">Not Sent</span>;
       default:
         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">{status}</span>;
+    }
+  };
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
     }
   };
 
@@ -4077,9 +4312,15 @@ const Appointments = ({
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Revenue</p>
-          <p className="text-2xl font-black text-[#111827]">${stats.totalFees.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-          <p className="text-[10px] font-medium text-slate-500 mt-1">This year</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Profit</p>
+          <p className="text-2xl font-black text-indigo-600">${stats.totalProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+          <p className="text-[10px] font-medium text-slate-500 mt-1">${stats.monthlyProfit.toLocaleString()} this month</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Avg Profit</p>
+          <p className="text-2xl font-black text-slate-900">${stats.avgProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+          <p className="text-[10px] font-medium text-slate-500 mt-1">Per signing</p>
         </div>
 
         {viewMode === 'journal' && (
@@ -4089,6 +4330,31 @@ const Appointments = ({
             <p className="text-[9px] text-indigo-400 mt-1">NC Requirement 18 NCAC 07I .0302</p>
           </div>
         )}
+      </div>
+
+      {/* Profit Insights */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Highest Profit</p>
+            <p className="text-xl font-black text-emerald-700">${stats.highestProfit.toLocaleString()}</p>
+          </div>
+          <TrendingUp className="w-8 h-8 text-emerald-200" />
+        </div>
+        <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Low Margin Jobs</p>
+            <p className="text-xl font-black text-amber-700">{stats.lowProfitCount}</p>
+          </div>
+          <Car className="w-8 h-8 text-amber-200" />
+        </div>
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Expenses</p>
+            <p className="text-xl font-black text-slate-700">${stats.totalExpenses.toLocaleString()}</p>
+          </div>
+          <RefreshCw className="w-8 h-8 text-slate-200" />
+        </div>
       </div>
 
         <div>
@@ -4266,6 +4532,40 @@ const Appointments = ({
             <option value="All Types of work">All Types</option>
             {workTypes.map(w => <option key={w} value={w}>{w}</option>)}
           </select>
+
+          <select 
+            value={paymentStatusFilter}
+            onChange={(e) => setPaymentStatusFilter(e.target.value)}
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
+          >
+            <option value="All">All Payments</option>
+            <option>Not Sent</option>
+            <option>Sent</option>
+            <option>Partial</option>
+            <option>Paid</option>
+            <option>Follow Up</option>
+          </select>
+
+          <select 
+            value={invoiceSentFilter}
+            onChange={(e) => setInvoiceSentFilter(e.target.value)}
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
+          >
+            <option value="All">Invoice Status</option>
+            <option value="Sent">Sent</option>
+            <option value="Not Sent">Not Sent</option>
+          </select>
+
+          <select 
+            value={profitFilter}
+            onChange={(e) => setProfitFilter(e.target.value)}
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
+          >
+            <option value="All">All Profit</option>
+            <option value="High Profit">High Profit</option>
+            <option value="Low Profit">Low Profit</option>
+            <option value="Unprofitable">Unprofitable</option>
+          </select>
         </div>
 
         <div className="flex items-center gap-2">
@@ -4439,12 +4739,28 @@ const Appointments = ({
                     />
                   </th>
                 )}
-                <th className="px-3 py-3">Date & Time <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">{viewMode === 'journal' ? 'Last Name' : 'Client Name'} <ChevronDown className="inline w-3 h-3" /></th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('date')}>
+                  Date & Time {sortField === 'date' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
+                </th>
+                <th className="px-3 py-3">Last Name <ChevronDown className="inline w-3 h-3" /></th>
                 <th className="px-3 py-3">{viewMode === 'journal' ? 'Documents Signed' : 'Type'} <ChevronDown className="inline w-3 h-3" /></th>
                 {viewMode === 'journal' && <th className="px-3 py-3">ID Type <ChevronDown className="inline w-3 h-3" /></th>}
                 <th className="px-3 py-3">City <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">Amount</th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('agreedFee')}>
+                  Agreed {sortField === 'agreedFee' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
+                </th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('amountCollected')}>
+                  Collected {sortField === 'amountCollected' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
+                </th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('amountOutstanding')}>
+                  Owed {sortField === 'amountOutstanding' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
+                </th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('estimatedProfit')}>
+                  Profit {sortField === 'estimatedProfit' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
+                </th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('profitMarginPercent')}>
+                  Margin {sortField === 'profitMarginPercent' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
+                </th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3">Company</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -4483,7 +4799,7 @@ const Appointments = ({
                         onClick={() => onViewSigning(app)}
                         className="text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline text-left"
                       >
-                        {viewMode === 'journal' ? app.clientName.split(' ').pop() : app.clientName}
+                        {app.lastName || app.clientName.split(' ').pop()}
                       </button>
                     </td>
                     <td className="px-3 py-3">
@@ -4522,10 +4838,29 @@ const Appointments = ({
                       <div className="text-xs font-medium text-slate-600">{app.city || app.location.split(',')[1]?.trim() || 'TBD'}</div>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="text-sm font-bold text-[#111827]">${Number(app.fee).toFixed(2)}</div>
+                      <div className="text-sm font-bold text-[#111827]">${(Number(app.agreedFee) || Number(app.fee) || 0).toFixed(2)}</div>
                     </td>
                     <td className="px-3 py-3">
-                      {getStatusBadge(app.status)}
+                      <div className="text-sm font-bold text-emerald-600">${(Number(app.amountCollected) || (app.status === 'Paid' ? Number(app.fee) : 0) || 0).toFixed(2)}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="text-sm font-bold text-rose-600">${(Number(app.amountOutstanding) || ((app.status !== 'Paid' && !app.invoicePaidDate) ? Number(app.fee) : 0) || 0).toFixed(2)}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="text-sm font-bold text-indigo-600">${(Number(app.estimatedProfit) || 0).toFixed(2)}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className={cn(
+                        "text-[10px] font-black px-2 py-0.5 rounded-full border inline-block",
+                        (app.profitMarginPercent || 0) >= 70 ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+                        (app.profitMarginPercent || 0) >= 40 ? "bg-amber-50 border-amber-200 text-amber-700" :
+                        "bg-rose-50 border-rose-200 text-rose-700"
+                      )}>
+                        {Math.round(app.profitMarginPercent || 0)}%
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      {getStatusBadge(app.status, app)}
                     </td>
                     <td className="px-3 py-3">
                       {app.signingCompany && <div className="text-xs font-bold text-sky-600 mb-1">{app.signingCompany}</div>}
@@ -4552,7 +4887,7 @@ const Appointments = ({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center">
+                  <td colSpan={11} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2 text-slate-400">
                       <Calendar className="w-8 h-8 opacity-20" />
                       <p className="text-sm font-medium">No signings found for this period</p>
@@ -4835,6 +5170,8 @@ const Accounting = ({ appointments, expenses, onNewExpense, onDeleteExpense }: {
 
 // --- Main App ---
 
+const DEFAULT_MILEAGE_RATE = 0.67;
+
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNewSigningModalOpen, setIsNewSigningModalOpen] = useState(false);
@@ -4846,14 +5183,17 @@ export default function App() {
   const [isNewMileageModalOpen, setIsNewMileageModalOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<SigningCompany | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [isDemoUser, setIsDemoUser] = useState(false);
+  const [isDemoUser, setIsDemoUser] = useState(demoStorage.isDemoMode());
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [companies, setCompanies] = useState<SigningCompany[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [mileage, setMileage] = useState<Mileage[]>([]);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile>(MOCK_PROFILE);
@@ -4871,12 +5211,15 @@ export default function App() {
 
   // Firestore listeners
   useEffect(() => {
-    if (!isAuthReady || !user) {
-      setAppointments(MOCK_APPOINTMENTS);
-      setClients(MOCK_CLIENTS);
-      setExpenses(MOCK_EXPENSES);
-      setMileage(MOCK_MILEAGE);
-      setBusinessProfile(MOCK_PROFILE);
+    if (!isAuthReady) return;
+
+    if (isDemoUser || !user) {
+      setAppointments(demoStorage.getAppointments());
+      setClients(demoStorage.getClients());
+      setExpenses(demoStorage.getExpenses());
+      setMileage(demoStorage.getMileage());
+      setCompanies(demoStorage.getCompanies());
+      setBusinessProfile(demoStorage.getProfile());
       return;
     }
 
@@ -4890,6 +5233,11 @@ export default function App() {
     const unsubClients = onSnapshot(qClients, (snapshot: any) => {
       setClients(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Client)));
     }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'clients'));
+
+    const qCompanies = query(collection(db, 'signingCompanies'), where('userId', '==', user.uid));
+    const unsubCompanies = onSnapshot(qCompanies, (snapshot: any) => {
+      setCompanies(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as SigningCompany)));
+    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'signingCompanies'));
 
     const qExpenses = query(collection(db, 'expenses'), where('userId', '==', user.uid));
     const unsubExpenses = onSnapshot(qExpenses, (snapshot: any) => {
@@ -4910,6 +5258,7 @@ export default function App() {
     return () => {
       unsubAppointments();
       unsubClients();
+      unsubCompanies();
       unsubExpenses();
       unsubMileage();
       unsubProfile();
@@ -4930,10 +5279,31 @@ export default function App() {
 
   const handleSignOut = useCallback(async () => {
     try {
-      await signOut(auth);
-      setIsDemoUser(false);
+      if (isDemoUser) {
+        setIsDemoUser(false);
+        demoStorage.setDemoMode(false);
+      } else {
+        await signOut(auth);
+      }
     } catch (error) {
       console.error('Sign out error:', error);
+    }
+  }, [isDemoUser]);
+
+  const handleDemoSignIn = useCallback(() => {
+    setIsDemoUser(true);
+    demoStorage.setDemoMode(true);
+  }, []);
+
+  const handleResetDemo = useCallback(() => {
+    if (window.confirm('Are you sure you want to reset all demo data? This will restore sample data and clear your changes.')) {
+      demoStorage.resetAll();
+      setAppointments(demoStorage.getAppointments());
+      setClients(demoStorage.getClients());
+      setExpenses(demoStorage.getExpenses());
+      setMileage(demoStorage.getMileage());
+      setCompanies(demoStorage.getCompanies());
+      setBusinessProfile(demoStorage.getProfile());
     }
   }, []);
 
@@ -4952,16 +5322,9 @@ export default function App() {
   };
 
   const handleSaveAppointment = async (app: Appointment) => {
-    if (!user) {
-      setAppointments(prev => {
-        const exists = prev.find(a => a.id === app.id);
-        const appWithSort = {
-          ...app,
-          sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
-        };
-        if (exists) return prev.map(a => a.id === app.id ? appWithSort : a);
-        return [...prev, appWithSort];
-      });
+    if (isDemoUser || !user) {
+      demoStorage.saveAppointment(app);
+      setAppointments(demoStorage.getAppointments());
       return;
     }
 
@@ -4978,8 +5341,9 @@ export default function App() {
   };
 
   const handleSaveExpense = async (expense: Expense) => {
-    if (!user) {
-      setExpenses(prev => [...prev, expense]);
+    if (isDemoUser || !user) {
+      demoStorage.saveExpense(expense);
+      setExpenses(demoStorage.getExpenses());
       return;
     }
 
@@ -4992,8 +5356,9 @@ export default function App() {
   };
 
   const handleSaveMileage = async (m: Mileage) => {
-    if (!user) {
-      setMileage(prev => [...prev, m]);
+    if (isDemoUser || !user) {
+      demoStorage.saveMileage(m);
+      setMileage(demoStorage.getMileage());
       return;
     }
 
@@ -5006,8 +5371,9 @@ export default function App() {
   };
 
   const handleSaveProfile = async (profile: BusinessProfile) => {
-    if (!user) {
-      setBusinessProfile(profile);
+    if (isDemoUser || !user) {
+      demoStorage.saveProfile(profile);
+      setBusinessProfile(demoStorage.getProfile());
       return;
     }
 
@@ -5020,8 +5386,9 @@ export default function App() {
   };
 
   const handleDeleteExpense = async (id: string) => {
-    if (!user) {
-      setExpenses(prev => prev.filter(e => e.id !== id));
+    if (isDemoUser || !user) {
+      demoStorage.deleteExpense(id);
+      setExpenses(demoStorage.getExpenses());
       return;
     }
 
@@ -5033,8 +5400,9 @@ export default function App() {
   };
 
   const handleDeleteMileage = async (id: string) => {
-    if (!user) {
-      setMileage(prev => prev.filter(m => m.id !== id));
+    if (isDemoUser || !user) {
+      demoStorage.deleteMileage(id);
+      setMileage(demoStorage.getMileage());
       return;
     }
 
@@ -5046,12 +5414,9 @@ export default function App() {
   };
 
   const handleSaveClient = async (client: Client) => {
-    if (!user) {
-      setClients(prev => {
-        const exists = prev.find(c => c.id === client.id);
-        if (exists) return prev.map(c => c.id === client.id ? client : c);
-        return [...prev, client];
-      });
+    if (isDemoUser || !user) {
+      demoStorage.saveClient(client);
+      setClients(demoStorage.getClients());
       return;
     }
 
@@ -5064,8 +5429,9 @@ export default function App() {
   };
 
   const handleDeleteClient = async (id: string) => {
-    if (!user) {
-      setClients(prev => prev.filter(c => c.id !== id));
+    if (isDemoUser || !user) {
+      demoStorage.deleteClient(id);
+      setClients(demoStorage.getClients());
       return;
     }
 
@@ -5076,9 +5442,39 @@ export default function App() {
     }
   };
 
+  const handleSaveCompany = async (company: SigningCompany) => {
+    if (isDemoUser || !user) {
+      demoStorage.saveCompany(company);
+      setCompanies(demoStorage.getCompanies());
+      return;
+    }
+
+    try {
+      const companyData = { ...company, userId: user.uid };
+      await setDoc(doc(db, 'signingCompanies', company.id), companyData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `signingCompanies/${company.id}`);
+    }
+  };
+
+  const handleDeleteCompany = async (id: string) => {
+    if (isDemoUser || !user) {
+      demoStorage.deleteCompany(id);
+      setCompanies(demoStorage.getCompanies());
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'signingCompanies', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `signingCompanies/${id}`);
+    }
+  };
+
   const handleDeleteAppointments = async (ids: string[]) => {
-    if (!user) {
-      setAppointments(prev => prev.filter(app => !ids.includes(app.id)));
+    if (isDemoUser || !user) {
+      demoStorage.deleteAppointments(ids);
+      setAppointments(demoStorage.getAppointments());
       return;
     }
 
@@ -5139,7 +5535,7 @@ export default function App() {
   return (
     <Router>
       {!user && !isDemoUser ? (
-        <LoginPage onSignIn={handleSignIn} onDemoSignIn={() => setIsDemoUser(true)} />
+        <LoginPage onSignIn={handleSignIn} onDemoSignIn={handleDemoSignIn} />
       ) : (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
           <Sidebar 
@@ -5167,6 +5563,8 @@ export default function App() {
               }}
               onSignOut={handleSignOut}
               user={user}
+              isDemoMode={isDemoUser}
+              onResetDemo={handleResetDemo}
             />
             
             <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
@@ -5175,6 +5573,7 @@ export default function App() {
                   <Dashboard 
                     appointments={appointments} 
                     expenses={expenses} 
+                    companies={companies}
                     onNewSigning={() => {
                       setSelectedAppointment(null);
                       setIsNewSigningModalOpen(true);
@@ -5256,6 +5655,17 @@ export default function App() {
                   } 
                 />
                 <Route 
+                  path="/companies" 
+                  element={
+                    <SigningCompaniesPage 
+                      companies={companies} 
+                      appointments={appointments}
+                      onSave={handleSaveCompany}
+                      onDelete={handleDeleteCompany}
+                    />
+                  } 
+                />
+                <Route 
                   path="/mileage" 
                   element={
                     <MileageView 
@@ -5287,7 +5697,17 @@ export default function App() {
                 <Route path="/tools" element={<ToolsView userId={user?.uid || 'mock-user'} userState={businessProfile?.state} />} />
                 <Route path="/fee-calculator" element={<FeeCalculator />} />
                 <Route path="/laws-lookup" element={<LawsLookup userId={user?.uid || 'mock-user'} userState={businessProfile?.state} />} />
-                <Route path="/settings" element={<SettingsView onEditProfile={() => setIsProfileModalOpen(true)} user={user} onSignIn={handleSignIn} onImport={handleImport} userId={user?.uid || 'mock-user'} />} />
+                <Route path="/settings" element={
+                  <SettingsView 
+                    onEditProfile={() => setIsProfileModalOpen(true)} 
+                    user={user} 
+                    onSignIn={handleSignIn} 
+                    onImport={handleImport} 
+                    userId={user?.uid || 'mock-user'} 
+                    isDemoMode={isDemoUser}
+                    onResetDemo={handleResetDemo}
+                  />
+                } />
               </Routes>
             </main>
 
@@ -5316,6 +5736,8 @@ export default function App() {
                 userId={user?.uid || 'mock-user'}
                 clients={clients}
                 appointments={appointments}
+                companies={companies}
+                onSaveCompany={handleSaveCompany}
               />
             )}
 

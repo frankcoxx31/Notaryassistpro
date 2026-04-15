@@ -225,6 +225,20 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
                 <span>Google Account</span>
               </button>
+
+              <div className="pt-4 text-center">
+                <p className="text-xs text-slate-500 mb-4">
+                  Explore the app with sample data, saved only on your device.
+                </p>
+                <button 
+                  type="button"
+                  onClick={onDemoSignIn}
+                  className="inline-flex items-center gap-2 text-sky-400 hover:text-sky-300 font-bold text-sm transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Try Demo Mode
+                </button>
+              </div>
             </form>
           </div>
 

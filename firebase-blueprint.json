@@ -126,6 +126,41 @@
         "searchedAt": { "type": "string" }
       },
       "required": ["id", "userId", "query", "state", "topic", "searchedAt"]
+    },
+    "SigningCompany": {
+      "title": "SigningCompany",
+      "description": "A signing company or agency",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "companyName": { "type": "string" },
+        "contactName": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "website": { "type": "string" },
+        "address": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Watch", "Do Not Work With", "Inactive"] },
+        "preferredPaymentMethod": { "type": "string" },
+        "paymentTerms": { "type": "string" },
+        "averageFee": { "type": "number" },
+        "totalSignings": { "type": "number" },
+        "totalCollected": { "type": "number" },
+        "totalOutstanding": { "type": "number" },
+        "averageDaysToPay": { "type": "number" },
+        "lastSigningDate": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "rating": { "type": "number" },
+        "paymentReliabilityScore": { "type": "number" },
+        "serviceArea": { "type": "string" },
+        "portalLoginUrl": { "type": "string" },
+        "billingInstructions": { "type": "string" },
+        "favorite": { "type": "boolean" }
+      },
+      "required": ["id", "userId", "companyName", "status", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -156,6 +191,10 @@
     "/recentSearches/{searchId}": {
       "schema": "RecentSearch",
       "description": "User's recent law searches"
+    },
+    "/signingCompanies/{companyId}": {
+      "schema": "SigningCompany",
+      "description": "User's signing companies database"
     }
   }
 }

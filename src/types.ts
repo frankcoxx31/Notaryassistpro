@@ -1,4 +1,5 @@
 export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Paid' | 'Cancelled' | 'No Show';
+export type PaymentStatus = 'Not Sent' | 'Sent' | 'Partial' | 'Paid' | 'Follow Up';
 
 export interface Appointment {
   id: string;
@@ -14,7 +15,7 @@ export interface Appointment {
   city?: string;
   state?: string;
   zip?: string;
-  fee: number;
+  fee: number; // Legacy field, will map to agreedFee
   status: AppointmentStatus;
   notes?: string;
   phone?: string;
@@ -36,7 +37,62 @@ export interface Appointment {
   dob?: string;
   idExpiration?: string;
   signingCompany?: string;
+  companyId?: string;
   docs?: string[];
+  
+  // Fee Tracking Fields
+  offeredFee?: number;
+  agreedFee?: number;
+  amountCollected?: number;
+  amountOutstanding?: number;
+  paymentStatus?: PaymentStatus;
+  paymentMethod?: string;
+  paymentDueDate?: string;
+  paymentReceivedDate?: string;
+  invoiceSent?: boolean;
+  notesBilling?: string;
+
+  // Mileage & Profit Tracking Fields
+  milesDriven?: number;
+  mileageRate?: number;
+  travelCost?: number;
+  parkingTollsCost?: number;
+  printingCost?: number;
+  otherSigningCost?: number;
+  totalJobCost?: number;
+  estimatedProfit?: number;
+  profitMarginPercent?: number;
+  roundTripMiles?: boolean;
+}
+
+export interface SigningCompany {
+  id: string;
+  userId: string;
+  companyName: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  address?: string;
+  notes?: string;
+  status: 'Active' | 'Watch' | 'Do Not Work With' | 'Inactive';
+  preferredPaymentMethod?: string;
+  paymentTerms?: string;
+  averageFee?: number;
+  totalSignings?: number;
+  totalCollected?: number;
+  totalOutstanding?: number;
+  averageDaysToPay?: number;
+  lastSigningDate?: string;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+  rating?: number;
+  paymentReliabilityScore?: number;
+  serviceArea?: string;
+  portalLoginUrl?: string;
+  billingInstructions?: string;
+  favorite?: boolean;
 }
 
 export interface Client {

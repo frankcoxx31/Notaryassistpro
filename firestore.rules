@@ -94,6 +94,11 @@ service cloud.firestore {
       return hasRequiredFields(['id', 'userId', 'query', 'state', 'topic', 'searchedAt']);
     }
 
+    function isValidSigningCompany(data) {
+      return hasRequiredFields(['id', 'userId', 'companyName', 'status', 'createdAt', 'updatedAt']) &&
+             data.status in ['Active', 'Watch', 'Do Not Work With', 'Inactive'];
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -101,6 +106,13 @@ service cloud.firestore {
       allow read: if isDocOwner();
       allow create: if isAuthenticated() && isValidAppointment(request.resource.data) && request.resource.data.userId == request.auth.uid;
       allow update: if isDocOwner() && isValidAppointment(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /signingCompanies/{companyId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidSigningCompany(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidSigningCompany(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();
     }
 
