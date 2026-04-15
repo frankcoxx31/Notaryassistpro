@@ -6,16 +6,14 @@ import { signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 
 interface LoginPageProps {
   onSignIn?: () => void;
-  onDemoSignIn?: () => void;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onSignIn }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showRealLogin, setShowRealLogin] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Clean up abort controller on unmount
@@ -45,15 +43,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
     }, 7000); // 7 second timeout as requested
 
     try {
-      // Demo login check first (static logic)
-      if (email === 'fcoxx@icclt.com' && password === 'airman31') {
-        clearTimeout(timeoutId);
-        if (onDemoSignIn) {
-          onDemoSignIn();
-        }
-        return;
-      }
-
       // Real Firebase Auth
       await signInWithEmailAndPassword(auth, email, password);
       clearTimeout(timeoutId);
@@ -139,40 +128,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl shadow-black/50 relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
             
-            {!showRealLogin ? (
-              <div className="space-y-8 relative z-10 text-center py-4">
-                <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-white">Welcome to Notary Pro</h2>
-                  <p className="text-slate-400 text-sm">
-                    Experience the full professional notary management platform with sample data.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <button 
-                    onClick={onDemoSignIn}
-                    className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-sky-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                    <span>Enter Demo Mode</span>
-                  </button>
-                  
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-                    No account required • Data saved locally
-                  </p>
-                </div>
-
-                <div className="pt-6">
-                  <button 
-                    onClick={() => setShowRealLogin(true)}
-                    className="text-xs font-bold text-slate-500 hover:text-sky-400 transition-colors uppercase tracking-widest"
-                  >
-                    Sign in to your account
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSignIn} className="space-y-6 relative z-10">
+            <form onSubmit={handleSignIn} className="space-y-6 relative z-10">
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
@@ -259,18 +215,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onDemoSignIn }) => {
                   <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
                   <span>Google Account</span>
                 </button>
-
-                <div className="pt-4 text-center">
-                  <button 
-                    type="button"
-                    onClick={() => setShowRealLogin(false)}
-                    className="text-xs font-bold text-slate-500 hover:text-sky-400 transition-colors uppercase tracking-widest"
-                  >
-                    Back to Demo Mode
-                  </button>
-                </div>
               </form>
-            )}
           </div>
 
           <p className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">

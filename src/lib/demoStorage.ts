@@ -72,6 +72,9 @@ export const demoStorage = {
     else apps.push(app);
     demoStorage.set(KEYS.APPOINTMENTS, apps);
   },
+  saveAppointments: (apps: Appointment[]) => {
+    demoStorage.set(KEYS.APPOINTMENTS, apps);
+  },
   deleteAppointment: (id: string) => {
     const apps = demoStorage.getAppointments().filter(a => a.id !== id);
     demoStorage.set(KEYS.APPOINTMENTS, apps);
@@ -79,6 +82,28 @@ export const demoStorage = {
   deleteAppointments: (ids: string[]) => {
     const apps = demoStorage.getAppointments().filter(a => !ids.includes(a.id));
     demoStorage.set(KEYS.APPOINTMENTS, apps);
+  },
+  bulkUpdateAppointments: (ids: string[], updates: Partial<Appointment>) => {
+    const apps = demoStorage.getAppointments().map(app => {
+      if (ids.includes(app.id)) {
+        return { ...app, ...updates };
+      }
+      return app;
+    });
+    demoStorage.set(KEYS.APPOINTMENTS, apps);
+    return apps;
+  },
+  bulkAddDocs: (ids: string[], docsToAdd: string[]) => {
+    const apps = demoStorage.getAppointments().map(app => {
+      if (ids.includes(app.id)) {
+        const currentDocs = app.docs || [];
+        const newDocs = Array.from(new Set([...currentDocs, ...docsToAdd]));
+        return { ...app, docs: newDocs };
+      }
+      return app;
+    });
+    demoStorage.set(KEYS.APPOINTMENTS, apps);
+    return apps;
   },
 
   saveCustomer: (customer: Customer) => {

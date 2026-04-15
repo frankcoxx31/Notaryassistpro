@@ -107,7 +107,7 @@ import {
   Pie 
 } from 'recharts';
 import { cn } from './lib/utils';
-import { Appointment, Customer, CustomerType, Expense, AppointmentStatus, MileageRecord, BusinessProfile, SigningCompany } from './types';
+import { Appointment, Customer, CustomerType, Expense, AppointmentStatus, Mileage, BusinessProfile, SigningCompany } from './types';
 import { 
   MOCK_PROFILE, 
   MOCK_APPOINTMENTS, 
@@ -118,6 +118,7 @@ import {
 import { auth, db, provider } from './firebase';
 import { demoStorage } from './lib/demoStorage';
 import LoginPage from './components/LoginPage';
+import DemoLoginPage from './components/DemoLoginPage';
 import NewSigningModal from './components/NewSigningModal';
 import NewCustomerModal from './components/NewCustomerModal';
 import SigningCompanyModal from './components/SigningCompanyModal';
@@ -144,6 +145,9 @@ import {
   getDocFromServer,
   arrayUnion
 } from 'firebase/firestore';
+
+// Top-level mode detection
+const IS_DEMO_VERSION = window.location.hostname.includes('ais-pre') || window.location.search.includes('demo=true');
 
 // Robust date/time parsing for deterministic sorting and display
 const getStatusLabel = (status: string) => {
@@ -2540,7 +2544,7 @@ const Sidebar = ({
         { name: 'Laws Lookup', icon: BookOpen, path: '/laws-lookup' },
       ]
     },
-    !user ? { name: 'Firestore Login', icon: ShieldCheck, path: '#', onClick: onSignIn } : null,
+    !user && !IS_DEMO_VERSION ? { name: 'Firestore Login', icon: ShieldCheck, path: '#', onClick: onSignIn } : null,
   ].filter(Boolean) as any[];
 
   return (
@@ -3678,7 +3682,7 @@ const Appointments = ({
     const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
     
     // Combine with customers list
-    const combined = [...defaults, ...fromAppointments, ...customers];
+    const combined = [...defaults, ...fromAppointments, ...customers.map(c => c.fullName)];
     const unique = new Set(combined);
     return Array.from(unique).sort();
   }, [appointments, customers]);
@@ -5246,6 +5250,11 @@ export default function App() {
 
   // Auth listener
   useEffect(() => {
+    if (IS_DEMO_VERSION) {
+      setIsAuthReady(true);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user: FirebaseUser | null) => {
       console.log('Auth state changed:', user?.email);
       setUser(user);
@@ -5309,7 +5318,7 @@ export default function App() {
       unsubMileage();
       unsubProfile();
     };
-  }, [isAuthReady, user]);
+  }, [isAuthReady, user, isDemoUser]);
 
   const handleSignIn = useCallback(async () => {
     try {
@@ -5354,7 +5363,12 @@ export default function App() {
   }, []);
 
   const handleBulkUpdateDocs = async (ids: string[], docsToAdd: string[]) => {
-    if (!user || ids.length === 0 || docsToAdd.length === 0) return;
+    if (isDemoUser || !user) {
+      const updated = demoStorage.bulkAddDocs(ids, docsToAdd);
+      setAppointments(updated);
+      return;
+    }
+    if (ids.length === 0 || docsToAdd.length === 0) return;
     try {
       const promises = ids.map(id => 
         updateDoc(doc(db, 'appointments', id), {
@@ -5536,8 +5550,11 @@ export default function App() {
   };
 
   const handleImport = async (newApps: Appointment[]) => {
-    if (!user) {
-      setAppointments(prev => [...prev, ...newApps]);
+    if (isDemoUser || !user) {
+      const current = demoStorage.getAppointments();
+      const updated = [...current, ...newApps];
+      demoStorage.saveAppointments(updated);
+      setAppointments(updated);
       return;
     }
 
@@ -5580,8 +5597,20 @@ export default function App() {
 
   return (
     <Router>
-      {!user && !isDemoUser ? (
-        <LoginPage onSignIn={handleSignIn} onDemoSignIn={handleDemoSignIn} />
+      {(IS_DEMO_VERSION ? !isDemoUser : (!user && !isDemoUser)) ? (
+        IS_DEMO_VERSION ? (
+          <DemoLoginPage 
+            onEnterDemo={handleDemoSignIn} 
+            onResetDemo={() => {
+              if (window.confirm('Reset all demo data?')) {
+                demoStorage.resetAll();
+                window.location.reload();
+              }
+            }} 
+          />
+        ) : (
+          <LoginPage onSignIn={handleSignIn} />
+        )
       ) : (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
           <Sidebar 

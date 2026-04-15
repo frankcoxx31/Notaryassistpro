@@ -924,9 +924,9 @@ Return only the JSON object, no additional text.`;
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500 bg-white"
                     >
                       <option value="">Select a Customer</option>
-                      {clients.map(client => (
-                        <option key={client.id} value={client.name}>
-                          {client.name} {client.company ? `(${client.company})` : ''}
+                      {customers.map(customer => (
+                        <option key={customer.id} value={customer.fullName}>
+                          {customer.fullName}
                         </option>
                       ))}
                       <option value="Rocket Close">Rocket Close (Default)</option>
