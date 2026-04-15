@@ -7,7 +7,7 @@ import {
   Car, TrendingUp, PlusCircle
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
-import { Appointment, AppointmentStatus, Customer, SigningCompany } from '../types';
+import { Appointment, AppointmentStatus, Customer, SigningCompany, Signer } from '../types';
 import { cn } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
 import SigningCompanyModal from './SigningCompanyModal';
@@ -44,6 +44,7 @@ const NewSigningModal = ({
   const [customDoc, setCustomDoc] = useState('');
   const [showDocError, setShowDocError] = useState(false);
   const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState(false);
+  const [editingSignerId, setEditingSignerId] = useState<string | null>(null);
   
   // Scanner state
   const [isScanning, setIsScanning] = useState(false);
@@ -63,6 +64,11 @@ const NewSigningModal = ({
       console.error("Error parsing date:", dateStr, e);
     }
     return dateStr;
+  };
+
+  const updateSignerSummary = (signers: Signer[]) => {
+    if (!signers || signers.length === 0) return "";
+    return signers.map(s => `${s.firstName} ${s.lastName}`.trim()).filter(Boolean).join(", ");
   };
 
   const handleScanLicense = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,21 +153,50 @@ Return only the JSON object, no additional text.`;
         const firstName = result.fullName.split(' ')[0] || "";
         const lastName = result.fullName.split(' ').slice(1).join(' ') || "";
 
-        setFormData(prev => ({
-          ...prev,
-          clientName: result.fullName,
-          firstName,
-          lastName,
-          address: addrParts[0] || "",
-          city: city,
-          state: state,
-          zip: zip,
-          location: result.address,
-          idNumber: result.idNumber,
-          dob: formatDateForInput(result.dateOfBirth),
-          idIssueDate: formatDateForInput(result.issueDate),
-          idExpiration: formatDateForInput(result.expirationDate)
-        }));
+        setFormData(prev => {
+          const updatedSigners = [...(prev.signers || [])];
+          const signerIndex = updatedSigners.findIndex(s => s.id === editingSignerId);
+          
+          const signerData = {
+            firstName,
+            lastName,
+            address: addrParts[0] || "",
+            city: city,
+            state: state,
+            zip: zip,
+            idNumber: result.idNumber,
+            dob: formatDateForInput(result.dateOfBirth),
+            idIssueDate: formatDateForInput(result.issueDate),
+            idExpiration: formatDateForInput(result.expirationDate)
+          };
+
+          if (signerIndex !== -1) {
+            updatedSigners[signerIndex] = { ...updatedSigners[signerIndex], ...signerData };
+          }
+
+          const isFirstSigner = signerIndex === 0 || (signerIndex === -1 && updatedSigners.length === 0);
+
+          return {
+            ...prev,
+            signers: updatedSigners,
+            customerName: updateSignerSummary(updatedSigners),
+            // Update top-level fields if this is the primary signer
+            ...(isFirstSigner ? {
+              clientName: result.fullName,
+              firstName,
+              lastName,
+              address: addrParts[0] || "",
+              city: city,
+              state: state,
+              zip: zip,
+              location: result.address,
+              idNumber: result.idNumber,
+              dob: formatDateForInput(result.dateOfBirth),
+              idIssueDate: formatDateForInput(result.issueDate),
+              idExpiration: formatDateForInput(result.expirationDate)
+            } : {})
+          };
+        });
         setScanSuccess(true);
       } else {
         throw new Error("Could not extract data");
@@ -240,6 +275,30 @@ Return only the JSON object, no additional text.`;
         const parts = data.customerName.trim().split(/\s+/);
         if (!data.firstName) data.firstName = parts[0] || '';
         if (!data.lastName) data.lastName = parts.slice(1).join(' ') || '';
+      }
+
+      // Initialize signers array if missing
+      if (!data.signers || data.signers.length === 0) {
+        if (data.firstName || data.lastName) {
+          data.signers = [{
+            id: Math.random().toString(36).substr(2, 9),
+            firstName: data.firstName || '',
+            lastName: data.lastName || '',
+            email: data.email,
+            phone: data.phone,
+            idType: data.idType,
+            idNumber: data.idNumber,
+            idIssueDate: data.idIssueDate,
+            idExpiration: data.idExpiration,
+            dob: data.dob,
+            address: data.address,
+            city: data.city,
+            state: data.state,
+            zip: data.zip
+          }];
+        } else {
+          data.signers = [];
+        }
       }
       // Initialize fee tracking fields if missing
       if (data.agreedFee === undefined) data.agreedFee = data.fee || 0;
@@ -324,6 +383,7 @@ Return only the JSON object, no additional text.`;
         invoiceSent: false,
         status: 'Scheduled',
         customerName: '',
+        signers: [],
         companyName: '',
         location: '',
         invoiceNumber: `INV-${dateStr}-${randomStr}`,
@@ -344,7 +404,9 @@ Return only the JSON object, no additional text.`;
   if (!isOpen) return null;
 
   const handleSave = () => {
-    if (formData.id && formData.date && formData.time && formData.customerName && formData.signingType && formData.location && formData.fee !== undefined && formData.status) {
+    const computedCustomerName = updateSignerSummary(formData.signers || []) || formData.customerName || "";
+    
+    if (formData.id && formData.date && formData.time && computedCustomerName && formData.signingType && formData.location && formData.fee !== undefined && formData.status) {
       if (!formData.docs || formData.docs.length === 0) {
         setShowDocError(true);
         setActiveTab('Documents');
@@ -354,6 +416,7 @@ Return only the JSON object, no additional text.`;
       // Ensure fee and agreedFee are in sync
       const finalData = { 
         ...formData, 
+        customerName: computedCustomerName,
         fee: formData.agreedFee || formData.fee || 0,
         agreedFee: formData.agreedFee || formData.fee || 0
       };
@@ -586,38 +649,11 @@ Return only the JSON object, no additional text.`;
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input 
                     type="text" 
-                    list="customer-list"
-                    value={formData.customerName || ""}
-                    onChange={(e) => {
-                      const selectedName = e.target.value;
-                      const customer = customers.find(c => c.fullName === selectedName);
-                      if (customer) {
-                        setFormData({ 
-                          ...formData, 
-                          customerName: selectedName,
-                          customerId: customer.id,
-                          firstName: customer.firstName,
-                          lastName: customer.lastName,
-                          email: customer.email,
-                          phone: customer.phone,
-                          address: customer.address,
-                          city: customer.city,
-                          state: customer.state,
-                          zip: customer.zip,
-                          location: `${customer.address}, ${customer.city}, ${customer.state} ${customer.zip}`
-                        });
-                      } else {
-                        setFormData({ ...formData, customerName: selectedName });
-                      }
-                    }}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    placeholder="Name of Signer"
+                    readOnly
+                    value={updateSignerSummary(formData.signers || []) || formData.customerName || ""}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none bg-slate-50 text-slate-500 cursor-not-allowed" 
+                    placeholder="Signers will be added in the Signer(s) tab"
                   />
-                  <datalist id="customer-list">
-                    {uniqueCustomers.map(name => (
-                      <option key={name} value={name} />
-                    ))}
-                  </datalist>
                 </div>
               </div>
             </div>
@@ -672,228 +708,362 @@ Return only the JSON object, no additional text.`;
 
             <div className="p-6 space-y-4">
               {activeTab === 'Signer(s)' && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Last Name:</label>
-                    <input 
-                      type="text" 
-                      value={formData.lastName || ""}
-                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value, customerName: `${formData.firstName || ''} ${e.target.value}`.trim() })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">First Name:</label>
-                    <input 
-                      type="text" 
-                      value={formData.firstName || ""}
-                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value, customerName: `${e.target.value} ${formData.lastName || ''}`.trim() })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Address:</label>
-                    <input 
-                      type="text" 
-                      value={formData.address || ""}
-                      onChange={(e) => {
-                        const newAddress = e.target.value;
-                        setFormData({ 
-                          ...formData, 
-                          address: newAddress, 
-                          location: `${newAddress}, ${formData.city || ''}${formData.state ? `, ${formData.state}` : ''}${formData.zip ? ` ${formData.zip}` : ''}`.trim() 
-                        });
-                      }}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">City:</label>
-                    <input 
-                      type="text" 
-                      value={formData.city || ""}
-                      onChange={(e) => {
-                        const newCity = e.target.value;
-                        setFormData({ 
-                          ...formData, 
-                          city: newCity, 
-                          location: `${formData.address || ''}, ${newCity}${formData.state ? `, ${formData.state}` : ''}${formData.zip ? ` ${formData.zip}` : ''}`.trim() 
-                        });
-                      }}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">State:</label>
-                    <select 
-                      value={formData.state || "North Carolina"}
-                      onChange={(e) => {
-                        const newState = e.target.value;
-                        setFormData({ 
-                          ...formData, 
-                          state: newState, 
-                          location: `${formData.address || ''}, ${formData.city || ''}, ${newState}${formData.zip ? ` ${formData.zip}` : ''}`.trim() 
-                        });
-                      }}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                    >
-                      <option>North Carolina</option>
-                      <option>California</option>
-                      <option>Texas</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Zip:</label>
-                    <input 
-                      type="text" 
-                      value={formData.zip || ""}
-                      onChange={(e) => {
-                        const newZip = e.target.value;
-                        setFormData({ 
-                          ...formData, 
-                          zip: newZip, 
-                          location: `${formData.address || ''}, ${formData.city || ''}${formData.state ? `, ${formData.state}` : ''}${newZip ? ` ${newZip}` : ''}`.trim() 
-                        });
-                      }}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
-                  </div>
-
-                  <div className="pt-4 border-t border-slate-100 mt-4 space-y-4">
-                    <div className="flex items-center gap-4">
-                      <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Type:</label>
-                      <select 
-                        value={formData.idType || ""}
-                        onChange={(e) => setFormData({ ...formData, idType: e.target.value })}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500 bg-white"
+                <div className="space-y-6">
+                  {/* Signers List */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Signer(s) List</h3>
+                      <button 
+                        onClick={() => {
+                          const newSigner: Signer = {
+                            id: Math.random().toString(36).substr(2, 9),
+                            firstName: '',
+                            lastName: ''
+                          };
+                          const updatedSigners = [...(formData.signers || []), newSigner];
+                          setFormData({ ...formData, signers: updatedSigners });
+                          setEditingSignerId(newSigner.id);
+                        }}
+                        className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase tracking-wider transition-colors"
                       >
-                        <option value="">Select ID Type</option>
-                        <option>NC Driver's License</option>
-                        <option>Out-of-State Driver's License</option>
-                        <option>US Passport</option>
-                        <option>Military ID</option>
-                        <option>State-Issued ID Card</option>
-                        <option>Personal Knowledge</option>
-                        <option>Credible Witness</option>
-                        <option>Other</option>
-                      </select>
+                        <PlusCircle className="w-3 h-3" />
+                        Add Signer
+                      </button>
                     </div>
 
-                    {(formData.idType === "NC Driver's License" || formData.idType === "Out-of-State Driver's License") && (
-                      <div className="flex flex-col gap-2 ml-24">
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          capture="environment"
-                          className="hidden" 
-                          ref={fileInputRef}
-                          onChange={handleScanLicense}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={isScanning}
+                    <div className="grid grid-cols-1 gap-2">
+                      {(formData.signers || []).map((signer, index) => (
+                        <div 
+                          key={signer.id}
                           className={cn(
-                            "flex items-center justify-center gap-2 px-4 py-2 rounded text-sm font-bold transition-all shadow-sm",
-                            isScanning 
-                              ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
-                              : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95"
+                            "flex items-center justify-between p-3 rounded-xl border transition-all",
+                            editingSignerId === signer.id 
+                              ? "bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200" 
+                              : "bg-white border-slate-200 hover:border-slate-300"
                           )}
                         >
-                          {isScanning ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Scanning...
-                            </>
-                          ) : (
-                            <>
-                              <Camera className="w-4 h-4" />
-                              Scan License
-                            </>
-                          )}
-                        </button>
-                        <p className="text-[10px] text-slate-400 italic">
-                          License image is used for field extraction only and is never stored.
-                        </p>
-                        
-                        <AnimatePresence>
-                          {scanSuccess && (
-                            <motion.div 
-                              initial={{ opacity: 0, y: -10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0 }}
-                              className="flex items-center gap-2 text-emerald-600 text-[11px] font-bold bg-emerald-50 p-2 rounded border border-emerald-100"
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs",
+                              editingSignerId === signer.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500"
+                            )}>
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-800">
+                                {signer.firstName || signer.lastName ? `${signer.firstName} ${signer.lastName}`.trim() : "New Signer"}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-medium">
+                                {signer.email || "No email"} • {signer.phone || "No phone"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button 
+                              onClick={() => setEditingSignerId(editingSignerId === signer.id ? null : signer.id)}
+                              className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-all"
+                              title="Edit Signer"
                             >
-                              <CheckCircle2 className="w-3 h-3" />
-                              License scanned successfully — please verify all fields.
-                            </motion.div>
-                          )}
-                          {scanError && (
-                            <motion.div 
-                              initial={{ opacity: 0, y: -10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0 }}
-                              className="flex items-center gap-2 text-rose-600 text-[11px] font-bold bg-rose-50 p-2 rounded border border-rose-100"
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const updatedSigners = (formData.signers || []).filter(s => s.id !== signer.id);
+                                setFormData({ ...formData, signers: updatedSigners });
+                                if (editingSignerId === signer.id) setEditingSignerId(null);
+                              }}
+                              className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-rose-600 transition-all"
+                              title="Remove Signer"
                             >
-                              <AlertCircle className="w-3 h-3" />
-                              {scanError}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-4">
-                      <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Number:</label>
-                      <input 
-                        type="text" 
-                        value={formData.idNumber || ""}
-                        onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Expiration:</label>
-                      <input 
-                        type="date" 
-                        value={formData.idExpiration || ""}
-                        onChange={(e) => setFormData({ ...formData, idExpiration: e.target.value })}
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                      />
-                    </div>
-
-                    {(formData.idType === "NC Driver's License" || formData.idType === "Out-of-State Driver's License") && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="space-y-4"
-                      >
-                        <div className="flex items-center gap-4">
-                          <label className="text-sm font-bold text-slate-700 w-24 text-right">Date of Birth:</label>
-                          <input 
-                            type="date" 
-                            value={formData.dob || ""}
-                            onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                            className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                          />
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                          <label className="text-sm font-bold text-slate-700 w-24 text-right">ID Issue Date:</label>
-                          <div className="flex-1 flex items-center gap-2">
-                            <input 
-                              type="date" 
-                              value={formData.idIssueDate || ""}
-                              onChange={(e) => setFormData({ ...formData, idIssueDate: e.target.value })}
-                              className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                            />
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">DL Only</span>
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
+                      ))}
+                      {(formData.signers || []).length === 0 && (
+                        <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          <User className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                          <p className="text-xs font-medium text-slate-400">No signers added yet</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Signer Form */}
+                  <AnimatePresence mode="wait">
+                    {editingSignerId && (
+                      <motion.div 
+                        key={editingSignerId}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="space-y-4 pt-4 border-t border-slate-100"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-widest">
+                            Editing Signer { (formData.signers || []).findIndex(s => s.id === editingSignerId) + 1 }
+                          </h3>
+                          <button 
+                            onClick={() => setEditingSignerId(null)}
+                            className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase tracking-wider"
+                          >
+                            Close Form
+                          </button>
+                        </div>
+
+                        {(() => {
+                          const signer = (formData.signers || []).find(s => s.id === editingSignerId);
+                          if (!signer) return null;
+
+                          const updateSigner = (updates: Partial<Signer>) => {
+                            const updatedSigners = (formData.signers || []).map(s => 
+                              s.id === editingSignerId ? { ...s, ...updates } : s
+                            );
+                            
+                            const isFirstSigner = updatedSigners[0]?.id === editingSignerId;
+                            
+                            setFormData({ 
+                              ...formData, 
+                              signers: updatedSigners,
+                              customerName: updateSignerSummary(updatedSigners),
+                              ...(isFirstSigner ? {
+                                firstName: updates.firstName !== undefined ? updates.firstName : signer.firstName,
+                                lastName: updates.lastName !== undefined ? updates.lastName : signer.lastName,
+                                email: updates.email !== undefined ? updates.email : signer.email,
+                                phone: updates.phone !== undefined ? updates.phone : signer.phone,
+                                address: updates.address !== undefined ? updates.address : signer.address,
+                                city: updates.city !== undefined ? updates.city : signer.city,
+                                state: updates.state !== undefined ? updates.state : signer.state,
+                                zip: updates.zip !== undefined ? updates.zip : signer.zip,
+                              } : {})
+                            });
+                          };
+
+                          return (
+                            <div className="space-y-4">
+                              <div className="flex justify-end mb-2">
+                                <select 
+                                  className="text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500"
+                                  onChange={(e) => {
+                                    const customer = customers.find(c => c.id === e.target.value);
+                                    if (customer) {
+                                      updateSigner({
+                                        firstName: customer.firstName,
+                                        lastName: customer.lastName,
+                                        email: customer.email,
+                                        phone: customer.phone,
+                                        address: customer.address,
+                                        city: customer.city,
+                                        state: customer.state,
+                                        zip: customer.zip
+                                      });
+                                    }
+                                  }}
+                                  value=""
+                                >
+                                  <option value="">Select from Contacts</option>
+                                  {customers.map(c => (
+                                    <option key={c.id} value={c.id}>{c.fullName}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">First Name</label>
+                                  <input 
+                                    type="text" 
+                                    value={signer.firstName || ""}
+                                    onChange={(e) => updateSigner({ firstName: e.target.value })}
+                                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Last Name</label>
+                                  <input 
+                                    type="text" 
+                                    value={signer.lastName || ""}
+                                    onChange={(e) => updateSigner({ lastName: e.target.value })}
+                                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
+                                  <input 
+                                    type="email" 
+                                    value={signer.email || ""}
+                                    onChange={(e) => updateSigner({ email: e.target.value })}
+                                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone</label>
+                                  <input 
+                                    type="tel" 
+                                    value={signer.phone || ""}
+                                    onChange={(e) => updateSigner({ phone: e.target.value })}
+                                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Street Address</label>
+                                <input 
+                                  type="text" 
+                                  value={signer.address || ""}
+                                  onChange={(e) => {
+                                    const newAddress = e.target.value;
+                                    updateSigner({ 
+                                      address: newAddress,
+                                    });
+                                    // If first signer, also update location
+                                    if ((formData.signers || [])[0]?.id === editingSignerId) {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        location: `${newAddress}, ${signer.city || ''}${signer.state ? `, ${signer.state}` : ''}${signer.zip ? ` ${signer.zip}` : ''}`.trim()
+                                      }));
+                                    }
+                                  }}
+                                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">City</label>
+                                  <input 
+                                    type="text" 
+                                    value={signer.city || ""}
+                                    onChange={(e) => updateSigner({ city: e.target.value })}
+                                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">State</label>
+                                  <input 
+                                    type="text" 
+                                    value={signer.state || ""}
+                                    onChange={(e) => updateSigner({ state: e.target.value })}
+                                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zip</label>
+                                  <input 
+                                    type="text" 
+                                    value={signer.zip || ""}
+                                    onChange={(e) => updateSigner({ zip: e.target.value })}
+                                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="pt-4 border-t border-slate-100 space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID Type</label>
+                                    <select 
+                                      value={signer.idType || ""}
+                                      onChange={(e) => updateSigner({ idType: e.target.value })}
+                                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
+                                    >
+                                      <option value="">Select ID Type</option>
+                                      <option>NC Driver's License</option>
+                                      <option>Out-of-State Driver's License</option>
+                                      <option>US Passport</option>
+                                      <option>Military ID</option>
+                                      <option>State-Issued ID Card</option>
+                                      <option>Personal Knowledge</option>
+                                      <option>Credible Witness</option>
+                                      <option>Other</option>
+                                    </select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID Number</label>
+                                    <input 
+                                      type="text" 
+                                      value={signer.idNumber || ""}
+                                      onChange={(e) => updateSigner({ idNumber: e.target.value })}
+                                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-4">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID Expiration</label>
+                                    <input 
+                                      type="date" 
+                                      value={signer.idExpiration || ""}
+                                      onChange={(e) => updateSigner({ idExpiration: e.target.value })}
+                                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date of Birth</label>
+                                    <input 
+                                      type="date" 
+                                      value={signer.dob || ""}
+                                      onChange={(e) => updateSigner({ dob: e.target.value })}
+                                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID Issue Date</label>
+                                    <input 
+                                      type="date" 
+                                      value={signer.idIssueDate || ""}
+                                      onChange={(e) => updateSigner({ idIssueDate: e.target.value })}
+                                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                    />
+                                  </div>
+                                </div>
+
+                                {(signer.idType === "NC Driver's License" || signer.idType === "Out-of-State Driver's License") && (
+                                  <div className="pt-2">
+                                    <input 
+                                      type="file" 
+                                      accept="image/*" 
+                                      capture="environment"
+                                      className="hidden" 
+                                      ref={fileInputRef}
+                                      onChange={handleScanLicense}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => fileInputRef.current?.click()}
+                                      disabled={isScanning}
+                                      className={cn(
+                                        "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm",
+                                        isScanning 
+                                          ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                                          : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 shadow-indigo-200 shadow-lg"
+                                      )}
+                                    >
+                                      {isScanning ? (
+                                        <>
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                          Scanning...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Camera className="w-4 h-4" />
+                                          Scan License
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </motion.div>
                     )}
-                  </div>
+                  </AnimatePresence>
                 </div>
               )}
               {activeTab === 'Contacts' && (

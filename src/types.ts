@@ -1,6 +1,23 @@
 export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Paid' | 'Cancelled' | 'No Show';
 export type PaymentStatus = 'Not Sent' | 'Sent' | 'Partial' | 'Paid' | 'Follow Up';
 
+export interface Signer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  idType?: string;
+  idNumber?: string;
+  idIssueDate?: string;
+  idExpiration?: string;
+  dob?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+}
+
 export interface Appointment {
   id: string;
   userId: string;
@@ -9,6 +26,7 @@ export interface Appointment {
   clientName: string;
   firstName?: string;
   lastName?: string;
+  signers?: Signer[];
   signingType: string;
   location: string;
   address?: string;

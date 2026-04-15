@@ -39,7 +39,7 @@
     },
     "Client": {
       "title": "Client",
-      "description": "A client or signing company",
+      "description": "A client or signing company (Legacy)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -51,6 +51,33 @@
         "userId": { "type": "string" }
       },
       "required": ["id", "name", "email", "phone", "address", "userId"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "An individual consumer or client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "zip": { "type": "string" },
+        "notes": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "customerType": { "type": "string", "enum": ["Buyer", "Seller", "Borrower", "Signer", "General Client"] },
+        "preferredContactMethod": { "type": "string", "enum": ["Email", "Phone", "Text"] },
+        "spouseName": { "type": "string" },
+        "propertyAddress": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "firstName", "lastName", "fullName", "email", "phone", "address", "createdAt", "updatedAt"]
     },
     "Expense": {
       "title": "Expense",
@@ -170,7 +197,11 @@
     },
     "/clients/{clientId}": {
       "schema": "Client",
-      "description": "User's clients"
+      "description": "User's clients (Legacy)"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "User's individual customers"
     },
     "/expenses/{expenseId}": {
       "schema": "Expense",

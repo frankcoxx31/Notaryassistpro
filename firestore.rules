@@ -8,7 +8,10 @@ service cloud.firestore {
     // Fields: id, date, time, clientName, signingType, location, fee, status, userId, etc.
     //
     // Collection: clients
-    // Fields: id, name, company, email, phone, address, userId
+    // Fields: id, name, company, email, phone, address, userId (Legacy)
+    //
+    // Collection: customers
+    // Fields: id, userId, firstName, lastName, fullName, email, phone, address, city, state, zip, notes, tags, customerType, preferredContactMethod, spouseName, propertyAddress, createdAt, updatedAt
     //
     // Collection: expenses
     // Fields: id, date, category, amount, description, userId
@@ -70,6 +73,15 @@ service cloud.firestore {
       return hasRequiredFields(['id', 'name', 'email', 'phone', 'address', 'userId']);
     }
 
+    function isValidCustomer(data) {
+      return hasRequiredFields(['id', 'userId', 'firstName', 'lastName', 'fullName', 'email', 'phone', 'address', 'createdAt', 'updatedAt']) &&
+             data.firstName is string && data.firstName.size() > 0 && data.firstName.size() < 100 &&
+             data.lastName is string && data.lastName.size() > 0 && data.lastName.size() < 100 &&
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() < 200 &&
+             data.email is string && data.email.size() < 200 &&
+             data.phone is string && data.phone.size() < 50;
+    }
+
     function isValidExpense(data) {
       return hasRequiredFields(['id', 'date', 'category', 'amount', 'description', 'userId']) &&
              data.amount is number && data.amount >= 0;
@@ -120,6 +132,13 @@ service cloud.firestore {
       allow read: if isDocOwner();
       allow create: if isAuthenticated() && isValidClient(request.resource.data) && request.resource.data.userId == request.auth.uid;
       allow update: if isDocOwner() && isValidClient(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /customers/{customerId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidCustomer(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isDocOwner() && isValidCustomer(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();
     }
 
