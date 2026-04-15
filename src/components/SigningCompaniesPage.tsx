@@ -216,6 +216,9 @@ const SigningCompaniesPage = ({
                           {getStatusBadge(company.status)}
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                          <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            {company.companyType || 'Signing Co'}
+                          </span>
                           <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {company.contactName || 'No Contact'}</span>
                           <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Last: {company.lastSigningDate ? format(new Date(company.lastSigningDate), 'MMM d, yyyy') : 'Never'}</span>
                         </div>
@@ -304,6 +307,7 @@ const SigningCompaniesPage = ({
                       <Building2 className="w-10 h-10 text-white" />
                     </div>
                     <h2 className="text-xl font-black">{selectedCompany.companyName}</h2>
+                    <p className="text-sky-300 text-xs font-bold uppercase tracking-widest mt-1">{selectedCompany.companyType || 'Signing Company'}</p>
                     <div className="flex items-center gap-2 mt-2">
                       {getStatusBadge(selectedCompany.status)}
                       {selectedCompany.favorite && <Star className="w-4 h-4 text-amber-400 fill-current" />}

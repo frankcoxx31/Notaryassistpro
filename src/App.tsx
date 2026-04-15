@@ -107,11 +107,11 @@ import {
   Pie 
 } from 'recharts';
 import { cn } from './lib/utils';
-import { Appointment, Client, Expense, AppointmentStatus, Mileage, BusinessProfile, SigningCompany } from './types';
+import { Appointment, Customer, CustomerType, Expense, AppointmentStatus, MileageRecord, BusinessProfile, SigningCompany } from './types';
 import { 
   MOCK_PROFILE, 
   MOCK_APPOINTMENTS, 
-  MOCK_CLIENTS, 
+  MOCK_CUSTOMERS, 
   MOCK_EXPENSES, 
   MOCK_MILEAGE 
 } from './mockData';
@@ -119,7 +119,7 @@ import { auth, db, provider } from './firebase';
 import { demoStorage } from './lib/demoStorage';
 import LoginPage from './components/LoginPage';
 import NewSigningModal from './components/NewSigningModal';
-import NewClientModal from './components/NewClientModal';
+import NewCustomerModal from './components/NewCustomerModal';
 import SigningCompanyModal from './components/SigningCompanyModal';
 import SigningCompaniesPage from './components/SigningCompaniesPage';
 import LawsLookup from './components/LawsLookup';
@@ -2484,7 +2484,7 @@ const Sidebar = ({
       ]
     },
     { name: 'Calendar', icon: Calendar, path: '/calendar' },
-    { name: 'Customers', icon: Users, path: '/clients' },
+    { name: 'Customers', icon: Users, path: '/customers' },
     { name: 'Signing Companies', icon: Building2, path: '/companies' },
     { 
       name: 'Expenses', 
@@ -3572,7 +3572,7 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
 
 const Appointments = ({ 
   appointments, 
-  clients, 
+  customers, 
   onNewSigning, 
   onViewSigning, 
   onDelete, 
@@ -3583,7 +3583,7 @@ const Appointments = ({
   viewMode = 'journal' 
 }: { 
   appointments: Appointment[]; 
-  clients: Client[]; 
+  customers: Customer[]; 
   onNewSigning: () => void; 
   onViewSigning: (app: Appointment, tab?: string) => void; 
   onDelete: (ids: string[]) => void; 
@@ -3659,14 +3659,14 @@ const Appointments = ({
     if (paymentStatus) setPaymentStatusFilter(paymentStatus);
   }, [searchParams]);
 
-  const customers = useMemo(() => {
-    // Use the clients list as the source of truth for customers
-    const clientNames = clients.map(c => c.name);
-    // Also include any customer names from appointments that might not be in the clients list
-    const appointmentCustomerNames = appointments.map(a => a.customer || "Rocket Close");
-    const unique = new Set([...clientNames, ...appointmentCustomerNames]);
-    return Array.from(unique).filter(Boolean).sort();
-  }, [clients, appointments]);
+  const uniqueCustomers = useMemo(() => {
+    // Use the customers list as the source of truth
+    const customerNames = customers.map(c => c.fullName);
+    // Also include any customer names from appointments that might not be in the customers list
+    const appointmentCustomerNames = appointments.map(a => a.customerName).filter(Boolean) as string[];
+    const unique = new Set([...customerNames, ...appointmentCustomerNames]);
+    return Array.from(unique).sort();
+  }, [customers, appointments]);
 
   const workTypes = useMemo(() => {
     const unique = new Set(appointments.map(a => a.signingType));
@@ -3704,7 +3704,7 @@ const Appointments = ({
 
     // Customer Filter
     if (customerFilter !== 'All Customers') {
-      filtered = filtered.filter(a => (a.customer || "Rocket Close") === customerFilter);
+      filtered = filtered.filter(a => (a.customerName || "Rocket Close") === customerFilter);
     }
 
     // Status Filter
@@ -4495,7 +4495,7 @@ const Appointments = ({
             className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-44 shadow-sm"
           >
             <option value="All Customers">All Customers</option>
-            {customers.map(c => <option key={c} value={c}>{c}</option>)}
+            {uniqueCustomers.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           
           {customerStats && (
@@ -4959,70 +4959,116 @@ const Appointments = ({
   );
 };
 
-const Clients = ({ clients, onNewClient, onEditClient, onDeleteClient }: { clients: Client[]; onNewClient: () => void; onEditClient: (c: Client) => void; onDeleteClient: (id: string) => void }) => {
+const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer }: { customers: Customer[]; onNewCustomer: () => void; onEditCustomer: (c: Customer) => void; onDeleteCustomer: (id: string) => void }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<CustomerType | 'All'>('All');
+
+  const filteredCustomers = customers.filter(c => {
+    const matchesSearch = c.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         c.phone.includes(searchQuery);
+    const matchesFilter = filterType === 'All' || c.customerType === filterType;
+    return matchesSearch && matchesFilter;
+  });
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
-          <p className="text-slate-500">Manage your contacts and title company relationships.</p>
+          <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
+          <p className="text-slate-500">Manage your individual clients and signers.</p>
         </div>
         <button 
-          onClick={onNewClient}
+          onClick={onNewCustomer}
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2"
         >
-          <Plus className="w-4 h-4" /> New Client
+          <Plus className="w-4 h-4" /> New Customer
         </button>
       </div>
 
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            type="text" 
+            placeholder="Search customers..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+          />
+        </div>
+        <select 
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value as any)}
+          className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+        >
+          <option value="All">All Types</option>
+          <option value="Borrower">Borrower</option>
+          <option value="Seller">Seller</option>
+          <option value="Buyer">Buyer</option>
+          <option value="Signer">Signer</option>
+          <option value="General Client">General Client</option>
+        </select>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {clients.map((client) => (
-          <div key={client.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+        {filteredCustomers.map((customer) => (
+          <div key={customer.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="flex items-start justify-between mb-4">
               <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xl">
-                {client.name.charAt(0)}
+                {customer.firstName.charAt(0)}{customer.lastName.charAt(0)}
               </div>
               <div className="flex items-center gap-2">
                 <button 
-                  onClick={() => onEditClient(client)}
+                  onClick={() => onEditCustomer(customer)}
                   className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
                 >
                   <PenLine className="w-4 h-4" />
                 </button>
                 <button 
-                  onClick={() => onDeleteClient(client.id)}
+                  onClick={() => onDeleteCustomer(customer.id)}
                   className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
-            <h3 className="font-bold text-lg text-slate-900 mb-1">{client.name}</h3>
-            <p className="text-sm text-indigo-600 font-medium mb-4">{client.company}</p>
+            <h3 className="font-bold text-lg text-slate-900 mb-1">{customer.fullName}</h3>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">
+              {customer.customerType || 'General'}
+            </span>
             
-            <div className="space-y-3">
+            <div className="space-y-3 mt-4">
               <div className="flex items-center gap-3 text-sm text-slate-600">
-                <Bell className="w-4 h-4 text-slate-400" />
-                <span>{client.email}</span>
+                <Mail className="w-4 h-4 text-slate-400" />
+                <span>{customer.email}</span>
               </div>
               <div className="flex items-center gap-3 text-sm text-slate-600">
-                <User className="w-4 h-4 text-slate-400" />
-                <span>{client.phone}</span>
+                <Phone className="w-4 h-4 text-slate-400" />
+                <span>{customer.phone}</span>
               </div>
               <div className="flex items-center gap-3 text-sm text-slate-600">
                 <MapPin className="w-4 h-4 text-slate-400" />
-                <span className="truncate">{client.address}</span>
+                <span className="truncate">{customer.address}, {customer.city}</span>
               </div>
             </div>
 
             <div className="mt-6 pt-6 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Last Signing: Oct 12</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Added {format(new Date(customer.createdAt), 'MMM d, yyyy')}</span>
               <button className="text-xs font-bold text-indigo-600 hover:underline">View History</button>
             </div>
           </div>
         ))}
       </div>
+
+      {filteredCustomers.length === 0 && (
+        <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
+          <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-lg font-bold text-slate-900">No customers found</h3>
+          <p className="text-sm text-slate-500">Try adjusting your search or add a new customer.</p>
+        </div>
+      )}
     </div>
   );
 };
@@ -5182,7 +5228,7 @@ export default function App() {
   const [isRecurringExpenseModalOpen, setIsRecurringExpenseModalOpen] = useState(false);
   const [isNewMileageModalOpen, setIsNewMileageModalOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<SigningCompany | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -5192,7 +5238,7 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [companies, setCompanies] = useState<SigningCompany[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [mileage, setMileage] = useState<Mileage[]>([]);
@@ -5215,7 +5261,7 @@ export default function App() {
 
     if (isDemoUser || !user) {
       setAppointments(demoStorage.getAppointments());
-      setClients(demoStorage.getClients());
+      setCustomers(demoStorage.getCustomers());
       setExpenses(demoStorage.getExpenses());
       setMileage(demoStorage.getMileage());
       setCompanies(demoStorage.getCompanies());
@@ -5229,10 +5275,10 @@ export default function App() {
       setAppointments(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Appointment)));
     }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'appointments'));
 
-    const qClients = query(collection(db, 'clients'), where('userId', '==', user.uid));
-    const unsubClients = onSnapshot(qClients, (snapshot: any) => {
-      setClients(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Client)));
-    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'clients'));
+    const qCustomers = query(collection(db, 'customers'), where('userId', '==', user.uid));
+    const unsubCustomers = onSnapshot(qCustomers, (snapshot: any) => {
+      setCustomers(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Customer)));
+    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'customers'));
 
     const qCompanies = query(collection(db, 'signingCompanies'), where('userId', '==', user.uid));
     const unsubCompanies = onSnapshot(qCompanies, (snapshot: any) => {
@@ -5257,7 +5303,7 @@ export default function App() {
 
     return () => {
       unsubAppointments();
-      unsubClients();
+      unsubCustomers();
       unsubCompanies();
       unsubExpenses();
       unsubMileage();
@@ -5299,7 +5345,7 @@ export default function App() {
     if (window.confirm('Are you sure you want to reset all demo data? This will restore sample data and clear your changes.')) {
       demoStorage.resetAll();
       setAppointments(demoStorage.getAppointments());
-      setClients(demoStorage.getClients());
+      setCustomers(demoStorage.getCustomers());
       setExpenses(demoStorage.getExpenses());
       setMileage(demoStorage.getMileage());
       setCompanies(demoStorage.getCompanies());
@@ -5413,32 +5459,32 @@ export default function App() {
     }
   };
 
-  const handleSaveClient = async (client: Client) => {
+  const handleSaveCustomer = async (customer: Customer) => {
     if (isDemoUser || !user) {
-      demoStorage.saveClient(client);
-      setClients(demoStorage.getClients());
+      demoStorage.saveCustomer(customer);
+      setCustomers(demoStorage.getCustomers());
       return;
     }
 
     try {
-      const clientData = { ...client, userId: user.uid };
-      await setDoc(doc(db, 'clients', client.id), clientData);
+      const customerData = { ...customer, userId: user.uid };
+      await setDoc(doc(db, 'customers', customer.id), customerData);
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `clients/${client.id}`);
+      handleFirestoreError(error, OperationType.WRITE, `customers/${customer.id}`);
     }
   };
 
-  const handleDeleteClient = async (id: string) => {
+  const handleDeleteCustomer = async (id: string) => {
     if (isDemoUser || !user) {
-      demoStorage.deleteClient(id);
-      setClients(demoStorage.getClients());
+      demoStorage.deleteCustomer(id);
+      setCustomers(demoStorage.getCustomers());
       return;
     }
 
     try {
-      await deleteDoc(doc(db, 'clients', id));
+      await deleteDoc(doc(db, 'customers', id));
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `clients/${id}`);
+      handleFirestoreError(error, OperationType.DELETE, `customers/${id}`);
     }
   };
 
@@ -5590,7 +5636,7 @@ export default function App() {
                   element={
                     <Appointments 
                       appointments={appointments} 
-                      clients={clients}
+                      customers={customers}
                       viewMode="signings"
                       onNewSigning={() => {
                         setSelectedAppointment(null);
@@ -5614,7 +5660,7 @@ export default function App() {
                   element={
                     <Appointments 
                       appointments={appointments} 
-                      clients={clients}
+                      customers={customers}
                       viewMode="journal"
                       onNewSigning={() => {
                         setSelectedAppointment(null);
@@ -5638,19 +5684,19 @@ export default function App() {
                   setIsNewSigningModalOpen(true);
                 }} />} />
                 <Route 
-                  path="/clients" 
+                  path="/customers" 
                   element={
-                    <Clients 
-                      clients={clients} 
-                      onNewClient={() => {
-                        setSelectedClient(null);
+                    <Customers 
+                      customers={customers} 
+                      onNewCustomer={() => {
+                        setSelectedCustomer(null);
                         setIsNewClientModalOpen(true);
                       }}
-                      onEditClient={(c) => {
-                        setSelectedClient(c);
+                      onEditCustomer={(c) => {
+                        setSelectedCustomer(c);
                         setIsNewClientModalOpen(true);
                       }}
-                      onDeleteClient={handleDeleteClient}
+                      onDeleteCustomer={handleDeleteCustomer}
                     />
                   } 
                 />
@@ -5734,7 +5780,7 @@ export default function App() {
                   setModalInitialTab('Signer(s)');
                 }}
                 userId={user?.uid || 'mock-user'}
-                clients={clients}
+                customers={customers}
                 appointments={appointments}
                 companies={companies}
                 onSaveCompany={handleSaveCompany}
@@ -5780,17 +5826,17 @@ export default function App() {
             )}
 
             {isNewClientModalOpen && (
-              <NewClientModal 
+              <NewCustomerModal 
                 isOpen={isNewClientModalOpen} 
                 onClose={() => {
                   setIsNewClientModalOpen(false);
-                  setSelectedClient(null);
+                  setSelectedCustomer(null);
                 }} 
-                client={selectedClient}
+                customer={selectedCustomer}
                 onSave={(c) => {
-                  handleSaveClient(c);
+                  handleSaveCustomer(c);
                   setIsNewClientModalOpen(false);
-                  setSelectedClient(null);
+                  setSelectedCustomer(null);
                 }}
                 userId={user?.uid || 'mock-user'}
               />

@@ -31,6 +31,7 @@ const SigningCompanyModal = ({ isOpen, onClose, company, onSave, userId }: Signi
         address: '',
         notes: '',
         status: 'Active',
+        companyType: 'Signing Company',
         preferredPaymentMethod: '',
         paymentTerms: '',
         tags: [],
@@ -143,6 +144,20 @@ const SigningCompanyModal = ({ isOpen, onClose, company, onSave, userId }: Signi
                       placeholder="Main Contact Name"
                       className="w-full px-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500"
                     />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Company Type</label>
+                    <select 
+                      value={formData.companyType || 'Signing Company'}
+                      onChange={(e) => setFormData({ ...formData, companyType: e.target.value as any })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500 bg-white"
+                    >
+                      <option value="Signing Company">Signing Company</option>
+                      <option value="Title Company">Title Company</option>
+                      <option value="Law Firm">Law Firm</option>
+                      <option value="Attorney">Attorney</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </div>
                   <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status</label>

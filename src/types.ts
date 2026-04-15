@@ -38,6 +38,9 @@ export interface Appointment {
   idExpiration?: string;
   signingCompany?: string;
   companyId?: string;
+  companyName?: string;
+  customerId?: string;
+  customerName?: string;
   docs?: string[];
   
   // Fee Tracking Fields
@@ -76,6 +79,7 @@ export interface SigningCompany {
   address?: string;
   notes?: string;
   status: 'Active' | 'Watch' | 'Do Not Work With' | 'Inactive';
+  companyType: 'Signing Company' | 'Title Company' | 'Attorney' | 'Law Firm' | 'Escrow Company' | 'Other';
   preferredPaymentMethod?: string;
   paymentTerms?: string;
   averageFee?: number;
@@ -93,6 +97,30 @@ export interface SigningCompany {
   portalLoginUrl?: string;
   billingInstructions?: string;
   favorite?: boolean;
+}
+
+export type CustomerType = 'Buyer' | 'Seller' | 'Borrower' | 'Signer' | 'General Client';
+
+export interface Customer {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  notes?: string;
+  tags?: string[];
+  customerType?: CustomerType;
+  preferredContactMethod?: 'Email' | 'Phone' | 'Text';
+  spouseName?: string;
+  propertyAddress?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Client {

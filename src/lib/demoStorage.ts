@@ -1,36 +1,37 @@
-import { Appointment, Client, Expense, Mileage, BusinessProfile, SigningCompany } from '../types';
+import { Appointment, Client, Expense, Mileage, BusinessProfile, SigningCompany, Customer } from '../types';
 import { 
   MOCK_APPOINTMENTS, 
   MOCK_CLIENTS, 
   MOCK_EXPENSES, 
   MOCK_MILEAGE, 
   MOCK_PROFILE,
-  MOCK_COMPANIES
+  MOCK_COMPANIES,
+  MOCK_CUSTOMERS
 } from '../mockData';
 
 const KEYS = {
   APPOINTMENTS: 'notarypro_demo_signings',
-  CLIENTS: 'notarypro_demo_clients',
+  CUSTOMERS: 'notarypro_demo_customers',
+  COMPANIES: 'notarypro_demo_companies',
   EXPENSES: 'notarypro_demo_expenses',
   MILEAGE: 'notarypro_demo_mileage',
   PROFILE: 'notarypro_demo_profile',
-  COMPANIES: 'notarypro_demo_companies',
-  IS_DEMO: 'notarypro_is_demo'
+  SESSION: 'notarypro_demo_session'
 };
 
 export const demoStorage = {
   // Auth state
   isDemoMode: (): boolean => {
-    return localStorage.getItem(KEYS.IS_DEMO) === 'true';
+    return localStorage.getItem(KEYS.SESSION) === 'true';
   },
   setDemoMode: (active: boolean) => {
-    localStorage.setItem(KEYS.IS_DEMO, active ? 'true' : 'false');
+    localStorage.setItem(KEYS.SESSION, active ? 'true' : 'false');
   },
 
   // Reset all data
   resetAll: () => {
     localStorage.setItem(KEYS.APPOINTMENTS, JSON.stringify(MOCK_APPOINTMENTS));
-    localStorage.setItem(KEYS.CLIENTS, JSON.stringify(MOCK_CLIENTS));
+    localStorage.setItem(KEYS.CUSTOMERS, JSON.stringify(MOCK_CUSTOMERS));
     localStorage.setItem(KEYS.EXPENSES, JSON.stringify(MOCK_EXPENSES));
     localStorage.setItem(KEYS.MILEAGE, JSON.stringify(MOCK_MILEAGE));
     localStorage.setItem(KEYS.PROFILE, JSON.stringify(MOCK_PROFILE));
@@ -57,7 +58,7 @@ export const demoStorage = {
 
   // Specific Getters
   getAppointments: () => demoStorage.get<Appointment[]>(KEYS.APPOINTMENTS, MOCK_APPOINTMENTS),
-  getClients: () => demoStorage.get<Client[]>(KEYS.CLIENTS, MOCK_CLIENTS),
+  getCustomers: () => demoStorage.get<Customer[]>(KEYS.CUSTOMERS, MOCK_CUSTOMERS),
   getExpenses: () => demoStorage.get<Expense[]>(KEYS.EXPENSES, MOCK_EXPENSES),
   getMileage: () => demoStorage.get<Mileage[]>(KEYS.MILEAGE, MOCK_MILEAGE),
   getProfile: () => demoStorage.get<BusinessProfile>(KEYS.PROFILE, MOCK_PROFILE),
@@ -80,16 +81,16 @@ export const demoStorage = {
     demoStorage.set(KEYS.APPOINTMENTS, apps);
   },
 
-  saveClient: (client: Client) => {
-    const clients = demoStorage.getClients();
-    const index = clients.findIndex(c => c.id === client.id);
-    if (index >= 0) clients[index] = client;
-    else clients.push(client);
-    demoStorage.set(KEYS.CLIENTS, clients);
+  saveCustomer: (customer: Customer) => {
+    const customers = demoStorage.getCustomers();
+    const index = customers.findIndex(c => c.id === customer.id);
+    if (index >= 0) customers[index] = customer;
+    else customers.push(customer);
+    demoStorage.set(KEYS.CUSTOMERS, customers);
   },
-  deleteClient: (id: string) => {
-    const clients = demoStorage.getClients().filter(c => c.id !== id);
-    demoStorage.set(KEYS.CLIENTS, clients);
+  deleteCustomer: (id: string) => {
+    const customers = demoStorage.getCustomers().filter(c => c.id !== id);
+    demoStorage.set(KEYS.CUSTOMERS, customers);
   },
 
   saveExpense: (expense: Expense) => {

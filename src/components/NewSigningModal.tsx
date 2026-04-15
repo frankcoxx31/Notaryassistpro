@@ -7,7 +7,7 @@ import {
   Car, TrendingUp, PlusCircle
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
-import { Appointment, AppointmentStatus, Client, SigningCompany } from '../types';
+import { Appointment, AppointmentStatus, Customer, SigningCompany } from '../types';
 import { cn } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
 import SigningCompanyModal from './SigningCompanyModal';
@@ -19,7 +19,7 @@ interface NewSigningModalProps {
   onSave: (app: Appointment) => void;
   initialTab?: string;
   userId: string;
-  clients: Client[];
+  customers: Customer[];
   appointments: Appointment[];
   companies: SigningCompany[];
   onSaveCompany: (company: SigningCompany) => void;
@@ -34,7 +34,7 @@ const NewSigningModal = ({
   onSave, 
   initialTab = 'Signer(s)',
   userId,
-  clients,
+  customers,
   appointments,
   companies,
   onSaveCompany
@@ -211,23 +211,22 @@ Return only the JSON object, no additional text.`;
     }
   ];
 
-  const customers = React.useMemo(() => {
-    const clientNames = clients.map(c => c.name);
-    const appointmentCustomerNames = appointments.map(a => a.customer || "Rocket Close");
-    const unique = new Set([...clientNames, ...appointmentCustomerNames]);
-    return Array.from(unique).filter(Boolean).sort();
-  }, [clients, appointments]);
+  const uniqueCustomers = React.useMemo(() => {
+    const fromAppointments = appointments.map(a => a.customerName).filter(Boolean) as string[];
+    const fromDatabase = customers.map(c => c.fullName);
+    const unique = new Set([...fromAppointments, ...fromDatabase]);
+    return Array.from(unique).sort();
+  }, [appointments, customers]);
 
   const uniqueCompanies = React.useMemo(() => {
-    const fromAppointments = appointments.map(a => a.signingCompany).filter(Boolean) as string[];
+    const fromAppointments = appointments.map(a => a.companyName).filter(Boolean) as string[];
     const fromDatabase = companies.map(c => c.companyName);
     const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
     
-    // Combine with customers list
-    const combined = [...defaults, ...fromAppointments, ...fromDatabase, ...customers];
+    const combined = [...defaults, ...fromAppointments, ...fromDatabase];
     const unique = new Set(combined);
     return Array.from(unique).sort();
-  }, [appointments, customers, companies]);
+  }, [appointments, companies]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -237,8 +236,8 @@ Return only the JSON object, no additional text.`;
     if (appointment) {
       const data = { ...appointment };
       // Derive first/last name if missing
-      if (data.clientName && (!data.firstName || !data.lastName)) {
-        const parts = data.clientName.trim().split(/\s+/);
+      if (data.customerName && (!data.firstName || !data.lastName)) {
+        const parts = data.customerName.trim().split(/\s+/);
         if (!data.firstName) data.firstName = parts[0] || '';
         if (!data.lastName) data.lastName = parts.slice(1).join(' ') || '';
       }
@@ -324,7 +323,8 @@ Return only the JSON object, no additional text.`;
         paymentStatus: 'Not Sent',
         invoiceSent: false,
         status: 'Scheduled',
-        clientName: '',
+        customerName: '',
+        companyName: '',
         location: '',
         invoiceNumber: `INV-${dateStr}-${randomStr}`,
         milesDriven: 0,
@@ -344,7 +344,7 @@ Return only the JSON object, no additional text.`;
   if (!isOpen) return null;
 
   const handleSave = () => {
-    if (formData.id && formData.date && formData.time && formData.clientName && formData.signingType && formData.location && formData.fee !== undefined && formData.status) {
+    if (formData.id && formData.date && formData.time && formData.customerName && formData.signingType && formData.location && formData.fee !== undefined && formData.status) {
       if (!formData.docs || formData.docs.length === 0) {
         setShowDocError(true);
         setActiveTab('Documents');
@@ -521,13 +521,13 @@ Return only the JSON object, no additional text.`;
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Company:</label>
                 <div className="flex-1 flex gap-2">
                   <select 
-                    value={formData.signingCompany || ""}
+                    value={formData.companyName || ""}
                     onChange={(e) => {
                       const selectedName = e.target.value;
                       const company = companies.find(c => c.companyName === selectedName);
                       setFormData({ 
                         ...formData, 
-                        signingCompany: selectedName,
+                        companyName: selectedName,
                         companyId: company?.id || undefined
                       });
                     }}
@@ -581,15 +581,44 @@ Return only the JSON object, no additional text.`;
 
             <div className="flex items-center gap-4">
               <label className="text-sm font-bold text-slate-700 w-20 text-right">Signer(s):</label>
-              <div className="flex-1 relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="text" 
-                  value={formData.clientName || ""}
-                  onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                  placeholder="Name of Signer"
-                />
+              <div className="flex-1 flex gap-2">
+                <div className="flex-1 relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input 
+                    type="text" 
+                    list="customer-list"
+                    value={formData.customerName || ""}
+                    onChange={(e) => {
+                      const selectedName = e.target.value;
+                      const customer = customers.find(c => c.fullName === selectedName);
+                      if (customer) {
+                        setFormData({ 
+                          ...formData, 
+                          customerName: selectedName,
+                          customerId: customer.id,
+                          firstName: customer.firstName,
+                          lastName: customer.lastName,
+                          email: customer.email,
+                          phone: customer.phone,
+                          address: customer.address,
+                          city: customer.city,
+                          state: customer.state,
+                          zip: customer.zip,
+                          location: `${customer.address}, ${customer.city}, ${customer.state} ${customer.zip}`
+                        });
+                      } else {
+                        setFormData({ ...formData, customerName: selectedName });
+                      }
+                    }}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500" 
+                    placeholder="Name of Signer"
+                  />
+                  <datalist id="customer-list">
+                    {uniqueCustomers.map(name => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
             </div>
           </div>
@@ -649,7 +678,7 @@ Return only the JSON object, no additional text.`;
                     <input 
                       type="text" 
                       value={formData.lastName || ""}
-                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value, clientName: `${formData.firstName || ''} ${e.target.value}`.trim() })}
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value, customerName: `${formData.firstName || ''} ${e.target.value}`.trim() })}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
@@ -658,7 +687,7 @@ Return only the JSON object, no additional text.`;
                     <input 
                       type="text" 
                       value={formData.firstName || ""}
-                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value, clientName: `${e.target.value} ${formData.lastName || ''}`.trim() })}
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value, customerName: `${e.target.value} ${formData.lastName || ''}`.trim() })}
                       className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
                     />
                   </div>
