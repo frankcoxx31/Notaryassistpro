@@ -107,7 +107,7 @@ import {
   Pie 
 } from 'recharts';
 import { cn } from './lib/utils';
-import { Appointment, Customer, CustomerType, Expense, AppointmentStatus, Mileage, BusinessProfile, SigningCompany } from './types';
+import { Appointment, Customer, CustomerType, Expense, AppointmentStatus, PaymentStatus, Mileage, BusinessProfile, SigningCompany } from './types';
 import { 
   MOCK_PROFILE, 
   MOCK_APPOINTMENTS, 
@@ -3583,6 +3583,7 @@ const Appointments = ({
   onImport, 
   onUpdate, 
   onBulkUpdateDocs,
+  onBulkUpdateInvoiceStatus,
   userId, 
   viewMode = 'journal' 
 }: { 
@@ -3594,6 +3595,7 @@ const Appointments = ({
   onImport: (apps: Appointment[]) => void; 
   onUpdate: (app: Appointment) => void; 
   onBulkUpdateDocs: (ids: string[], docs: string[]) => Promise<void>;
+  onBulkUpdateInvoiceStatus: (ids: string[], sent: boolean) => Promise<void>;
   userId: string; 
   viewMode?: 'signings' | 'journal' 
 }) => {
@@ -3992,6 +3994,20 @@ const Appointments = ({
 
   const handleBatchInvoice = () => {
     handleBatchStatusUpdate('Completed');
+  };
+
+  const handleBatchInvoiceStatus = async (sent: boolean) => {
+    if (selectedIds.length === 0) return;
+    
+    try {
+      await onBulkUpdateInvoiceStatus(selectedIds, sent);
+      setBulkSuccessMessage(`${selectedIds.length} signings marked Invoice ${sent ? 'Sent' : 'Not Sent'}`);
+      setTimeout(() => setBulkSuccessMessage(null), 3000);
+      setSelectedIds([]);
+      setIsSelectMode(false);
+    } catch (error) {
+      console.error('Error updating invoice status:', error);
+    }
   };
 
   const handleExport = () => {
@@ -4426,12 +4442,21 @@ const Appointments = ({
                   </button>
                   <button 
                     onClick={() => {
-                      handleBatchInvoice();
+                      handleBatchInvoiceStatus(true);
                       setIsBatchDropdownOpen(false);
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
                   >
-                    <Printer className="w-4 h-4 text-blue-500" /> Invoice Sent
+                    <Printer className="w-4 h-4 text-blue-500" /> Mark Invoice Sent
+                  </button>
+                  <button 
+                    onClick={() => {
+                      handleBatchInvoiceStatus(false);
+                      setIsBatchDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
+                  >
+                    <X className="w-4 h-4 text-slate-400" /> Mark Invoice Not Sent
                   </button>
                   <button 
                     onClick={() => handleBatchStatusUpdate('Completed')}
@@ -4598,8 +4623,8 @@ const Appointments = ({
         </div>
       </div>
 
-      {/* Bulk Add Documents Toolbar */}
-      {isSelectMode && (
+      {/* Bulk Action Bar */}
+      {(isSelectMode || selectedIds.length > 0) && (
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -4626,31 +4651,43 @@ const Appointments = ({
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
-            <div className="relative w-full md:w-64">
+          <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={() => handleBatchInvoiceStatus(true)}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-sm"
+            >
+              <Printer className="w-3.5 h-3.5" /> Mark Invoice Sent
+            </button>
+            <button 
+              onClick={() => handleBatchInvoiceStatus(false)}
+              className="bg-indigo-800 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-indigo-700"
+            >
+              <X className="w-3.5 h-3.5" /> Mark Not Sent
+            </button>
+            <div className="w-px h-6 bg-indigo-800 mx-2 hidden md:block"></div>
+            <div className="relative">
               <button 
                 onClick={() => setIsBulkDocsDropdownOpen(!isBulkDocsDropdownOpen)}
-                className="w-full bg-indigo-800 border border-indigo-700 rounded-lg px-4 py-2 text-sm font-bold flex items-center justify-between hover:bg-indigo-700 transition-all"
+                className="bg-indigo-800 border border-indigo-700 rounded-lg px-4 py-2 text-xs font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all"
               >
-                <span className="truncate">
-                  {selectedDocsForBulk.length === 0 
-                    ? "Add Documents to Selected" 
-                    : `${selectedDocsForBulk.length} documents chosen`}
-                </span>
-                <ChevronDown className={cn("w-4 h-4 transition-transform", isBulkDocsDropdownOpen && "rotate-180")} />
+                <FileText className="w-3.5 h-3.5" />
+                {selectedDocsForBulk.length === 0 
+                  ? "Add Documents" 
+                  : `${selectedDocsForBulk.length} docs`}
+                <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", isBulkDocsDropdownOpen && "rotate-180")} />
               </button>
 
               {isBulkDocsDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-[60]" onClick={() => setIsBulkDocsDropdownOpen(false)} />
-                  <div className="absolute bottom-full md:bottom-auto md:top-full left-0 mt-2 w-full md:w-72 bg-white text-slate-800 rounded-xl shadow-2xl z-[70] py-2 border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
+                  <div className="absolute bottom-full md:bottom-auto md:top-full right-0 mt-2 w-64 bg-white text-slate-800 rounded-xl shadow-2xl z-[70] py-2 border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
                     <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 mb-1">
                       Loan Signing Documents
                     </div>
                     {loanSigningDocs.map(doc => (
                       <label key={doc} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
                         <input 
-                          type="checkbox"
+                          type="checkbox" 
                           checked={selectedDocsForBulk.includes(doc)}
                           onChange={(e) => {
                             if (e.target.checked) setSelectedDocsForBulk([...selectedDocsForBulk, doc]);
@@ -4658,7 +4695,7 @@ const Appointments = ({
                           }}
                           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
-                        <span className="text-xs font-medium">{doc}</span>
+                        <span className="text-[11px] font-medium">{doc}</span>
                       </label>
                     ))}
                     <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 my-1">
@@ -4667,7 +4704,7 @@ const Appointments = ({
                     {notarialActs.map(doc => (
                       <label key={doc} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
                         <input 
-                          type="checkbox"
+                          type="checkbox" 
                           checked={selectedDocsForBulk.includes(doc)}
                           onChange={(e) => {
                             if (e.target.checked) setSelectedDocsForBulk([...selectedDocsForBulk, doc]);
@@ -4675,15 +4712,14 @@ const Appointments = ({
                           }}
                           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
-                        <span className="text-xs font-medium">{doc}</span>
+                        <span className="text-[11px] font-medium">{doc}</span>
                       </label>
                     ))}
                   </div>
                 </>
               )}
             </div>
-
-            <div className="flex items-center gap-2 w-full md:w-auto">
+            {selectedDocsForBulk.length > 0 && (
               <button 
                 onClick={async () => {
                   if (selectedIds.length > 0 && selectedDocsForBulk.length > 0) {
@@ -4695,22 +4731,21 @@ const Appointments = ({
                     setSelectedDocsForBulk([]);
                   }
                 }}
-                disabled={selectedIds.length === 0 || selectedDocsForBulk.length === 0}
-                className="flex-1 md:flex-none bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg text-sm font-bold transition-all shadow-sm"
+                className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm"
               >
-                Apply
+                Apply Docs
               </button>
-              <button 
-                onClick={() => {
-                  setIsSelectMode(false);
-                  setSelectedIds([]);
-                  setSelectedDocsForBulk([]);
-                }}
-                className="flex-1 md:flex-none bg-indigo-800 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-bold transition-all border border-indigo-700"
-              >
-                Cancel
-              </button>
-            </div>
+            )}
+            <button 
+              onClick={() => {
+                setIsSelectMode(false);
+                setSelectedIds([]);
+                setSelectedDocsForBulk([]);
+              }}
+              className="text-indigo-300 hover:text-white px-2 py-2 text-xs font-bold transition-all"
+            >
+              Cancel
+            </button>
           </div>
         </motion.div>
       )}
@@ -4733,16 +4768,14 @@ const Appointments = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                {isSelectMode && (
-                  <th className="px-4 py-3 w-10">
-                    <input 
-                      type="checkbox" 
-                      checked={selectedIds.length === paginatedAppointments.length && paginatedAppointments.length > 0}
-                      onChange={toggleSelectAll}
-                      className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-                    />
-                  </th>
-                )}
+                <th className="px-4 py-3 w-10">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.length === paginatedAppointments.length && paginatedAppointments.length > 0}
+                    onChange={toggleSelectAll}
+                    className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                  />
+                </th>
                 <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('date')}>
                   Date & Time {sortField === 'date' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
                 </th>
@@ -4784,16 +4817,14 @@ const Appointments = ({
                       selectedIds.includes(app.id) ? "bg-amber-50" : "hover:bg-slate-50/50"
                     )}
                   >
-                    {isSelectMode && (
-                      <td className="px-4 py-3">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedIds.includes(app.id)}
-                          onChange={() => toggleSelect(app.id)}
-                          className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-                        />
-                      </td>
-                    )}
+                    <td className="px-4 py-3">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(app.id)}
+                        onChange={() => toggleSelect(app.id)}
+                        className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                      />
+                    </td>
                     <td className="px-3 py-3">
                       <div className="text-sm font-bold text-slate-900">{format(parseSafeDateTime(app.date), 'MM/dd/yyyy')}</div>
                       <div className="text-[10px] font-medium text-slate-500">{app.time}</div>
@@ -5381,6 +5412,34 @@ export default function App() {
     }
   };
 
+  const handleBulkUpdateInvoiceStatus = async (ids: string[], sent: boolean) => {
+    if (isDemoUser || !user) {
+      const updated = demoStorage.bulkUpdateInvoiceStatus(ids, sent) as Appointment[];
+      setAppointments(updated);
+      return;
+    }
+    if (ids.length === 0) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    try {
+      const promises = ids.map(id => {
+        const app = appointments.find(a => a.id === id);
+        const updates: any = { 
+          invoiceSent: sent,
+          paymentStatus: (sent ? 'Sent' : (app?.paymentStatus === 'Sent' ? 'Not Sent' : app?.paymentStatus)) as PaymentStatus
+        };
+        if (sent && app && !app.invoiceSentDate) {
+          updates.invoiceSentDate = today;
+        }
+        return updateDoc(doc(db, 'appointments', id), updates);
+      });
+      await Promise.all(promises);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `appointments/bulk-invoice`);
+    }
+  };
+
   const handleSaveAppointment = async (app: Appointment) => {
     if (isDemoUser || !user) {
       demoStorage.saveAppointment(app);
@@ -5680,6 +5739,7 @@ export default function App() {
                       onImport={handleImport}
                       onUpdate={handleSaveAppointment}
                       onBulkUpdateDocs={handleBulkUpdateDocs}
+                      onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
                       userId={user?.uid || 'mock-user'}
                     />
                   } 
@@ -5704,6 +5764,7 @@ export default function App() {
                       onImport={handleImport}
                       onUpdate={handleSaveAppointment}
                       onBulkUpdateDocs={handleBulkUpdateDocs}
+                      onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
                       userId={user?.uid || 'mock-user'}
                     />
                   } 

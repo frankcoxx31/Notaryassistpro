@@ -93,6 +93,22 @@ export const demoStorage = {
     demoStorage.set(KEYS.APPOINTMENTS, apps);
     return apps;
   },
+  bulkUpdateInvoiceStatus: (ids: string[], sent: boolean) => {
+    const today = new Date().toISOString().split('T')[0];
+    const apps = demoStorage.getAppointments().map(app => {
+      if (ids.includes(app.id)) {
+        return { 
+          ...app, 
+          invoiceSent: sent,
+          ...(sent && !app.invoiceSentDate ? { invoiceSentDate: today } : {}),
+          paymentStatus: sent ? 'Sent' : (app.paymentStatus === 'Sent' ? 'Not Sent' : app.paymentStatus)
+        };
+      }
+      return app;
+    });
+    demoStorage.set(KEYS.APPOINTMENTS, apps);
+    return apps;
+  },
   bulkAddDocs: (ids: string[], docsToAdd: string[]) => {
     const apps = demoStorage.getAppointments().map(app => {
       if (ids.includes(app.id)) {
