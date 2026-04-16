@@ -67,7 +67,8 @@ import {
   Activity,
   ArrowUpRight,
   ArrowDownRight,
-  Zap
+  Zap,
+  Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -3609,6 +3610,7 @@ const Appointments = ({
   onUpdate, 
   onBulkUpdateDocs,
   onBulkUpdateInvoiceStatus,
+  onBulkUpdateSigningType,
   userId, 
   viewMode = 'journal' 
 }: { 
@@ -3622,6 +3624,7 @@ const Appointments = ({
   onUpdate: (app: Appointment) => void; 
   onBulkUpdateDocs: (ids: string[], docs: string[]) => Promise<void>;
   onBulkUpdateInvoiceStatus: (ids: string[], sent: boolean) => Promise<void>;
+  onBulkUpdateSigningType: (ids: string[], type: string) => Promise<void>;
   userId: string; 
   viewMode?: 'signings' | 'journal' 
 }) => {
@@ -3636,7 +3639,22 @@ const Appointments = ({
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedDocsForBulk, setSelectedDocsForBulk] = useState<string[]>([]);
   const [isBulkDocsDropdownOpen, setIsBulkDocsDropdownOpen] = useState(false);
+  const [isBulkTypeDropdownOpen, setIsBulkTypeDropdownOpen] = useState(false);
+  const [isCustomBulkType, setIsCustomBulkType] = useState(false);
+  const [customBulkType, setCustomBulkType] = useState('');
   const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
+
+  const defaultSigningTypes = [
+    'Loan Signing',
+    'Refinance',
+    'Purchase',
+    'Seller Package',
+    'Buyer Package',
+    'HELOC',
+    'Reverse Mortgage',
+    'Hybrid Loan',
+    'General Notary Work'
+  ];
 
   const loanSigningDocs = [
     'Closing / Disbursement Instructions',
@@ -4745,6 +4763,74 @@ const Appointments = ({
                 </>
               )}
             </div>
+
+            <div className="relative">
+              <button 
+                onClick={() => setIsBulkTypeDropdownOpen(!isBulkTypeDropdownOpen)}
+                className="bg-indigo-800 border border-indigo-700 rounded-lg px-4 py-2 text-xs font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                Change Type
+                <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", isBulkTypeDropdownOpen && "rotate-180")} />
+              </button>
+
+              {isBulkTypeDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setIsBulkTypeDropdownOpen(false)} />
+                  <div className="absolute bottom-full md:bottom-auto md:top-full right-0 mt-2 w-64 bg-white text-slate-800 rounded-xl shadow-2xl z-[70] py-2 border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
+                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 mb-1">
+                      Standard Types
+                    </div>
+                    {defaultSigningTypes.map(type => (
+                      <button
+                        key={type}
+                        onClick={async () => {
+                          await onBulkUpdateSigningType(selectedIds, type);
+                          setBulkSuccessMessage(`${selectedIds.length} signings updated to ${type}`);
+                          setTimeout(() => setBulkSuccessMessage(null), 3000);
+                          setSelectedIds([]);
+                          setIsBulkTypeDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-slate-50 text-[11px] font-medium transition-colors"
+                      >
+                        {type}
+                      </button>
+                    ))}
+                    
+                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 my-1">
+                      Custom Type
+                    </div>
+                    <div className="px-4 py-2">
+                      <div className="flex flex-col gap-2">
+                        <input 
+                          type="text"
+                          value={customBulkType}
+                          onChange={(e) => setCustomBulkType(e.target.value)}
+                          placeholder="Enter custom type..."
+                          className="w-full border border-slate-200 rounded px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-indigo-500"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <button
+                          disabled={!customBulkType.trim()}
+                          onClick={async () => {
+                            await onBulkUpdateSigningType(selectedIds, customBulkType.trim());
+                            setBulkSuccessMessage(`${selectedIds.length} signings updated to ${customBulkType.trim()}`);
+                            setTimeout(() => setBulkSuccessMessage(null), 3000);
+                            setSelectedIds([]);
+                            setIsBulkTypeDropdownOpen(false);
+                            setCustomBulkType('');
+                          }}
+                          className="w-full bg-indigo-600 text-white rounded py-1.5 text-[10px] font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        >
+                          Apply Custom Type
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             {selectedDocsForBulk.length > 0 && (
               <button 
                 onClick={async () => {
@@ -5466,6 +5552,30 @@ export default function App() {
     }
   };
 
+  const handleBulkUpdateSigningType = async (ids: string[], type: string) => {
+    if (isDemoUser || !user) {
+      const updated = appointments.map(app => {
+        if (ids.includes(app.id)) {
+          return { ...app, signingType: type };
+        }
+        return app;
+      });
+      setAppointments(updated);
+      return;
+    }
+    if (ids.length === 0) return;
+    try {
+      const promises = ids.map(id => 
+        updateDoc(doc(db, 'appointments', id), sanitizeData({
+          signingType: type
+        }))
+      );
+      await Promise.all(promises);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `appointments/bulk-type`);
+    }
+  };
+
   const handleSaveAppointment = async (app: Appointment) => {
     if (isDemoUser || !user) {
       demoStorage.saveAppointment(app);
@@ -5767,6 +5877,7 @@ export default function App() {
                       onUpdate={handleSaveAppointment}
                       onBulkUpdateDocs={handleBulkUpdateDocs}
                       onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
+                      onBulkUpdateSigningType={handleBulkUpdateSigningType}
                       userId={user?.uid || 'mock-user'}
                     />
                   } 
@@ -5793,6 +5904,7 @@ export default function App() {
                       onUpdate={handleSaveAppointment}
                       onBulkUpdateDocs={handleBulkUpdateDocs}
                       onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
+                      onBulkUpdateSigningType={handleBulkUpdateSigningType}
                       userId={user?.uid || 'mock-user'}
                     />
                   } 

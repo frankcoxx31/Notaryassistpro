@@ -45,6 +45,8 @@ const NewSigningModal = ({
   const [showDocError, setShowDocError] = useState(false);
   const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState(false);
   const [editingSignerId, setEditingSignerId] = useState<string | null>(null);
+  const [isCustomType, setIsCustomType] = useState(false);
+  const [customType, setCustomType] = useState('');
   
   // Scanner state
   const [isScanning, setIsScanning] = useState(false);
@@ -263,6 +265,24 @@ Return only the JSON object, no additional text.`;
     return Array.from(unique).sort();
   }, [appointments, companies]);
 
+  const defaultSigningTypes = [
+    'Loan Signing',
+    'Refinance',
+    'Purchase',
+    'Seller Package',
+    'Buyer Package',
+    'HELOC',
+    'Reverse Mortgage',
+    'Hybrid Loan',
+    'General Notary Work'
+  ];
+
+  const allSigningTypes = React.useMemo(() => {
+    const fromAppointments = appointments.map(a => a.signingType).filter(Boolean);
+    const unique = new Set([...defaultSigningTypes, ...fromAppointments]);
+    return Array.from(unique).sort();
+  }, [appointments]);
+
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab, isOpen]);
@@ -369,6 +389,11 @@ Return only the JSON object, no additional text.`;
         data.signingCompany = data.companyName;
       }
 
+      // Check if current signing type is custom
+      if (data.signingType && !defaultSigningTypes.includes(data.signingType)) {
+        setIsCustomType(false); // It's already in the list because we derive allSigningTypes
+      }
+
       setFormData(data);
     } else {
       const now = new Date();
@@ -379,7 +404,7 @@ Return only the JSON object, no additional text.`;
         userId: userId,
         date: format(now, 'yyyy-MM-dd'),
         time: '10:00 AM',
-        signingType: 'General Loan Signing Work',
+        signingType: 'Loan Signing',
         fee: 150,
         agreedFee: 150,
         offeredFee: 150,
@@ -497,28 +522,58 @@ Return only the JSON object, no additional text.`;
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-700 w-20 text-right">Type:</label>
-                <select 
-                  value={formData.signingType || "Loan Signing — Refinance"}
-                  onChange={(e) => setFormData({ ...formData, signingType: e.target.value })}
-                  className="flex-1 bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none transition-all"
-                >
-                  <optgroup label="Loan Signings">
-                    <option>Loan Signing — Refinance</option>
-                    <option>Loan Signing — Purchase (Buyer)</option>
-                    <option>Loan Signing — Seller Package</option>
-                    <option>Loan Signing — HELOC</option>
-                    <option>Loan Signing — Reverse Mortgage</option>
-                  </optgroup>
-                  <optgroup label="Traditional Acts">
-                    <option>Acknowledgment</option>
-                    <option>Jurat/Oath</option>
-                    <option>Verification/Proof</option>
-                    <option>Signature Witnessing</option>
-                    <option>Copy Certification</option>
-                    <option>Inventory of Safe Deposit Box</option>
-                    <option>Other</option>
-                  </optgroup>
-                </select>
+                <div className="flex-1 flex flex-col gap-2">
+                  <select 
+                    value={isCustomType ? "Other" : (formData.signingType || "Loan Signing")}
+                    onChange={(e) => {
+                      if (e.target.value === "Other") {
+                        setIsCustomType(true);
+                      } else {
+                        setIsCustomType(false);
+                        setFormData({ ...formData, signingType: e.target.value });
+                      }
+                    }}
+                    className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none transition-all"
+                  >
+                    <optgroup label="Standard Types">
+                      {defaultSigningTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Previously Used / Custom">
+                      {allSigningTypes.filter(t => !defaultSigningTypes.includes(t)).map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                      <option value="Other">Other / Custom...</option>
+                    </optgroup>
+                  </select>
+                  
+                  {isCustomType && (
+                    <div className="flex gap-2 animate-in slide-in-from-top-1 duration-200">
+                      <input 
+                        type="text"
+                        value={customType}
+                        onChange={(e) => {
+                          setCustomType(e.target.value);
+                          setFormData({ ...formData, signingType: e.target.value });
+                        }}
+                        placeholder="Enter custom signing type..."
+                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                        autoFocus
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setIsCustomType(false);
+                          setCustomType('');
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 px-2"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-4">
