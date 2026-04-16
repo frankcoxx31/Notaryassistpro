@@ -236,6 +236,30 @@ const parseSafeDateTime = (dateStr: string, timeStr: string = ''): Date => {
   }
 };
 
+const sanitizeData = (data: any): any => {
+  if (data === null || typeof data !== 'object') {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.map(sanitizeData);
+  }
+
+  // Only sanitize plain objects to avoid corrupting special objects like Firestore FieldValue
+  if (Object.prototype.toString.call(data) !== '[object Object]') {
+    return data;
+  }
+
+  const sanitized: any = {};
+  Object.keys(data).forEach((key) => {
+    const value = data[key];
+    if (value !== undefined) {
+      sanitized[key] = sanitizeData(value);
+    }
+  });
+  return sanitized;
+};
+
 const parseLocation = (loc: string) => {
   const parts = loc.split(',').map(p => p.trim());
   let address = '', city = '', state = '', zip = '';
@@ -5432,7 +5456,7 @@ export default function App() {
         if (sent && app && !app.invoiceSentDate) {
           updates.invoiceSentDate = today;
         }
-        return updateDoc(doc(db, 'appointments', id), updates);
+        return updateDoc(doc(db, 'appointments', id), sanitizeData(updates));
       });
       await Promise.all(promises);
     } catch (error) {
@@ -5448,11 +5472,11 @@ export default function App() {
     }
 
     try {
-      const appData = { 
+      const appData = sanitizeData({ 
         ...app, 
         userId: user.uid,
         sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
-      };
+      });
       await setDoc(doc(db, 'appointments', app.id), appData);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `appointments/${app.id}`);
@@ -5467,7 +5491,7 @@ export default function App() {
     }
 
     try {
-      const expenseData = { ...expense, userId: user.uid };
+      const expenseData = sanitizeData({ ...expense, userId: user.uid });
       await setDoc(doc(db, 'expenses', expense.id), expenseData);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `expenses/${expense.id}`);
@@ -5482,7 +5506,7 @@ export default function App() {
     }
 
     try {
-      const mileageData = { ...m, userId: user.uid };
+      const mileageData = sanitizeData({ ...m, userId: user.uid });
       await setDoc(doc(db, 'mileage', m.id), mileageData);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `mileage/${m.id}`);
@@ -5497,7 +5521,7 @@ export default function App() {
     }
 
     try {
-      const profileData = { ...profile, userId: user.uid };
+      const profileData = sanitizeData({ ...profile, userId: user.uid });
       await setDoc(doc(db, 'profiles', user.uid), profileData);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `profiles/${user.uid}`);
@@ -5540,7 +5564,7 @@ export default function App() {
     }
 
     try {
-      const customerData = { ...customer, userId: user.uid };
+      const customerData = sanitizeData({ ...customer, userId: user.uid });
       await setDoc(doc(db, 'customers', customer.id), customerData);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `customers/${customer.id}`);
@@ -5569,7 +5593,7 @@ export default function App() {
     }
 
     try {
-      const companyData = { ...company, userId: user.uid };
+      const companyData = sanitizeData({ ...company, userId: user.uid });
       await setDoc(doc(db, 'signingCompanies', company.id), companyData);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `signingCompanies/${company.id}`);
