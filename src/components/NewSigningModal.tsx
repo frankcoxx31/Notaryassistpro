@@ -330,6 +330,10 @@ Return only the JSON object, no additional text.`;
         else data.paymentStatus = 'Not Sent';
       }
 
+      if (!data.scanbackStatus) {
+        data.scanbackStatus = 'Not Required';
+      }
+
       // Initialize mileage & profit fields if missing
       if (data.milesDriven === undefined) data.milesDriven = 0;
       if (data.mileageRate === undefined) data.mileageRate = DEFAULT_MILEAGE_RATE;
@@ -427,7 +431,8 @@ Return only the JSON object, no additional text.`;
         totalJobCost: 0,
         estimatedProfit: 150, // agreedFee (150) - totalJobCost (0)
         profitMarginPercent: 100,
-        roundTripMiles: true
+        roundTripMiles: true,
+        scanbackStatus: 'Not Required'
       });
     }
   }, [appointment, isOpen, userId]);
@@ -727,23 +732,45 @@ Return only the JSON object, no additional text.`;
           </div>
 
           {/* Status Section */}
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-bold text-slate-700 w-20 text-right">Status:</label>
-            <div className="flex-1 flex gap-2 flex-wrap">
-              {['Scheduled', 'Completed', 'Paid', 'Cancelled', 'No Show'].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setFormData({ ...formData, status: status as AppointmentStatus })}
-                  className={cn(
-                    "flex-1 min-w-[80px] py-2 text-[10px] font-bold rounded border transition-all",
-                    formData.status === status 
-                      ? "bg-sky-50 border-sky-500 text-sky-700" 
-                      : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                  )}
-                >
-                  {status}
-                </button>
-              ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-bold text-slate-700 w-20 text-right">Status:</label>
+              <div className="flex-1 flex gap-2 flex-wrap">
+                {['Scheduled', 'Completed', 'Paid', 'Cancelled', 'No Show'].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setFormData({ ...formData, status: status as AppointmentStatus })}
+                    className={cn(
+                      "flex-1 min-w-[80px] py-1.5 text-[10px] font-bold rounded border transition-all",
+                      formData.status === status 
+                        ? "bg-sky-50 border-sky-500 text-sky-700" 
+                        : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                    )}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-bold text-slate-700 w-20 text-right">Scanbacks:</label>
+              <div className="flex-1 flex gap-2 flex-wrap">
+                {['Not Required', 'Pending', 'Sent', 'Confirmed'].map((sStatus) => (
+                  <button
+                    key={sStatus}
+                    onClick={() => setFormData({ ...formData, scanbackStatus: sStatus as any })}
+                    className={cn(
+                      "flex-1 min-w-[70px] py-1.5 text-[10px] font-bold rounded border transition-all",
+                      formData.scanbackStatus === sStatus 
+                        ? "bg-amber-50 border-amber-500 text-amber-700" 
+                        : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                    )}
+                  >
+                    {sStatus}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Paid' | 'Cancelled' | 'No Show';
 export type PaymentStatus = 'Not Sent' | 'Sent' | 'Partial' | 'Paid' | 'Follow Up';
+export type ScanbackStatus = 'Not Required' | 'Pending' | 'Sent' | 'Confirmed';
 
 export interface Signer {
   id: string;
@@ -84,6 +85,7 @@ export interface Appointment {
   estimatedProfit?: number;
   profitMarginPercent?: number;
   roundTripMiles?: boolean;
+  scanbackStatus?: ScanbackStatus;
 }
 
 export interface SigningCompany {
