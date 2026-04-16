@@ -4441,7 +4441,7 @@ const Appointments = ({
           <p className="text-slate-500">{viewMode === 'journal' ? 'Official record of all notarial acts performed.' : 'Manage and track your signing appointments.'}</p>
         </div>
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 lg:gap-3">
             <button 
               onClick={onNewSigning}
               className="bg-[#27285C] hover:bg-[#1e1f4a] text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-white/10"
@@ -4558,11 +4558,36 @@ const Appointments = ({
               </>
             )}
           </div>
+
+          <button 
+            onClick={handleExport}
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Export
+          </button>
+          <button 
+            onClick={handleImport}
+            disabled={isImporting}
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
+          >
+            {isImporting ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4" />
+            )}
+            {isImporting ? 'Importing...' : 'Import'}
+          </button>
+          
+          <button 
+            className="bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-600 border border-slate-300 p-2 rounded text-sm font-bold flex items-center justify-center transition-all shadow-sm"
+            title="More Actions"
+          >
+            <Settings2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
 
-      {/* Filter Bar */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <select 
@@ -4654,31 +4679,6 @@ const Appointments = ({
             <option value="Low Profit">Low Profit</option>
             <option value="Unprofitable">Unprofitable</option>
           </select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={handleExport}
-            className="text-slate-500 hover:text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
-          >
-            <Download className="w-3.5 h-3.5" /> Export
-          </button>
-          <button 
-            onClick={handleImport}
-            disabled={isImporting}
-            className="text-slate-500 hover:text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50"
-          >
-            {isImporting ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Upload className="w-3.5 h-3.5" />
-            )}
-            {isImporting ? 'Importing...' : 'Import'}
-          </button>
-          <div className="w-px h-4 bg-slate-200 mx-1"></div>
-          <button className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-white rounded-lg transition-all">
-            <Settings2 className="w-4 h-4" />
-          </button>
         </div>
       </div>
 
