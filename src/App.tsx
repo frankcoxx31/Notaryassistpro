@@ -4923,7 +4923,6 @@ const Appointments = ({
                   Profit {sortField === 'estimatedProfit' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
                 </th>
                 <th className="px-3 py-3">Margin {sortField === 'profitMarginPercent' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}</th>
-                <th className="px-3 py-3">Scanbacks</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('company')}>
                   Company {sortField === 'company' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
@@ -5023,9 +5022,6 @@ const Appointments = ({
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      {getScanbackBadge(app.scanbackStatus)}
-                    </td>
-                    <td className="px-3 py-3">
                       {getStatusBadge(app.status, app)}
                     </td>
                     <td className="px-3 py-3">
@@ -5053,7 +5049,7 @@ const Appointments = ({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center">
+                  <td colSpan={10} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2 text-slate-400">
                       <Calendar className="w-8 h-8 opacity-20" />
                       <p className="text-sm font-medium">No signings found for this period</p>
