@@ -3688,7 +3688,7 @@ const Appointments = ({
 
   // Filter state
   const [dateFilter, setDateFilter] = useState(searchParams.get('date') || 'This year');
-  const [customerFilter, setCustomerFilter] = useState(searchParams.get('customer') || 'All Customers');
+  const [companyFilter, setCompanyFilter] = useState(searchParams.get('company') || searchParams.get('customer') || 'All Companies');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'All');
   const [workTypeFilter, setWorkTypeFilter] = useState(searchParams.get('type') || 'All Types of work');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('All');
@@ -3700,26 +3700,17 @@ const Appointments = ({
   useEffect(() => {
     const date = searchParams.get('date');
     const status = searchParams.get('status');
-    const customer = searchParams.get('customer');
+    const company = searchParams.get('company') || searchParams.get('customer');
     const type = searchParams.get('type');
     
     if (date) setDateFilter(date);
     if (status) setStatusFilter(status);
-    if (customer) setCustomerFilter(customer);
+    if (company) setCompanyFilter(company);
     if (type) setWorkTypeFilter(type);
     
     const paymentStatus = searchParams.get('paymentStatus');
     if (paymentStatus) setPaymentStatusFilter(paymentStatus);
   }, [searchParams]);
-
-  const uniqueCustomers = useMemo(() => {
-    // Use the customers list as the source of truth
-    const customerNames = customers.map(c => c.fullName);
-    // Also include any customer names from appointments that might not be in the customers list
-    const appointmentCustomerNames = appointments.map(a => a.customerName).filter(Boolean) as string[];
-    const unique = new Set([...customerNames, ...appointmentCustomerNames]);
-    return Array.from(unique).sort();
-  }, [customers, appointments]);
 
   const workTypes = useMemo(() => {
     const unique = new Set(appointments.map(a => a.signingType));
@@ -3727,12 +3718,12 @@ const Appointments = ({
   }, [appointments]);
 
   const uniqueCompanies = useMemo(() => {
-    const fromAppointments = appointments.map(a => a.signingCompany || a.companyName).filter(Boolean) as string[];
+    const fromAppointments = appointments.map(a => a.signingCompany || a.companyName || a.customer).filter(Boolean) as string[];
     const fromDatabase = companies.map(c => c.companyName);
     const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
     
     const combined = [...defaults, ...fromAppointments, ...fromDatabase];
-    const unique = new Set(combined);
+    const unique = new Set(combined.map(c => c.trim()));
     return Array.from(unique).sort();
   }, [appointments, companies]);
 
@@ -3755,9 +3746,9 @@ const Appointments = ({
       filtered = filtered.filter(a => isSameWeek(parseSafeDateTime(a.date, a.time), subWeeks(now, 1)));
     }
 
-    // Customer Filter
-    if (customerFilter !== 'All Customers') {
-      filtered = filtered.filter(a => (a.customerName || "Rocket Close") === customerFilter);
+    // Company Filter
+    if (companyFilter !== 'All Companies') {
+      filtered = filtered.filter(a => (a.signingCompany || a.companyName || a.customer || "Rocket Close") === companyFilter);
     }
 
     // Status Filter
@@ -3794,7 +3785,7 @@ const Appointments = ({
     }
 
     return filtered;
-  }, [appointments, dateFilter, customerFilter, statusFilter, workTypeFilter, paymentStatusFilter, invoiceSentFilter, profitFilter]);
+  }, [appointments, dateFilter, companyFilter, statusFilter, workTypeFilter, paymentStatusFilter, invoiceSentFilter, profitFilter]);
 
   // Sort appointments by combined date and time in descending order (newest at the top)
   const sortedAppointments = useMemo(() => {
@@ -4300,21 +4291,24 @@ const Appointments = ({
     };
   }, [filteredAppointments]);
 
-  const customerStats = useMemo(() => {
-    if (customerFilter === 'All Customers') return null;
+  const companyStats = useMemo(() => {
+    if (companyFilter === 'All Companies') return null;
     
-    const customerApps = appointments.filter(a => (a.customer || "Rocket Close") === customerFilter && a.status !== 'Cancelled' && a.status !== 'No Show');
-    const paid = customerApps
+    const companyApps = appointments.filter(a => {
+      const company = a.signingCompany || a.companyName || a.customer || "Rocket Close";
+      return company === companyFilter && a.status !== 'Cancelled' && a.status !== 'No Show';
+    });
+    const paid = companyApps
       .filter(a => (a.status as string) === 'Paid' || a.invoicePaidDate)
       .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
-    const unpaid = customerApps
+    const unpaid = companyApps
       .filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate)
       .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
     
     const total = paid + unpaid;
       
     return { paid, unpaid, total };
-  }, [appointments, customerFilter]);
+  }, [appointments, companyFilter]);
 
   const getStatusBadge = (status: string, app?: Appointment) => {
     // If we have a specific payment status, use that
@@ -4584,27 +4578,27 @@ const Appointments = ({
             <option value="Last week">Last week</option>
           </select>
           <select 
-            value={customerFilter}
-            onChange={(e) => setCustomerFilter(e.target.value)}
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
             className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-44 shadow-sm"
           >
-            <option value="All Customers">All Customers</option>
-            {uniqueCustomers.map(c => <option key={c} value={c}>{c}</option>)}
+            <option value="All Companies">All Companies</option>
+            {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           
-          {customerStats && (
+          {companyStats && (
             <div className="flex items-center gap-4 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold animate-in fade-in slide-in-from-left-2 duration-300 shadow-sm">
               <div className="flex items-center gap-1.5">
                 <span className="text-slate-400 uppercase tracking-widest">Paid:</span>
-                <span className="text-emerald-600">${customerStats.paid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-emerald-600">${companyStats.paid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
                 <span className="text-slate-400 uppercase tracking-widest">Unpaid:</span>
-                <span className="text-amber-600">${customerStats.unpaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-amber-600">${companyStats.unpaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
                 <span className="text-slate-400 uppercase tracking-widest">Total:</span>
-                <span className="text-slate-900">${customerStats.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-slate-900">${companyStats.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
           )}
