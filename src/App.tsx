@@ -3601,6 +3601,7 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
 const Appointments = ({ 
   appointments, 
   customers, 
+  companies,
   onNewSigning, 
   onViewSigning, 
   onDelete, 
@@ -3613,6 +3614,7 @@ const Appointments = ({
 }: { 
   appointments: Appointment[]; 
   customers: Customer[]; 
+  companies: SigningCompany[];
   onNewSigning: () => void; 
   onViewSigning: (app: Appointment, tab?: string) => void; 
   onDelete: (ids: string[]) => void; 
@@ -3704,14 +3706,14 @@ const Appointments = ({
   }, [appointments]);
 
   const uniqueCompanies = useMemo(() => {
-    const fromAppointments = appointments.map(a => a.signingCompany).filter(Boolean) as string[];
+    const fromAppointments = appointments.map(a => a.signingCompany || a.companyName).filter(Boolean) as string[];
+    const fromDatabase = companies.map(c => c.companyName);
     const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
     
-    // Combine with customers list
-    const combined = [...defaults, ...fromAppointments, ...customers.map(c => c.fullName)];
+    const combined = [...defaults, ...fromAppointments, ...fromDatabase];
     const unique = new Set(combined);
     return Array.from(unique).sort();
-  }, [appointments, customers]);
+  }, [appointments, companies]);
 
   const filteredAppointments = useMemo(() => {
     let filtered = appointments;
@@ -5749,6 +5751,7 @@ export default function App() {
                     <Appointments 
                       appointments={appointments} 
                       customers={customers}
+                      companies={companies}
                       viewMode="signings"
                       onNewSigning={() => {
                         setSelectedAppointment(null);
@@ -5774,6 +5777,7 @@ export default function App() {
                     <Appointments 
                       appointments={appointments} 
                       customers={customers}
+                      companies={companies}
                       viewMode="journal"
                       onNewSigning={() => {
                         setSelectedAppointment(null);

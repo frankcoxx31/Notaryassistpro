@@ -254,7 +254,7 @@ Return only the JSON object, no additional text.`;
   }, [appointments, customers]);
 
   const uniqueCompanies = React.useMemo(() => {
-    const fromAppointments = appointments.map(a => a.companyName).filter(Boolean) as string[];
+    const fromAppointments = appointments.map(a => a.signingCompany || a.companyName).filter(Boolean) as string[];
     const fromDatabase = companies.map(c => c.companyName);
     const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
     
@@ -363,6 +363,12 @@ Return only the JSON object, no additional text.`;
           }
         }
       }
+      if (data.signingCompany && !data.companyName) {
+        data.companyName = data.signingCompany;
+      } else if (data.companyName && !data.signingCompany) {
+        data.signingCompany = data.companyName;
+      }
+
       setFormData(data);
     } else {
       const now = new Date();
@@ -591,6 +597,7 @@ Return only the JSON object, no additional text.`;
                       setFormData({ 
                         ...formData, 
                         companyName: selectedName,
+                        signingCompany: selectedName,
                         companyId: company?.id || undefined
                       });
                     }}
@@ -619,7 +626,12 @@ Return only the JSON object, no additional text.`;
             onClose={() => setIsNewCompanyModalOpen(false)}
             onSave={(c) => {
               onSaveCompany(c);
-              setFormData({ ...formData, signingCompany: c.companyName, companyId: c.id });
+              setFormData({ 
+                ...formData, 
+                signingCompany: c.companyName, 
+                companyName: c.companyName,
+                companyId: c.id 
+              });
               setIsNewCompanyModalOpen(false);
             }}
             userId={userId}
