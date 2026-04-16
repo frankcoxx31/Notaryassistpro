@@ -3694,7 +3694,7 @@ const Appointments = ({
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('All');
   const [invoiceSentFilter, setInvoiceSentFilter] = useState('All');
   const [profitFilter, setProfitFilter] = useState('All');
-  const [sortField, setSortField] = useState<'date' | 'agreedFee' | 'amountCollected' | 'amountOutstanding' | 'paymentDueDate' | 'estimatedProfit' | 'profitMarginPercent'>('date');
+  const [sortField, setSortField] = useState<'date' | 'agreedFee' | 'amountCollected' | 'amountOutstanding' | 'paymentDueDate' | 'estimatedProfit' | 'profitMarginPercent' | 'company'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
@@ -3838,6 +3838,10 @@ const Appointments = ({
           case 'profitMarginPercent':
             valA = Number(a.profitMarginPercent) || 0;
             valB = Number(b.profitMarginPercent) || 0;
+            break;
+          case 'company':
+            valA = (a.signingCompany || a.companyName || '').toLowerCase();
+            valB = (b.signingCompany || b.companyName || '').toLowerCase();
             break;
           default:
             valA = a.sortableDateTime || '';
@@ -4927,7 +4931,9 @@ const Appointments = ({
                 <th className="px-3 py-3">Margin {sortField === 'profitMarginPercent' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}</th>
                 <th className="px-3 py-3">Scanbacks</th>
                 <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Company</th>
+                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('company')}>
+                  Company {sortField === 'company' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
+                </th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
