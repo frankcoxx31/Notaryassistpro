@@ -257,15 +257,28 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
       if (appointment?.googleCalendarEventId) {
         // Update existing event
         try {
-          await calendar.events.update({
+          console.log(`[Google API Request] (Update) ID: ${appointment.googleCalendarEventId}`, {
+            calendarId,
+            summary: event.summary,
+            start: event.start.dateTime,
+            end: event.end.dateTime
+          });
+          const apiResponse = await calendar.events.update({
             calendarId,
             eventId: appointment.googleCalendarEventId,
             requestBody: event,
           });
-          res.json({ status: "updated" });
+          console.log(`[Google API Response] Success (Update)`, JSON.stringify(apiResponse.data, null, 2));
+          res.json({ 
+            status: "updated", 
+            googleResponse: apiResponse.data,
+            sentEvent: event,
+            calendarIdUsed: calendarId
+          });
         } catch (error: any) {
           if (error.code === 404) {
              // If event not found, re-create it
+             console.log(`[Google API] Event ${appointment.googleCalendarEventId} not found, re-creating...`);
              const newEvent = await calendar.events.insert({
                 calendarId,
                 requestBody: event,
@@ -273,13 +286,26 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
               await firestore.collection("appointments").doc(appointmentId).update({
                 googleCalendarEventId: newEvent.data.id
               });
-              res.json({ status: "re-created", eventId: newEvent.data.id });
+              console.log(`[Google API Response] Success (Re-create)`, JSON.stringify(newEvent.data, null, 2));
+              res.json({ 
+                status: "re-created", 
+                eventId: newEvent.data.id, 
+                googleResponse: newEvent.data,
+                sentEvent: event,
+                calendarIdUsed: calendarId
+              });
           } else {
             throw error;
           }
         }
       } else {
         // Create new event
+        console.log(`[Google API Request] (Insert)`, {
+          calendarId,
+          summary: event.summary,
+          start: event.start.dateTime,
+          end: event.end.dateTime
+        });
         const newEvent = await calendar.events.insert({
           calendarId,
           requestBody: event,
@@ -287,12 +313,24 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
         await firestore.collection("appointments").doc(appointmentId).update({
           googleCalendarEventId: newEvent.data.id
         });
-        res.json({ status: "created", eventId: newEvent.data.id });
+        console.log(`[Google API Response] Success (Create)`, JSON.stringify(newEvent.data, null, 2));
+        res.json({ 
+          status: "created", 
+          eventId: newEvent.data.id, 
+          googleResponse: newEvent.data,
+          sentEvent: event,
+          calendarIdUsed: calendarId
+        });
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Calendar Sync Error:", error);
-      res.status(500).json({ error: "Failed to sync calendar" });
+      const errorMessage = error.response?.data?.error?.message || error.message || "Unknown calendar error";
+      res.status(500).json({ 
+        error: "Failed to sync calendar", 
+        details: errorMessage,
+        code: error.code || error.response?.status
+      });
     }
   });
 

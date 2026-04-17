@@ -5812,7 +5812,10 @@ export default function App() {
       
       const result = await response.json();
       if (!response.ok) {
-        console.error('[Calendar Sync] Failed:', result.error || 'Unknown error');
+        console.error('[Calendar Sync] Failed:', result.details || result.error || 'Unknown error');
+        if (result.code === 403 || result.code === 404) {
+          console.warn('[Calendar Sync] Hint: Check if the calendar is shared with the Service Account email and if the Calendar ID is correct.');
+        }
       } else {
         console.log('[Calendar Sync] Success:', result.status);
       }
