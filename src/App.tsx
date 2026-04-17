@@ -297,7 +297,7 @@ const splitName = (name: string) => {
   return { firstName: name, lastName: '' };
 };
 
-import { HYBRID_LOAN_PACKAGE, normalizeDocName, mergeUniqueDocuments, validateDocuments } from './lib/packageConfigs';
+import { HYBRID_LOAN_PACKAGE, REFINANCE_PACKAGE, normalizeDocName, mergeUniqueDocuments, validateDocuments } from './lib/packageConfigs';
 
 const formatDisplayName = (name: string) => {
   if (!name) return '';
@@ -4904,7 +4904,7 @@ const Appointments = ({
                 <>
                   <div className="fixed inset-0 z-[60]" onClick={() => setIsBulkDocsDropdownOpen(false)} />
                   <div className="absolute bottom-full md:bottom-auto md:top-full right-0 mt-2 w-64 bg-white text-slate-800 rounded-xl shadow-2xl z-[70] py-2 border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
-                    <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 mb-1">
+                    <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex flex-col gap-2 mb-1">
                       <button 
                         onClick={() => {
                           const allHybrid = HYBRID_LOAN_PACKAGE.canonicalDocs;
@@ -4914,7 +4914,18 @@ const Appointments = ({
                         }}
                         className="w-full bg-indigo-600 text-white rounded py-1.5 text-[10px] font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
                       >
-                        <PlusCircle className="w-3 h-3" /> Select Hybrid Loan Package Package
+                        <PlusCircle className="w-3 h-3" /> Select Hybrid Loan Package
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const allRefi = REFINANCE_PACKAGE.canonicalDocs;
+                          const current = new Set(selectedDocsForBulk);
+                          allRefi.forEach(d => current.add(d));
+                          setSelectedDocsForBulk(Array.from(current));
+                        }}
+                        className="w-full bg-slate-800 text-white rounded py-1.5 text-[10px] font-bold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <PlusCircle className="w-3 h-3" /> Select Refinance Package
                       </button>
                     </div>
                     <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 mb-1">
@@ -5030,10 +5041,14 @@ const Appointments = ({
                     await onBulkUpdateDocs(selectedIds, selectedDocsForBulk);
                     const isHybrid = selectedDocsForBulk.length === HYBRID_LOAN_PACKAGE.canonicalDocs.length && 
                       selectedDocsForBulk.every(d => HYBRID_LOAN_PACKAGE.canonicalDocs.includes(d));
+                    const isRefi = selectedDocsForBulk.length === REFINANCE_PACKAGE.canonicalDocs.length && 
+                      selectedDocsForBulk.every(d => REFINANCE_PACKAGE.canonicalDocs.includes(d));
                     
                     setBulkSuccessMessage(isHybrid 
                       ? `Hybrid Loan Package applied to ${selectedIds.length} selected entries` 
-                      : `Documents added to ${selectedIds.length} entries`
+                      : isRefi 
+                        ? `Refinance Package applied to ${selectedIds.length} selected entries`
+                        : `Documents added to ${selectedIds.length} entries`
                     );
                     setTimeout(() => setBulkSuccessMessage(null), 3000);
                     setIsSelectMode(false);

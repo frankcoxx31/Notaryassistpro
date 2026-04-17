@@ -58,7 +58,7 @@ const NewSigningModal = ({
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanSuccess, setScanSuccess] = useState(false);
-  const [hybridDocsLoaded, setHybridDocsLoaded] = useState(false);
+  const [packageLoadedMessage, setPackageLoadedMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatDateForInput = (dateStr: string) => {
@@ -281,8 +281,8 @@ Return only the JSON object, no additional text.`;
           ...prev,
           docs: newDocs
         }));
-        setHybridDocsLoaded(true);
-        setTimeout(() => setHybridDocsLoaded(false), 3000);
+        setPackageLoadedMessage(`${config.type} loaded: ${config.canonicalDocs.length} canonical documents added.`);
+        setTimeout(() => setPackageLoadedMessage(null), 3000);
       }
     }
   }, [formData.signingType, appointment]);
@@ -652,7 +652,7 @@ Return only the JSON object, no additional text.`;
                 </div>
               </motion.div>
             )}
-            {hybridDocsLoaded && (
+            {packageLoadedMessage && (
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -660,7 +660,7 @@ Return only the JSON object, no additional text.`;
                 className="bg-sky-50 border border-sky-100 rounded-lg p-3 flex items-center gap-3 text-sky-700 mb-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span className="text-xs font-bold">Hybrid Loan Package loaded: 9 canonical documents added.</span>
+                <span className="text-xs font-bold">{packageLoadedMessage}</span>
               </motion.div>
             )}
           </AnimatePresence>

@@ -61,8 +61,35 @@ export const HYBRID_LOAN_PACKAGE: PackageConfig = {
   ]
 };
 
+export const REFINANCE_PACKAGE: PackageConfig = {
+  type: 'Refinance',
+  canonicalDocs: [
+    'Closing Disclosure (CD)',
+    'Deed of Trust',
+    'Note',
+    'Right to Cancel (3-Day Rescission Notice)',
+    'Signature/Name Affidavit – Borrower',
+    'Errors and Omissions / Compliance Agreement',
+    'Specific Closing Instructions',
+    'First Payment Letter',
+    'W-9 Form'
+  ],
+  matchers: [
+    { label: 'Closing Disclosure (CD)', keywords: ['closing disclosure', 'cd'] },
+    { label: 'Deed of Trust', keywords: ['deed of trust', 'mortgage', 'security instrument'] },
+    { label: 'Note', keywords: ['note', 'promissory note', 'the note'] },
+    { label: 'Right to Cancel (3-Day Rescission Notice)', keywords: ['right to cancel', 'rescission notice', '3-day', 'notice of right to cancel'] },
+    { label: 'Signature/Name Affidavit – Borrower', keywords: ['signature/name affidavit', 'name affidavit', 'signature affidavit'] },
+    { label: 'Errors and Omissions / Compliance Agreement', keywords: ['errors and omissions', 'compliance agreement', 'e&o'] },
+    { label: 'Specific Closing Instructions', keywords: ['closing instructions', 'specific closing'] },
+    { label: 'First Payment Letter', keywords: ['first payment letter', 'payment letter'] },
+    { label: 'W-9 Form', keywords: ['w-9', 'w9', 'taxpayer identification'] }
+  ]
+};
+
 export const PACKAGE_CONFIGS: Record<string, PackageConfig> = {
-  [HYBRID_LOAN_PACKAGE.type]: HYBRID_LOAN_PACKAGE
+  [HYBRID_LOAN_PACKAGE.type]: HYBRID_LOAN_PACKAGE,
+  [REFINANCE_PACKAGE.type]: REFINANCE_PACKAGE
 };
 
 /**
