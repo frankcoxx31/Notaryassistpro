@@ -266,6 +266,7 @@ const sanitizeData = (data: any): any => {
 };
 
 const parseLocation = (loc: string) => {
+  if (!loc) return { address: '', city: '', state: '', zip: '' };
   const parts = loc.split(',').map(p => p.trim());
   let address = '', city = '', state = '', zip = '';
   
@@ -3202,7 +3203,7 @@ const Dashboard = ({
                   <div className="flex flex-wrap gap-6 text-slate-500">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-teal-500" />
-                      <span className="text-sm font-medium">{nextSigning.city || nextSigning.location.split(',')[1]?.trim() || 'TBD'}</span>
+                      <span className="text-sm font-medium">{nextSigning.city || nextSigning.location?.split(',')[1]?.trim() || 'TBD'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Briefcase className="w-4 h-4 text-teal-500" />
@@ -3350,7 +3351,7 @@ const Dashboard = ({
                         className="w-full text-left bg-white border border-slate-200 p-4 rounded-2xl hover:border-slate-300 transition-all group shadow-sm"
                       >
                         <div className="flex justify-between items-start mb-2">
-                          <p className="text-sm font-bold text-slate-900 truncate max-w-[100px]">{formatDisplayName(item.clientName.split(' ').pop() || '')}</p>
+                          <p className="text-sm font-bold text-slate-900 truncate max-w-[100px]">{formatDisplayName(item.clientName?.split(' ').pop() || '')}</p>
                           <span className="text-[10px] font-black text-teal-600">${Number(item.fee).toFixed(0)}</span>
                         </div>
                         <p className="text-[10px] text-slate-500 font-medium truncate mb-3">
@@ -3534,14 +3535,20 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
     const dateStr = format(date, 'yyyy-MM-dd');
     return appointments
       .filter(app => {
+        if (!app?.date) return false;
         const appDate = parseSafeDateTime(app.date);
         return format(appDate, 'yyyy-MM-dd') === dateStr;
       })
-      .map(app => ({
-        time: app.time.split(' ')[0].toLowerCase() + (app.time.includes('PM') ? 'p' : 'a'),
-        name: `${formatDisplayName(app.clientName.split(' ').pop() || app.clientName)} (${app.location.split(',')[1]?.trim() || app.location})`,
-        appointment: app
-      }));
+      .map(app => {
+        const cName = app?.clientName || app?.customerName || 'Unknown Client';
+        const loc = app?.location || app?.address || 'Unknown Location';
+        const tStr = app?.time || '12:00 AM';
+        return {
+          time: tStr.split(' ')[0].toLowerCase() + (tStr.includes('PM') ? 'p' : 'a'),
+          name: `${formatDisplayName(cName.split(' ').pop() || cName)} (${loc.split(',')[1]?.trim() || loc})`,
+          appointment: app
+        };
+      });
   };
 
   const renderMonthView = () => {
@@ -5171,7 +5178,7 @@ const Appointments = ({
                       </td>
                     )}
                     <td className="px-3 py-3">
-                      <div className="text-xs font-medium text-slate-600">{app.city || app.location.split(',')[1]?.trim() || 'TBD'}</div>
+                      <div className="text-xs font-medium text-slate-600">{app.city || app.location?.split(',')[1]?.trim() || 'TBD'}</div>
                     </td>
                     <td className="px-3 py-3">
                       <div className="text-sm font-bold text-[#111827]">${(Number(app.agreedFee) || Number(app.fee) || 0).toFixed(2)}</div>
