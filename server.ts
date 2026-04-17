@@ -13,22 +13,6 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize Firebase Admin using default credentials (available in Cloud Environment)
-// or using project ID from config
-const firebaseConfig = JSON.parse(fs.readFileSync(path.join(__dirname, "firebase-applet-config.json"), "utf8"));
-if (!admin.apps.length) {
-  admin.initializeApp({
-    projectId: firebaseConfig.projectId,
-  });
-}
-const firestore = admin.firestore(firebaseConfig.firestoreDatabaseId);
-
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
-);
-
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
 });
@@ -38,16 +22,54 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 async function startServer() {
+  console.log("Starting server process...");
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+
+  // Initialize Firebase and Google OAuth inside startServer to avoid top-level crashes
+  let firestore: any;
+  let oauth2Client: any;
+
+  try {
+    const rootDir = process.cwd();
+    const configPath = path.join(rootDir, "firebase-applet-config.json");
+    if (fs.existsSync(configPath)) {
+      console.log("Loading Firebase config from:", configPath);
+      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      if (!admin.apps.length) {
+        admin.initializeApp({
+          projectId: firebaseConfig.projectId,
+        });
+        console.log("Firebase Admin initialized for project:", firebaseConfig.projectId);
+      }
+      firestore = admin.firestore(firebaseConfig.firestoreDatabaseId);
+    } else {
+      console.warn("firebase-applet-config.json not found");
+    }
+
+    console.log("Setting up Google OAuth client...");
+    oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+  } catch (error) {
+    console.error("Initialization error:", error);
+  }
 
   app.use(compression());
   app.use(express.json());
   app.use(cookieParser());
 
-  // API routes
+  // Health check should be very robust
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+    console.log("Health check request received");
+    res.json({ 
+      status: "ok", 
+      time: new Date().toISOString(),
+      firebaseInit: !!firestore,
+      googleInit: !!oauth2Client
+    });
   });
 
   // --- Google Calendar OAuth ---
@@ -227,11 +249,12 @@ Phone: ${appointment?.phone || ''}
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, 'dist');
+    const rootDir = process.cwd();
+    const distPath = path.join(rootDir, 'dist');
     
     // Check if dist folder exists
     if (!fs.existsSync(distPath)) {
-      console.error(`ERROR: 'dist' folder not found at ${distPath}. Build might have failed.`);
+      console.error(`ERROR: 'dist' folder not found at ${distPath}.`);
     }
 
     app.use(express.static(distPath));
@@ -239,7 +262,8 @@ Phone: ${appointment?.phone || ''}
       const indexPath = path.join(distPath, 'index.html');
       res.sendFile(indexPath, (err) => {
         if (err) {
-          res.status(503).send("Application is still building or dist/index.html is missing. Please try again in a moment.");
+          console.error("Error sending index.html:", err);
+          res.status(503).send(`Application Error: index.html not found. Path: ${indexPath}`);
         }
       });
     });
