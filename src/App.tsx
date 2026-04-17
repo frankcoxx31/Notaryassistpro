@@ -5816,19 +5816,26 @@ export default function App() {
     }
 
     try {
+      console.log('Attempting to save appointment to Firestore:', { id: app.id, path: `appointments/${app.id}` });
       const isNew = !appointments.some(a => a.id === app.id);
       const appData = sanitizeData({ 
         ...app, 
         userId: user.uid,
         sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
       });
-      await setDoc(doc(db, 'appointments', app.id), appData);
+      
+      console.log('Sanitized Appointment Data Payload:', JSON.stringify(appData, null, 2));
+      
+      const docRef = doc(db, 'appointments', app.id);
+      await setDoc(docRef, appData);
+      console.log('Successfully saved appointment to Firestore. Response: OK');
 
       // Auto-sync if configured (or just always if connected)
       if (businessProfile?.googleCalendarConnected) {
         syncToGoogleCalendar(app.id, isNew ? 'create' : 'update');
       }
     } catch (error) {
+      console.error('Failed to save appointment:', error);
       handleFirestoreError(error, OperationType.WRITE, `appointments/${app.id}`);
     }
   };
@@ -5841,9 +5848,15 @@ export default function App() {
     }
 
     try {
+      console.log('Attempting to save expense to Firestore:', { id: expense.id, path: `expenses/${expense.id}` });
       const expenseData = sanitizeData({ ...expense, userId: user.uid });
-      await setDoc(doc(db, 'expenses', expense.id), expenseData);
+      console.log('Sanitized Expense Data Payload:', JSON.stringify(expenseData, null, 2));
+      
+      const docRef = doc(db, 'expenses', expense.id);
+      await setDoc(docRef, expenseData);
+      console.log('Successfully saved expense. Response: OK');
     } catch (error) {
+      console.error('Failed to save expense:', error);
       handleFirestoreError(error, OperationType.WRITE, `expenses/${expense.id}`);
     }
   };
@@ -6232,11 +6245,18 @@ export default function App() {
             }} 
             appointment={selectedAppointment}
             initialTab={modalInitialTab}
-            onSave={(app) => {
-              handleSaveAppointment(app);
-              setIsNewSigningModalOpen(false);
-              setSelectedAppointment(null);
-              setModalInitialTab('Signer(s)');
+            onSave={async (app) => {
+              try {
+                await handleSaveAppointment(app);
+                setIsNewSigningModalOpen(false);
+                setSelectedAppointment(null);
+                setModalInitialTab('Signer(s)');
+              } catch (error) {
+                console.error('Caught error in NewSigningModal onSave:', error);
+                // The error is re-thrown by handleSaveAppointment -> handleFirestoreError
+                // We re-throw it so the modal can catch it internally if we change the Prop type
+                throw error;
+              }
             }}
             userId={user?.uid || 'mock-user'}
             customers={customers}
@@ -6250,9 +6270,14 @@ export default function App() {
           <NewExpenseModal 
             isOpen={isNewExpenseModalOpen} 
             onClose={() => setIsNewExpenseModalOpen(false)} 
-            onSave={(expense) => {
-              handleSaveExpense(expense);
-              setIsNewExpenseModalOpen(false);
+            onSave={async (expense) => {
+              try {
+                await handleSaveExpense(expense);
+                setIsNewExpenseModalOpen(false);
+              } catch (error) {
+                console.error('Caught error in NewExpenseModal onSave:', error);
+                throw error;
+              }
             }}
             userId={user?.uid || 'mock-user'}
           />

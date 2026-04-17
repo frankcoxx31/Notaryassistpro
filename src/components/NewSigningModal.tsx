@@ -20,7 +20,7 @@ interface NewSigningModalProps {
   isOpen: boolean;
   onClose: () => void;
   appointment?: Appointment | null;
-  onSave: (app: Appointment) => void;
+  onSave: (app: Appointment) => Promise<void> | void;
   initialTab?: string;
   userId: string;
   customers: Customer[];
@@ -51,6 +51,8 @@ const NewSigningModal = ({
   const [editingSignerId, setEditingSignerId] = useState<string | null>(null);
   const [isCustomType, setIsCustomType] = useState(false);
   const [customType, setCustomType] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   
   // Scanner state
   const [isScanning, setIsScanning] = useState(false);
@@ -524,7 +526,7 @@ Return only the JSON object, no additional text.`;
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const computedCustomerName = updateSignerSummary(formData.signers || []) || formData.customerName || "";
     
     if (formData.id && formData.date && formData.time && computedCustomerName && formData.signingType && formData.location && formData.fee !== undefined && formData.status) {
@@ -534,18 +536,39 @@ Return only the JSON object, no additional text.`;
         return;
       }
       
-      // Ensure fee and agreedFee are in sync and documents are validated
-      const finalDocs = validateDocuments(formData.docs || []);
-      const finalData = { 
-        ...formData, 
-        customerName: computedCustomerName,
-        fee: formData.agreedFee || formData.fee || 0,
-        agreedFee: formData.agreedFee || formData.fee || 0,
-        docs: finalDocs
-      };
+      setSaveError(null);
+      setIsSaving(true);
       
-      onSave(finalData as Appointment);
-      onClose();
+      try {
+        // Ensure fee and agreedFee are in sync and documents are validated
+        const finalDocs = validateDocuments(formData.docs || []);
+        const finalData = { 
+          ...formData, 
+          customerName: computedCustomerName,
+          fee: formData.agreedFee || formData.fee || 0,
+          agreedFee: formData.agreedFee || formData.fee || 0,
+          docs: finalDocs
+        };
+        
+        await onSave(finalData as Appointment);
+        // onClose is called by the parent if onSave succeeds
+      } catch (error: any) {
+        console.error("Save failed in NewSigningModal:", error);
+        let msg = "Failed to save signing. Please check your connection and try again.";
+        try {
+          // Attempt to parse FirestoreErrorInfo
+          const parsed = JSON.parse(error.message);
+          if (parsed.error) msg = `Error: ${parsed.error}`;
+        } catch (e) {
+          if (error.message) msg = error.message;
+        }
+        setSaveError(msg);
+      } finally {
+        setIsSaving(false);
+      }
+    } else {
+      // Basic validation feedback
+      setSaveError("Please fill in all required fields (Date, Time, Customer, Type, Location, Amount, and Documents).");
     }
   };
 
@@ -615,6 +638,20 @@ Return only the JSON object, no additional text.`;
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
           <AnimatePresence>
+            {saveError && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="bg-red-50 border border-red-100 rounded-lg p-3 flex items-start gap-3 text-red-700 mb-2"
+              >
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-bold">Save Error</p>
+                  <p>{saveError}</p>
+                </div>
+              </motion.div>
+            )}
             {hybridDocsLoaded && (
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
@@ -1786,9 +1823,18 @@ Return only the JSON object, no additional text.`;
           <div className="flex gap-2">
             <button 
               onClick={handleSave}
-              className="bg-sky-400 hover:bg-sky-500 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2"
+              disabled={isSaving}
+              className={cn(
+                "bg-sky-400 hover:bg-sky-500 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2",
+                isSaving && "opacity-70 cursor-not-allowed"
+              )}
             >
-              Save
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : 'Save'}
             </button>
             <button onClick={onClose} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-6 py-2 rounded text-sm font-medium shadow-sm transition-colors">
               Close
