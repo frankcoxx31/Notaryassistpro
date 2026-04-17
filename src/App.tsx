@@ -1835,7 +1835,8 @@ const SettingsView = ({
   onImport, 
   userId,
   isDemoMode,
-  onResetDemo
+  onResetDemo,
+  businessProfile
 }: { 
   onEditProfile: () => void, 
   user: FirebaseUser | null, 
@@ -1843,9 +1844,29 @@ const SettingsView = ({
   onImport: (appointments: Appointment[]) => void, 
   userId: string,
   isDemoMode: boolean,
-  onResetDemo: () => void
+  onResetDemo: () => void,
+  businessProfile: BusinessProfile | null
 }) => {
   const [isImporting, setIsImporting] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnectGoogle = () => {
+    if (!user) {
+      alert("Please sign in first");
+      return;
+    }
+    const width = 600;
+    const height = 700;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    
+    setIsConnecting(true);
+    window.open(
+      `/api/auth/google?uid=${user.uid}`,
+      "GoogleCalendarAuth",
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+  };
 
   const handleFileImport = (type: 'pdf' | 'csv') => {
     const input = document.createElement('input');
@@ -2060,6 +2081,51 @@ const SettingsView = ({
           >
             Edit Profile
           </button>
+        </div>
+
+        {/* Google Calendar Integration */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-blue-600" />
+            </div>
+            <h3 className="font-bold text-slate-900 text-lg">Integrations</h3>
+          </div>
+          <p className="text-sm text-slate-500">Sync your signing appointments with your Google Calendar.</p>
+          
+          <button 
+            onClick={handleConnectGoogle}
+            disabled={isConnecting}
+            className={cn(
+              "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
+              businessProfile?.googleCalendarConnected 
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-100 cursor-default" 
+                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
+            )}
+          >
+            {businessProfile?.googleCalendarConnected ? (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                Google Calendar Connected
+              </>
+            ) : isConnecting ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 text-amber-500" />
+                Connect Google Calendar
+              </>
+            )}
+          </button>
+          
+          {businessProfile?.googleCalendarConnected && (
+            <p className="text-[10px] text-emerald-600 font-medium text-center">
+              Your appointments will automatically sync with Google Calendar.
+            </p>
+          )}
         </div>
 
         {/* Demo Mode Settings */}
@@ -5480,6 +5546,17 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Google Calendar OAuth Message Listener
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GOOGLE_AUTH_SUCCESS') {
+        console.log("Google Calendar authorization successful!");
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   // Firestore listeners
   useEffect(() => {
     if (!isAuthReady) return;
@@ -5669,6 +5746,29 @@ export default function App() {
     }
   };
 
+  const syncToGoogleCalendar = async (appointmentId: string, action: 'create' | 'update' | 'delete', eventId?: string) => {
+    if (!user || isDemoUser) return;
+    
+    try {
+      const response = await fetch('/api/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointmentId,
+          uid: user.uid,
+          action,
+          eventId
+        })
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to sync with Google Calendar');
+      }
+    } catch (error) {
+      console.error('Error syncing with Google Calendar:', error);
+    }
+  };
+
   const handleSaveAppointment = async (app: Appointment) => {
     if (isDemoUser || !user) {
       demoStorage.saveAppointment(app);
@@ -5677,12 +5777,18 @@ export default function App() {
     }
 
     try {
+      const isNew = !appointments.some(a => a.id === app.id);
       const appData = sanitizeData({ 
         ...app, 
         userId: user.uid,
         sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
       });
       await setDoc(doc(db, 'appointments', app.id), appData);
+
+      // Auto-sync if configured (or just always if connected)
+      if (businessProfile?.googleCalendarConnected) {
+        syncToGoogleCalendar(app.id, isNew ? 'create' : 'update');
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `appointments/${app.id}`);
     }
@@ -5829,6 +5935,10 @@ export default function App() {
     try {
       const batch = writeBatch(db);
       ids.forEach(id => {
+        const app = appointments.find(a => a.id === id);
+        if (app?.googleCalendarEventId && businessProfile?.googleCalendarConnected) {
+          syncToGoogleCalendar(id, 'delete', app.googleCalendarEventId);
+        }
         batch.delete(doc(db, 'appointments', id));
       });
       await batch.commit();
@@ -6061,6 +6171,7 @@ export default function App() {
                 userId={user?.uid || 'mock-user'} 
                 isDemoMode={isDemoUser}
                 onResetDemo={handleResetDemo}
+                businessProfile={businessProfile}
               />
             } />
           </Routes>

@@ -87,6 +87,8 @@ export interface Appointment {
   profitMarginPercent?: number;
   roundTripMiles?: boolean;
   scanbackStatus?: ScanbackStatus;
+  googleSyncEnabled?: boolean;
+  googleCalendarEventId?: string;
 }
 
 export interface SigningCompany {
@@ -182,6 +184,7 @@ export interface BusinessProfile {
   state?: string;
   commissionNumber: string;
   commissionExpiration: string;
+  googleCalendarConnected?: boolean;
 }
 
 export interface DashboardStats {
