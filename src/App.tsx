@@ -1860,7 +1860,11 @@ const SettingsView = ({
 }) => {
   const [isImporting, setIsImporting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [serverStatus, setServerStatus] = useState<{ serviceAccountInit: boolean; googleInit: boolean } | null>(null);
+  const [serverStatus, setServerStatus] = useState<{ 
+    serviceAccountInit: boolean; 
+    googleInit: boolean;
+    serviceAccountEmail: string | null;
+  } | null>(null);
 
   useEffect(() => {
     fetch('/api/health')
@@ -2119,8 +2123,13 @@ const SettingsView = ({
                 <span className="text-sm font-semibold">Service Account Configured</span>
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Server-to-server sync is active. <strong>Important:</strong> You must share your Google Calendar with the service account email provided by your administrator as an "Editor" for this to work.
+                Server-to-server sync is active. <strong>Important:</strong> You must share your Google Calendar with the service account email below as an "Editor" for this to work:
               </p>
+              {serverStatus.serviceAccountEmail && (
+                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg select-all">
+                  <code className="text-[10px] text-indigo-600 font-mono break-all">{serverStatus.serviceAccountEmail}</code>
+                </div>
+              )}
               <button 
                 onClick={onEditProfile}
                 className="w-full py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
@@ -5830,10 +5839,10 @@ export default function App() {
       await setDoc(docRef, appData);
       console.log('Successfully saved appointment to Firestore. Response: OK');
 
-      // Auto-sync if configured (or just always if connected)
-      if (businessProfile?.googleCalendarConnected) {
-        syncToGoogleCalendar(app.id, isNew ? 'create' : 'update');
-      }
+      // Attempt sync - standard OAuth or Service Account
+      // We call it even if not explicitly enabled in profile, as the backend will check
+      // for Service Account fallback automatically.
+      syncToGoogleCalendar(app.id, isNew ? 'create' : 'update');
     } catch (error) {
       console.error('Failed to save appointment:', error);
       handleFirestoreError(error, OperationType.WRITE, `appointments/${app.id}`);

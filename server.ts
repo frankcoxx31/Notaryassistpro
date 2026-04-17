@@ -95,7 +95,8 @@ async function startServer() {
       time: new Date().toISOString(),
       firebaseInit: !!firestore,
       googleInit: !!oauth2Client,
-      serviceAccountInit: !!serviceAccountAuth
+      serviceAccountInit: !!serviceAccountAuth,
+      serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null
     });
   });
 
@@ -231,14 +232,16 @@ async function startServer() {
       }
 
       const event = {
-        summary: `${appointment?.signingType}: ${appointment?.clientName || appointment?.customerName}`,
-        location: appointment?.location || appointment?.address,
+        summary: `${appointment?.signingType || 'Signing'}: ${appointment?.customerName || appointment?.clientName || 'Unknown Client'}`,
+        location: appointment?.location || appointment?.address || 'TBD',
         description: `
-Client: ${appointment?.clientName}
-Type: ${appointment?.signingType}
+Client: ${appointment?.customerName || appointment?.clientName || 'N/A'}
+Type: ${appointment?.signingType || 'N/A'}
 Documents: ${(appointment?.docs || []).join(', ')}
 Notes: ${appointment?.notes || ''}
 Phone: ${appointment?.phone || ''}
+Order #: ${appointment?.orderNumber || ''}
+Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
       `.trim(),
         start: {
           dateTime: new Date(`${appointment?.date}T${convertTo24(appointment?.time)}:00`).toISOString(),
