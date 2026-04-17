@@ -244,12 +244,15 @@ Order #: ${appointment?.orderNumber || ''}
 Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
       `.trim(),
         start: {
-          dateTime: new Date(`${appointment?.date}T${convertTo24(appointment?.time)}:00`).toISOString(),
+          dateTime: parseSafeDate(appointment?.date, appointment?.time).toISOString(),
         },
         end: {
-          dateTime: new Date(new Date(`${appointment?.date}T${convertTo24(appointment?.time)}:00`).getTime() + 60 * 60 * 1000).toISOString(),
+          dateTime: new Date(parseSafeDate(appointment?.date, appointment?.time).getTime() + 60 * 60 * 1000).toISOString(),
         },
       };
+
+      console.log(`[Calendar Sync] Syncing to Calendar ID: ${calendarId}`);
+      console.log(`[Calendar Sync] Event Data:`, JSON.stringify(event, null, 2));
 
       if (appointment?.googleCalendarEventId) {
         // Update existing event
@@ -294,11 +297,61 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
   });
 
   function convertTo24(time12h: string = '10:00 AM') {
-    const [time, modifier] = time12h.split(' ');
+    if (!time12h) return "10:00";
+    
+    // Normalize string: ensure space before AM/PM
+    const normalized = time12h.replace(/([0-9])([AP]M)/i, '$1 $2').trim();
+    const [time, modifier] = normalized.split(' ');
+    
     let [hours, minutes] = time.split(':');
-    if (hours === '12') hours = '00';
-    if (modifier === 'PM') hours = String(parseInt(hours, 10) + 12);
-    return `${hours.padStart(2, '0')}:${minutes}`;
+    if (!hours) hours = '10';
+    if (!minutes) minutes = '00';
+    
+    if (hours === '12') {
+      hours = (modifier === 'AM' || !modifier) ? '00' : '12';
+    } else if (modifier === 'PM') {
+      hours = String(parseInt(hours, 10) + 12);
+    }
+    
+    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+  }
+
+  function parseSafeDate(dateStr: string = '', timeStr: string = ''): Date {
+    try {
+      if (!dateStr) return new Date();
+      
+      let year = 0, month = 0, day = 0;
+      
+      // Handle YYYY-MM-DD
+      if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+          year = parseInt(parts[0], 10);
+          month = parseInt(parts[1], 10) - 1;
+          day = parseInt(parts[2], 10);
+        }
+      } 
+      // Handle M/D/YYYY or MM/DD/YYYY
+      else if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          month = parseInt(parts[0], 10) - 1;
+          day = parseInt(parts[1], 10);
+          year = parseInt(parts[2], 10);
+          if (year < 100) year += 2000;
+        }
+      }
+
+      const time24 = convertTo24(timeStr);
+      const [h, m] = time24.split(':');
+      
+      const date = new Date(year, month, day, parseInt(h, 10), parseInt(m, 10));
+      if (isNaN(date.getTime())) throw new Error("Invalid date components");
+      return date;
+    } catch (e) {
+      console.error("Error parsing date in server:", dateStr, timeStr, e);
+      return new Date();
+    }
   }
 
   if (process.env.NODE_ENV !== "production") {

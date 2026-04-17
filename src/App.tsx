@@ -5797,6 +5797,7 @@ export default function App() {
   const syncToGoogleCalendar = async (appointmentId: string, action: 'create' | 'update' | 'delete', eventId?: string) => {
     if (!user || isDemoUser) return;
     
+    console.log(`[Calendar Sync] Requesting ${action} for ID: ${appointmentId}`);
     try {
       const response = await fetch('/api/calendar/sync', {
         method: 'POST',
@@ -5809,11 +5810,14 @@ export default function App() {
         })
       });
       
+      const result = await response.json();
       if (!response.ok) {
-        console.error('Failed to sync with Google Calendar');
+        console.error('[Calendar Sync] Failed:', result.error || 'Unknown error');
+      } else {
+        console.log('[Calendar Sync] Success:', result.status);
       }
     } catch (error) {
-      console.error('Error syncing with Google Calendar:', error);
+      console.error('[Calendar Sync] Network Error:', error);
     }
   };
 
