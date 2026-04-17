@@ -56,6 +56,7 @@ async function startServer() {
         const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
         if (!admin.apps.length) {
           admin.initializeApp({
+            credential: admin.credential.applicationDefault(),
             projectId: firebaseConfig.projectId,
           });
           console.log("Firebase Admin initialized for project:", firebaseConfig.projectId);
@@ -136,21 +137,12 @@ async function startServer() {
     try {
       const { tokens } = await oauth2Client.getToken(code as string);
       
-      // Store tokens in Firestore - using 'profiles' to match the app's collection
-      if (firestore) {
-        await firestore.collection("profiles").doc(uid as string).update({
-          googleCalendarTokens: tokens,
-          googleCalendarConnected: true,
-          updatedAt: new Date().toISOString()
-        });
-      }
-
-      // Redirect back to the app settings or dashboard
+      // Pass tokens directly to frontend - frontend will save it
       res.send(`
         <html>
           <body>
             <script>
-              window.opener.postMessage({ type: 'GOOGLE_AUTH_SUCCESS' }, window.location.origin);
+              window.opener.postMessage({ type: 'GOOGLE_AUTH_SUCCESS', tokens: ${JSON.stringify(tokens)} }, window.location.origin);
               window.close();
             </script>
             <p>Authentication successful! You can close this window.</p>
@@ -163,23 +155,60 @@ async function startServer() {
     }
   });
 
-  app.post("/api/calendar/sync", async (req, res) => {
-    const { appointmentId, uid, action } = req.body;
-    if (!appointmentId || !uid) return res.status(400).json({ error: "Missing fields" });
-
-    if (!firestore) {
-      return res.status(503).json({ error: "Database not initialized" });
+  function getGoogleCalendarDateTime(dateStr: string = '', timeStr: string = '') {
+    if (!dateStr) return { start: new Date().toISOString(), end: new Date(Date.now() + 60 * 60 * 1000).toISOString() };
+    
+    let year = new Date().getFullYear(), month = new Date().getMonth() + 1, day = new Date().getDate();
+    
+    // Handle YYYY-MM-DD
+    if (dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        year = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10);
+        day = parseInt(parts[2], 10);
+      }
+    } 
+    // Handle M/D/YYYY or MM/DD/YYYY
+    else if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        month = parseInt(parts[0], 10);
+        day = parseInt(parts[1], 10);
+        year = parseInt(parts[2], 10);
+        if (year < 100) year += 2000;
+      }
     }
 
-    try {
-      // 1. Get user configuration from 'profiles'
-      const userDoc = await firestore.collection("profiles").doc(uid).get();
-      if (!userDoc.exists) return res.status(404).json({ error: "User profile not found" });
-      const userData = userDoc.data();
+    const time24 = convertTo24(timeStr);
+    const [hStr, mStr] = time24.split(':');
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
 
+    // Format like "2026-04-18T10:00:00" without the strict 'Z' offset.
+    // By providing this format combined with timeZone, Google infers local time correctly.
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const startStr = `${year}-${pad(month)}-${pad(day)}T${pad(h)}:${pad(m)}:00`;
+    
+    // Add 1 hour for end time
+    let endH = h + 1;
+    let endDay = day;
+    // VERY simple overflow for 24h, you might need a heavier library if you want to perfectly roll over months/years
+    if (endH >= 24) { endH -= 24; endDay += 1; }
+    
+    const endStr = `${year}-${pad(month)}-${pad(endDay)}T${pad(endH)}:${pad(m)}:00`;
+    
+    return { start: startStr, end: endStr };
+  }
+
+  app.post("/api/calendar/sync", async (req, res) => {
+    const { appointmentId, uid, action, appointmentData, googleCalendarTokens } = req.body;
+    if (!appointmentId || !uid || !appointmentData) return res.status(400).json({ error: "Missing fields" });
+
+    try {
       // Determine Auth Method & Calendar ID
       let auth: any;
-      let calendarId = userData?.googleCalendarId || process.env.GOOGLE_CALENDAR_ID || "primary";
+      let calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
 
       if (serviceAccountAuth) {
         console.log("Using Service Account auth for sync...");
@@ -191,7 +220,7 @@ async function startServer() {
           return res.status(503).json({ error: "Google OAuth credentials missing" });
         }
         
-        const tokens = userData?.googleCalendarTokens;
+        const tokens = googleCalendarTokens;
         if (!tokens) return res.status(401).json({ error: "Google Calendar not connected" });
 
         const oauth2 = new google.auth.OAuth2(
@@ -201,23 +230,19 @@ async function startServer() {
         );
         oauth2.setCredentials(tokens);
 
-        oauth2.on("tokens", async (newTokens) => {
-          await firestore.collection("profiles").doc(uid).update({
-            googleCalendarTokens: { ...tokens, ...newTokens }
-          });
+        // We can't save to firestore securely here; if refresh needed, we'll return the new tokens to client
+        let newTokensData: any = null;
+        oauth2.on("tokens", (newTokens) => {
+          newTokensData = { ...tokens, ...newTokens };
         });
         auth = oauth2;
       }
 
-      // 2. Get appointment data
-      const appDoc = await firestore.collection("appointments").doc(appointmentId).get();
-      if (!appDoc.exists && action !== 'delete') return res.status(404).json({ error: "Appointment not found" });
-      const appointment = appDoc.data();
-
+      const appointment = appointmentData;
       const calendar = google.calendar({ version: "v3", auth });
 
       if (action === 'delete') {
-        const eventId = req.body.eventId;
+        const eventId = req.body.eventId || appointment?.googleCalendarEventId;
         if (eventId) {
           try {
             await calendar.events.delete({
@@ -230,6 +255,8 @@ async function startServer() {
         }
         return res.json({ status: "deleted" });
       }
+
+      const { start: startDateTime, end: endDateTime } = getGoogleCalendarDateTime(appointment?.date, appointment?.time);
 
       const event = {
         summary: `${appointment?.signingType || 'Signing'}: ${appointment?.customerName || appointment?.clientName || 'Unknown Client'}`,
@@ -244,10 +271,12 @@ Order #: ${appointment?.orderNumber || ''}
 Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
       `.trim(),
         start: {
-          dateTime: parseSafeDate(appointment?.date, appointment?.time).toISOString(),
+          dateTime: startDateTime,
+          timeZone: "America/New_York",
         },
         end: {
-          dateTime: new Date(parseSafeDate(appointment?.date, appointment?.time).getTime() + 60 * 60 * 1000).toISOString(),
+          dateTime: endDateTime,
+          timeZone: "America/New_York",
         },
       };
 
@@ -283,9 +312,6 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
                 calendarId,
                 requestBody: event,
               });
-              await firestore.collection("appointments").doc(appointmentId).update({
-                googleCalendarEventId: newEvent.data.id
-              });
               console.log(`[Google API Response] Success (Re-create)`, JSON.stringify(newEvent.data, null, 2));
               res.json({ 
                 status: "re-created", 
@@ -309,9 +335,6 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
         const newEvent = await calendar.events.insert({
           calendarId,
           requestBody: event,
-        });
-        await firestore.collection("appointments").doc(appointmentId).update({
-          googleCalendarEventId: newEvent.data.id
         });
         console.log(`[Google API Response] Success (Create)`, JSON.stringify(newEvent.data, null, 2));
         res.json({ 

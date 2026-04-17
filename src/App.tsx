@@ -312,6 +312,73 @@ const formatDisplayName = (name: string) => {
   }).join('');
 };
 
+const parseTextWithAI = async (text: string): Promise<Partial<Appointment>> => {
+  const apiKey = import.meta.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets.");
+  }
+  const ai = new GoogleGenAI({ apiKey });
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `Extract appointment details from the following raw text (email, SMS, or notes).
+            Return ONLY a valid JSON object matching this schema. Do not return markdown blocks or any other text.
+            If City/State/Zip are missing from the address, format the address for the Charlotte/Mint Hill, NC area.
+            
+            Fields to extract/infer:
+            - date: Date of the signing (e.g., "YYYY-MM-DD" format if possible)
+            - time: Time (e.g., "2:00 PM")
+            - clientName: The full name of the signer
+            - address: The street address
+            - city: The city (default: Charlotte)
+            - state: The state (default: NC)
+            - zip: 5-digit zip code (if available)
+            - location: The full combined address string (street, city, state, zip)
+            - fee: Numeric fee if mentioned (default: 0)
+            - signingType: Type of signing (e.g., "Loan Signing", "Refinance", "General Notary Work")
+            - notes: Any special instructions or hints found in the text.
+            
+            Text to process:
+            """
+            ${text}
+            """`
+          }
+        ]
+      }
+    ],
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          date: { type: Type.STRING },
+          time: { type: Type.STRING },
+          clientName: { type: Type.STRING },
+          address: { type: Type.STRING },
+          city: { type: Type.STRING },
+          state: { type: Type.STRING },
+          zip: { type: Type.STRING },
+          location: { type: Type.STRING },
+          fee: { type: Type.NUMBER },
+          signingType: { type: Type.STRING },
+          notes: { type: Type.STRING }
+        }
+      }
+    }
+  });
+
+  const parsed = JSON.parse(response.text || '{}');
+  return {
+    ...parsed,
+    status: 'Scheduled'
+  };
+};
+
 const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]> => {
   const apiKey = import.meta.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -1860,37 +1927,6 @@ const SettingsView = ({
   businessProfile: BusinessProfile | null
 }) => {
   const [isImporting, setIsImporting] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [serverStatus, setServerStatus] = useState<{ 
-    serviceAccountInit: boolean; 
-    googleInit: boolean;
-    serviceAccountEmail: string | null;
-  } | null>(null);
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then(res => res.json())
-      .then(data => setServerStatus(data))
-      .catch(() => {});
-  }, []);
-
-  const handleConnectGoogle = () => {
-    if (!user) {
-      alert("Please sign in first");
-      return;
-    }
-    const width = 600;
-    const height = 700;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-    
-    setIsConnecting(true);
-    window.open(
-      `/api/auth/google?uid=${user.uid}`,
-      "GoogleCalendarAuth",
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-  };
 
   const handleFileImport = (type: 'pdf' | 'csv') => {
     const input = document.createElement('input');
@@ -2105,76 +2141,6 @@ const SettingsView = ({
           >
             Edit Profile
           </button>
-        </div>
-
-        {/* Google Calendar Integration */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-blue-600" />
-            </div>
-            <h3 className="font-bold text-slate-900 text-lg">Integrations</h3>
-          </div>
-          <p className="text-sm text-slate-500">Sync your signing appointments with your Google Calendar.</p>
-          
-          {serverStatus?.serviceAccountInit ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 p-3 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100">
-                <CheckCircle2 className="w-4 h-4" />
-                <span className="text-sm font-semibold">Service Account Configured</span>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Server-to-server sync is active. <strong>Important:</strong> You must share your Google Calendar with the service account email below as an "Editor" for this to work:
-              </p>
-              {serverStatus.serviceAccountEmail && (
-                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg select-all">
-                  <code className="text-[10px] text-indigo-600 font-mono break-all">{serverStatus.serviceAccountEmail}</code>
-                </div>
-              )}
-              <button 
-                onClick={onEditProfile}
-                className="w-full py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                Set Calendar ID in Profile
-              </button>
-            </div>
-          ) : (
-            <>
-              <button 
-                onClick={handleConnectGoogle}
-                disabled={isConnecting}
-                className={cn(
-                  "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
-                  businessProfile?.googleCalendarConnected 
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100 cursor-default" 
-                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
-                )}
-              >
-                {businessProfile?.googleCalendarConnected ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Google Calendar Connected
-                  </>
-                ) : isConnecting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4 text-amber-500" />
-                    Connect Google Calendar
-                  </>
-                )}
-              </button>
-              
-              {businessProfile?.googleCalendarConnected && (
-                <p className="text-[10px] text-emerald-600 font-medium text-center">
-                  Your appointments will automatically sync with Google Calendar.
-                </p>
-              )}
-            </>
-          )}
         </div>
 
         {/* Demo Mode Settings */}
@@ -3013,7 +2979,7 @@ const Dashboard = ({
   expenses, 
   companies,
   onNewSigning, 
-  onViewSigning 
+  onViewSigning
 }: { 
   appointments: Appointment[]; 
   expenses: Expense[];
@@ -3514,7 +3480,19 @@ const Dashboard = ({
   );
 };
 
-const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointment[]; onViewSigning: (app: Appointment) => void }) => {
+const CalendarView = ({ 
+  appointments, 
+  onViewSigning,
+  isGoogleConnected,
+  isConnecting,
+  onConnectGoogle
+}: { 
+  appointments: Appointment[]; 
+  onViewSigning: (app: Appointment) => void;
+  isGoogleConnected?: boolean;
+  isConnecting?: boolean;
+  onConnectGoogle?: () => void;
+}) => {
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
   const [currentDate, setCurrentDate] = useState(new Date(2026, 3, 4)); // April 4, 2026 as starting point
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -3700,13 +3678,36 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
     <div className="space-y-4 animate-in fade-in duration-700">
       {/* Calendar Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-slate-800">
-          {viewMode === 'day' ? format(currentDate, 'MMMM d, yyyy') : format(currentDate, 'MMMM yyyy')}
-        </h1>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <h1 className="text-2xl font-bold text-slate-800">
+            {viewMode === 'day' ? format(currentDate, 'MMMM d, yyyy') : format(currentDate, 'MMMM yyyy')}
+          </h1>
+          {onConnectGoogle && (
+            <button
+              onClick={isGoogleConnected ? undefined : onConnectGoogle}
+              disabled={isConnecting || isGoogleConnected}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all",
+                isGoogleConnected 
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              )}
+            >
+              {isGoogleConnected ? (
+                <><CheckCircle2 className="w-3.5 h-3.5" /> Synced with Google</>
+              ) : isConnecting ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-500" /> Connecting...</>
+              ) : (
+                <><Calendar className="w-3.5 h-3.5 text-blue-500" /> Connect Google Calendar</>
+              )}
+            </button>
+          )}
+        </div>
         
-        <div className="flex items-center gap-px bg-slate-200 border border-slate-200 rounded overflow-hidden">
-          <button 
-            onClick={() => setViewMode('month')}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex items-center gap-px bg-slate-200 border border-slate-200 rounded overflow-hidden">
+            <button 
+              onClick={() => setViewMode('month')}
             className={cn(
               "px-4 py-1.5 text-sm font-medium border-r border-slate-300 transition-colors",
               viewMode === 'month' ? "bg-sky-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"
@@ -3754,6 +3755,7 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
             Next <ChevronRight className="w-4 h-4" />
           </button>
         </div>
+      </div>
       </div>
 
       {/* Calendar View */}
@@ -5577,6 +5579,25 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isDemoUser, setIsDemoUser] = useState(demoStorage.isDemoMode());
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnectGoogle = () => {
+    if (!user) {
+      alert("Please sign in first");
+      return;
+    }
+    const width = 600;
+    const height = 700;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    
+    setIsConnecting(true);
+    window.open(
+      `/api/auth/google?uid=${user.uid}`,
+      "GoogleCalendarAuth",
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+  };
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -5603,14 +5624,23 @@ export default function App() {
 
   // Google Calendar OAuth Message Listener
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       if (event.data?.type === 'GOOGLE_AUTH_SUCCESS') {
         console.log("Google Calendar authorization successful!");
+        setIsConnecting(false);
+        const tokens = event.data.tokens;
+        if (tokens && user) {
+           await updateDoc(doc(db, 'profiles', user.uid), {
+              googleCalendarTokens: tokens,
+              googleCalendarConnected: true,
+              updatedAt: new Date().toISOString()
+           }).catch(console.error);
+        }
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [user]);
 
   // Firestore listeners
   useEffect(() => {
@@ -5801,7 +5831,7 @@ export default function App() {
     }
   };
 
-  const syncToGoogleCalendar = async (appointmentId: string, action: 'create' | 'update' | 'delete', eventId?: string) => {
+  const syncToGoogleCalendar = async (appointmentId: string, action: 'create' | 'update' | 'delete', eventId?: string, appData?: any) => {
     if (!user || isDemoUser) return;
     
     console.log(`[Calendar Sync] Requesting ${action} for ID: ${appointmentId}`);
@@ -5813,7 +5843,9 @@ export default function App() {
           appointmentId,
           uid: user.uid,
           action,
-          eventId
+          eventId,
+          appointmentData: appData,
+          googleCalendarTokens: businessProfile.googleCalendarTokens
         })
       });
       
@@ -5825,6 +5857,17 @@ export default function App() {
         }
       } else {
         console.log('[Calendar Sync] Success:', result.status);
+        if (result.newTokensData) {
+            updateDoc(doc(db, 'profiles', user.uid), {
+              googleCalendarTokens: result.newTokensData,
+              updatedAt: new Date().toISOString()
+            }).catch(console.error);
+        }
+        if (result.eventId && action !== 'delete') {
+            updateDoc(doc(db, 'appointments', appointmentId), {
+              googleCalendarEventId: result.eventId
+            }).catch(console.error);
+        }
       }
     } catch (error) {
       console.error('[Calendar Sync] Network Error:', error);
@@ -5856,7 +5899,7 @@ export default function App() {
       // Attempt sync - standard OAuth or Service Account
       // We call it even if not explicitly enabled in profile, as the backend will check
       // for Service Account fallback automatically.
-      syncToGoogleCalendar(app.id, isNew ? 'create' : 'update');
+      syncToGoogleCalendar(app.id, isNew ? 'create' : 'update', appData.googleCalendarEventId, appData);
     } catch (error) {
       console.error('Failed to save appointment:', error);
       handleFirestoreError(error, OperationType.WRITE, `appointments/${app.id}`);
@@ -6009,13 +6052,13 @@ export default function App() {
 
     try {
       const batch = writeBatch(db);
-      ids.forEach(id => {
+      for (const id of ids) {
         const app = appointments.find(a => a.id === id);
-        if (app?.googleCalendarEventId && businessProfile?.googleCalendarConnected) {
-          syncToGoogleCalendar(id, 'delete', app.googleCalendarEventId);
+        if (app?.googleCalendarEventId) {
+          syncToGoogleCalendar(id, 'delete', app.googleCalendarEventId, app);
         }
         batch.delete(doc(db, 'appointments', id));
-      });
+      }
       await batch.commit();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'appointments');
@@ -6173,10 +6216,18 @@ export default function App() {
                 />
               } 
             />
-            <Route path="/calendar" element={<CalendarView appointments={appointments} onViewSigning={(app) => {
-              setSelectedAppointment(app);
-              setIsNewSigningModalOpen(true);
-            }} />} />
+            <Route path="/calendar" element={
+              <CalendarView 
+                appointments={appointments} 
+                onViewSigning={(app) => {
+                  setSelectedAppointment(app);
+                  setIsNewSigningModalOpen(true);
+                }} 
+                isGoogleConnected={businessProfile?.googleCalendarConnected}
+                isConnecting={isConnecting}
+                onConnectGoogle={handleConnectGoogle}
+              />
+            } />
             <Route 
               path="/customers" 
               element={
