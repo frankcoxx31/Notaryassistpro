@@ -297,7 +297,11 @@ const splitName = (name: string) => {
 };
 
 const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+  const apiKey = import.meta.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets.");
+  }
+  const ai = new GoogleGenAI({ apiKey });
   
   // Convert file to base64
   const base64 = await new Promise<string>((resolve) => {
@@ -6115,12 +6119,8 @@ export default function App() {
           )
         } />
 
-        <Route path="/" element={
+        <Route path="/*" element={
           isAuthenticated ? mainAppLayout : <LandingPage />
-        } />
-
-        <Route path="*" element={
-          isAuthenticated ? mainAppLayout : <Navigate to="/" replace />
         } />
       </Routes>
     </Router>

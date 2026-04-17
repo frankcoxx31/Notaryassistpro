@@ -1,7 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
 export interface AiResearchResult {
   answer: string;
   citations: { title: string; url: string }[];
@@ -15,10 +13,13 @@ export interface AiResearchResult {
 export async function searchAiFallback(query: string, state: string): Promise<AiResearchResult> {
   console.log(`[AI Search] Request started for query: "${query}" in state: ${state}`);
   
-  if (!process.env.GEMINI_API_KEY) {
+  const apiKey = import.meta.env.GEMINI_API_KEY;
+  if (!apiKey) {
     console.error("[AI Search] GEMINI_API_KEY is missing");
-    throw new Error("AI search is not configured. Please add GEMINI_API_KEY to your environment.");
+    throw new Error("AI search is not configured. Please add GEMINI_API_KEY to your environment variables/secrets.");
   }
+
+  const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `
     You are a professional notary law researcher. 

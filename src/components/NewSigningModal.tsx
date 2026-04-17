@@ -77,6 +77,11 @@ const NewSigningModal = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      setScanError("Please select a valid image file of your driver's license.");
+      return;
+    }
+
     setIsScanning(true);
     setScanError(null);
     setScanSuccess(false);
@@ -92,7 +97,12 @@ const NewSigningModal = ({
       reader.readAsDataURL(file);
       const base64Data = await base64Promise;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = import.meta.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets via the Secrets panel.");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const prompt = `Extract the following information from this driver's license image and return it as a JSON object with these exact keys:
 {
@@ -203,9 +213,12 @@ Return only the JSON object, no additional text.`;
       } else {
         throw new Error("Could not extract data");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Scan error:", error);
-      setScanError("Could not read license. Please enter information manually.");
+      const errorMessage = error.message?.includes("key") 
+        ? "AI configuration error. Please contact support." 
+        : "Could not read license image. Please ensure the photo is clear or enter information manually.";
+      setScanError(errorMessage);
     } finally {
       setIsScanning(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
