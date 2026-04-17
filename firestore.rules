@@ -66,9 +66,11 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
     function isValidAppointment(data) {
-      return hasRequiredFields(['id', 'date', 'time', 'clientName', 'signingType', 'location', 'fee', 'status', 'userId']) &&
-             data.fee is number && data.fee >= 0 &&
-             data.status in ['Scheduled', 'Completed', 'Paid', 'Cancelled', 'No Show'];
+      return hasRequiredFields(['id', 'date', 'time', 'signingType', 'location', 'status', 'userId']) &&
+             (data.clientName is string || data.customerName is string) &&
+             data.status in ['Scheduled', 'Completed', 'Paid', 'Cancelled', 'No Show'] &&
+             (!('fee' in data) || data.fee is number) &&
+             (!('agreedFee' in data) || data.agreedFee is number);
     }
 
     function isValidClient(data) {
