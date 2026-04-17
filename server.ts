@@ -25,37 +25,45 @@ async function startServer() {
   console.log("Starting server process...");
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+  const rootDir = process.cwd();
 
   // Initialize Firebase and Google OAuth inside startServer to avoid top-level crashes
   let firestore: any;
   let oauth2Client: any;
 
-  try {
-    const rootDir = process.cwd();
-    const configPath = path.join(rootDir, "firebase-applet-config.json");
-    if (fs.existsSync(configPath)) {
-      console.log("Loading Firebase config from:", configPath);
-      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-      if (!admin.apps.length) {
-        admin.initializeApp({
-          projectId: firebaseConfig.projectId,
-        });
-        console.log("Firebase Admin initialized for project:", firebaseConfig.projectId);
+    try {
+      const configPath = path.join(rootDir, "firebase-applet-config.json");
+      if (fs.existsSync(configPath)) {
+        console.log("Loading Firebase config from:", configPath);
+        const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+        if (!admin.apps.length) {
+          admin.initializeApp({
+            projectId: firebaseConfig.projectId,
+          });
+          console.log("Firebase Admin initialized for project:", firebaseConfig.projectId);
+        }
+        firestore = admin.firestore(firebaseConfig.firestoreDatabaseId);
+      } else {
+        console.warn("firebase-applet-config.json not found");
       }
-      firestore = admin.firestore(firebaseConfig.firestoreDatabaseId);
-    } else {
-      console.warn("firebase-applet-config.json not found");
+    } catch (error) {
+      console.error("Firebase initialization error:", error);
     }
 
-    console.log("Setting up Google OAuth client...");
-    oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-  } catch (error) {
-    console.error("Initialization error:", error);
-  }
+    try {
+      console.log("Setting up Google OAuth client...");
+      if (process.env.GOOGLE_CLIENT_ID) {
+        oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+          process.env.GOOGLE_REDIRECT_URI
+        );
+      } else {
+        console.warn("GOOGLE_CLIENT_ID is missing from environment variables.");
+      }
+    } catch (error) {
+      console.error("Google OAuth initialization error:", error);
+    }
 
   app.use(compression());
   app.use(express.json());
@@ -77,6 +85,11 @@ async function startServer() {
     const { uid } = req.query;
     if (!uid) return res.status(400).send("UID required");
 
+    if (!oauth2Client) {
+      console.error("Google OAuth client not initialized. Check your environment variables.");
+      return res.status(503).send("Google Calendar integration is not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to environment variables.");
+    }
+
     const scopes = [
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/calendar.events"
@@ -96,15 +109,21 @@ async function startServer() {
     const { code, state: uid } = req.query;
     if (!code || !uid) return res.status(400).send("Code and UID required");
 
+    if (!oauth2Client) {
+      return res.status(503).send("Google OAuth client not initialized");
+    }
+
     try {
       const { tokens } = await oauth2Client.getToken(code as string);
       
       // Store tokens in Firestore - using 'profiles' to match the app's collection
-      await firestore.collection("profiles").doc(uid as string).update({
-        googleCalendarTokens: tokens,
-        googleCalendarConnected: true,
-        updatedAt: new Date().toISOString()
-      });
+      if (firestore) {
+        await firestore.collection("profiles").doc(uid as string).update({
+          googleCalendarTokens: tokens,
+          googleCalendarConnected: true,
+          updatedAt: new Date().toISOString()
+        });
+      }
 
       // Redirect back to the app settings or dashboard
       res.send(`
@@ -127,6 +146,14 @@ async function startServer() {
   app.post("/api/calendar/sync", async (req, res) => {
     const { appointmentId, uid, action } = req.body;
     if (!appointmentId || !uid) return res.status(400).json({ error: "Missing fields" });
+
+    if (!firestore) {
+      return res.status(503).json({ error: "Database not initialized" });
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(503).json({ error: "Google Calendar environment variables missing" });
+    }
 
     try {
       // 1. Get user tokens from 'profiles'
