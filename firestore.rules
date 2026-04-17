@@ -49,7 +49,9 @@ service cloud.firestore {
     }
 
     function uidNotModified() {
-      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+      return !('userId' in request.resource.data) || 
+             !('userId' in resource.data) || 
+             request.resource.data.userId == resource.data.userId;
     }
 
     function hasRequiredFields(fields) {
@@ -95,7 +97,21 @@ service cloud.firestore {
     }
 
     function isValidProfile(data) {
-      return hasRequiredFields(['name', 'companyName', 'email', 'phone', 'address', 'state', 'commissionNumber', 'commissionExpiration', 'userId']);
+      // Re-introducing security while keeping it flexible
+      return isAuthenticated() && 
+             (!('userId' in data) || data.userId == request.auth.uid) &&
+             (!('name' in data) || data.name is string) &&
+             (!('email' in data) || data.email is string) &&
+             (!('phone' in data) || data.phone is string) &&
+             (!('companyName' in data) || data.companyName is string) &&
+             (!('address' in data) || data.address is string) &&
+             (!('state' in data) || data.state is string) &&
+             (!('commissionNumber' in data) || data.commissionNumber is string) &&
+             (!('commissionExpiration' in data) || data.commissionExpiration is string) &&
+             (!('googleCalendarConnected' in data) || data.googleCalendarConnected is bool) &&
+             (!('googleCalendarId' in data) || data.googleCalendarId is string) &&
+             (!('googleCalendarTokens' in data) || data.googleCalendarTokens == null || data.googleCalendarTokens is map) &&
+             (!('updatedAt' in data) || data.updatedAt is string);
     }
 
     function isValidSavedLookup(data) {

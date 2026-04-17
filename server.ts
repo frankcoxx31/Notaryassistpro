@@ -5,6 +5,7 @@ import compression from "compression";
 import fs from "fs";
 import { google } from "googleapis";
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 
@@ -31,6 +32,23 @@ async function startServer() {
   let firestore: any;
   let oauth2Client: any;
 
+  // Setup Service Account Auth globally if available
+  let serviceAccountAuth: any;
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+    console.log("Setting up Service Account Auth for Google Calendar...");
+    try {
+      // Handle the case where the private key might be escaped in the env var
+      const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+      serviceAccountAuth = new google.auth.JWT({
+        email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        key: privateKey,
+        scopes: ['https://www.googleapis.com/auth/calendar.events']
+      });
+    } catch (e) {
+      console.error("Failed to initialize Service Account Auth:", e);
+    }
+  }
+
     try {
       const configPath = path.join(rootDir, "firebase-applet-config.json");
       if (fs.existsSync(configPath)) {
@@ -42,7 +60,7 @@ async function startServer() {
           });
           console.log("Firebase Admin initialized for project:", firebaseConfig.projectId);
         }
-        firestore = admin.firestore(firebaseConfig.firestoreDatabaseId);
+        firestore = getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
       } else {
         console.warn("firebase-applet-config.json not found");
       }
@@ -76,7 +94,8 @@ async function startServer() {
       status: "ok", 
       time: new Date().toISOString(),
       firebaseInit: !!firestore,
-      googleInit: !!oauth2Client
+      googleInit: !!oauth2Client,
+      serviceAccountInit: !!serviceAccountAuth
     });
   });
 
@@ -151,37 +170,48 @@ async function startServer() {
       return res.status(503).json({ error: "Database not initialized" });
     }
 
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      return res.status(503).json({ error: "Google Calendar environment variables missing" });
-    }
-
     try {
-      // 1. Get user tokens from 'profiles'
+      // 1. Get user configuration from 'profiles'
       const userDoc = await firestore.collection("profiles").doc(uid).get();
       if (!userDoc.exists) return res.status(404).json({ error: "User profile not found" });
       const userData = userDoc.data();
-      const tokens = userData?.googleCalendarTokens;
-      if (!tokens) return res.status(401).json({ error: "Google Calendar not connected" });
+
+      // Determine Auth Method & Calendar ID
+      let auth: any;
+      let calendarId = userData?.googleCalendarId || process.env.GOOGLE_CALENDAR_ID || "primary";
+
+      if (serviceAccountAuth) {
+        console.log("Using Service Account auth for sync...");
+        auth = serviceAccountAuth;
+      } else {
+        // Fallback to OAuth2
+        const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } = process.env;
+        if (!GOOGLE_CLIENT_ID) {
+          return res.status(503).json({ error: "Google OAuth credentials missing" });
+        }
+        
+        const tokens = userData?.googleCalendarTokens;
+        if (!tokens) return res.status(401).json({ error: "Google Calendar not connected" });
+
+        const oauth2 = new google.auth.OAuth2(
+          GOOGLE_CLIENT_ID,
+          GOOGLE_CLIENT_SECRET,
+          GOOGLE_REDIRECT_URI
+        );
+        oauth2.setCredentials(tokens);
+
+        oauth2.on("tokens", async (newTokens) => {
+          await firestore.collection("profiles").doc(uid).update({
+            googleCalendarTokens: { ...tokens, ...newTokens }
+          });
+        });
+        auth = oauth2;
+      }
 
       // 2. Get appointment data
       const appDoc = await firestore.collection("appointments").doc(appointmentId).get();
       if (!appDoc.exists && action !== 'delete') return res.status(404).json({ error: "Appointment not found" });
       const appointment = appDoc.data();
-
-      // 3. Setup Google Calendar client
-      const auth = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        process.env.GOOGLE_REDIRECT_URI
-      );
-      auth.setCredentials(tokens);
-
-      // Listen for token refreshes and update Firestore in 'profiles'
-      auth.on("tokens", async (newTokens) => {
-        await firestore.collection("profiles").doc(uid).update({
-          googleCalendarTokens: { ...tokens, ...newTokens }
-        });
-      });
 
       const calendar = google.calendar({ version: "v3", auth });
 
@@ -190,7 +220,7 @@ async function startServer() {
         if (eventId) {
           try {
             await calendar.events.delete({
-              calendarId: "primary",
+              calendarId,
               eventId: eventId,
             });
           } catch (e: any) {
@@ -222,7 +252,7 @@ Phone: ${appointment?.phone || ''}
         // Update existing event
         try {
           await calendar.events.update({
-            calendarId: "primary",
+            calendarId,
             eventId: appointment.googleCalendarEventId,
             requestBody: event,
           });
@@ -231,7 +261,7 @@ Phone: ${appointment?.phone || ''}
           if (error.code === 404) {
              // If event not found, re-create it
              const newEvent = await calendar.events.insert({
-                calendarId: "primary",
+                calendarId,
                 requestBody: event,
               });
               await firestore.collection("appointments").doc(appointmentId).update({
@@ -245,7 +275,7 @@ Phone: ${appointment?.phone || ''}
       } else {
         // Create new event
         const newEvent = await calendar.events.insert({
-          calendarId: "primary",
+          calendarId,
           requestBody: event,
         });
         await firestore.collection("appointments").doc(appointmentId).update({

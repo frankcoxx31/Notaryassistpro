@@ -185,6 +185,9 @@ export interface BusinessProfile {
   commissionNumber: string;
   commissionExpiration: string;
   googleCalendarConnected?: boolean;
+  googleCalendarId?: string;
+  googleCalendarTokens?: any;
+  updatedAt?: string;
 }
 
 export interface DashboardStats {

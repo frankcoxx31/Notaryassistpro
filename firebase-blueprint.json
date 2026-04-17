@@ -121,7 +121,10 @@
         "state": { "type": "string" },
         "commissionNumber": { "type": "string" },
         "commissionExpiration": { "type": "string" },
-        "userId": { "type": "string" }
+        "userId": { "type": "string" },
+        "googleCalendarConnected": { "type": "boolean" },
+        "googleCalendarId": { "type": "string" },
+        "googleCalendarTokens": { "type": "object" }
       },
       "required": ["name", "companyName", "email", "phone", "address", "commissionNumber", "commissionExpiration", "userId"]
     },

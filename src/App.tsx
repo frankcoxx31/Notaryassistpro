@@ -1805,6 +1805,17 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
             </div>
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-sm font-bold text-slate-700">Google Calendar ID (Optional)</label>
+              <input 
+                type="text" 
+                placeholder="primary or your-email@gmail.com"
+                value={formData.googleCalendarId || ''}
+                onChange={(e) => setFormData({ ...formData, googleCalendarId: e.target.value })}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+              />
+              <p className="text-[10px] text-slate-500">If using a Service Account, share your calendar with the service account email first.</p>
+            </div>
           </div>
         </div>
 
@@ -1849,6 +1860,14 @@ const SettingsView = ({
 }) => {
   const [isImporting, setIsImporting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [serverStatus, setServerStatus] = useState<{ serviceAccountInit: boolean; googleInit: boolean } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => setServerStatus(data))
+      .catch(() => {});
+  }, []);
 
   const handleConnectGoogle = () => {
     if (!user) {
@@ -2093,38 +2112,58 @@ const SettingsView = ({
           </div>
           <p className="text-sm text-slate-500">Sync your signing appointments with your Google Calendar.</p>
           
-          <button 
-            onClick={handleConnectGoogle}
-            disabled={isConnecting}
-            className={cn(
-              "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
-              businessProfile?.googleCalendarConnected 
-                ? "bg-emerald-50 text-emerald-700 border border-emerald-100 cursor-default" 
-                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
-            )}
-          >
-            {businessProfile?.googleCalendarConnected ? (
-              <>
+          {serverStatus?.serviceAccountInit ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 p-3 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100">
                 <CheckCircle2 className="w-4 h-4" />
-                Google Calendar Connected
-              </>
-            ) : isConnecting ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
-                Connecting...
-              </>
-            ) : (
-              <>
-                <Zap className="w-4 h-4 text-amber-500" />
-                Connect Google Calendar
-              </>
-            )}
-          </button>
-          
-          {businessProfile?.googleCalendarConnected && (
-            <p className="text-[10px] text-emerald-600 font-medium text-center">
-              Your appointments will automatically sync with Google Calendar.
-            </p>
+                <span className="text-sm font-semibold">Service Account Configured</span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Server-to-server sync is active. <strong>Important:</strong> You must share your Google Calendar with the service account email provided by your administrator as an "Editor" for this to work.
+              </p>
+              <button 
+                onClick={onEditProfile}
+                className="w-full py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Set Calendar ID in Profile
+              </button>
+            </div>
+          ) : (
+            <>
+              <button 
+                onClick={handleConnectGoogle}
+                disabled={isConnecting}
+                className={cn(
+                  "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
+                  businessProfile?.googleCalendarConnected 
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100 cursor-default" 
+                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
+                )}
+              >
+                {businessProfile?.googleCalendarConnected ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Google Calendar Connected
+                  </>
+                ) : isConnecting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 text-amber-500" />
+                    Connect Google Calendar
+                  </>
+                )}
+              </button>
+              
+              {businessProfile?.googleCalendarConnected && (
+                <p className="text-[10px] text-emerald-600 font-medium text-center">
+                  Your appointments will automatically sync with Google Calendar.
+                </p>
+              )}
+            </>
           )}
         </div>
 
