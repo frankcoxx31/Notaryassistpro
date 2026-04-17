@@ -25,7 +25,7 @@ interface NewSigningModalProps {
   onSaveCompany: (company: SigningCompany) => void;
 }
 
-const DEFAULT_MILEAGE_RATE = 0.67;
+const DEFAULT_MILEAGE_RATE = 0.725;
 
 const NewSigningModal = ({ 
   isOpen, 

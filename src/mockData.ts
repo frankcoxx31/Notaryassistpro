@@ -169,8 +169,8 @@ export const MOCK_MILEAGE: Mileage[] = [
     date: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
     description: 'Post Office Drop-off',
     miles: 15.4,
-    rate: 0.67,
-    total: 10.32
+    rate: 0.725,
+    total: 11.17
   }
 ];
 

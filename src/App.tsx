@@ -109,6 +109,8 @@ import {
 } from 'recharts';
 import { cn } from './lib/utils';
 import { Appointment, Customer, CustomerType, Expense, AppointmentStatus, PaymentStatus, Mileage, BusinessProfile, SigningCompany } from './types';
+
+const DEFAULT_MILEAGE_RATE = 0.725;
 import { 
   MOCK_PROFILE, 
   MOCK_APPOINTMENTS, 
@@ -120,6 +122,7 @@ import { auth, db, provider } from './firebase';
 import { demoStorage } from './lib/demoStorage';
 import LoginPage from './components/LoginPage';
 import DemoLoginPage from './components/DemoLoginPage';
+import LandingPage from './components/LandingPage';
 import NewSigningModal from './components/NewSigningModal';
 import NewCustomerModal from './components/NewCustomerModal';
 import SigningCompanyModal from './components/SigningCompanyModal';
@@ -927,12 +930,12 @@ const NewMileageModal = ({ isOpen, onClose, onSave, userId }: { isOpen: boolean;
     date: format(new Date(), 'yyyy-MM-dd'),
     description: '',
     miles: 0,
-    rate: 0.67,
+    rate: DEFAULT_MILEAGE_RATE,
     total: 0
   });
 
   useEffect(() => {
-    setFormData(prev => ({ ...prev, total: (prev.miles || 0) * (prev.rate || 0.67) }));
+    setFormData(prev => ({ ...prev, total: (prev.miles || 0) * (prev.rate || DEFAULT_MILEAGE_RATE) }));
   }, [formData.miles, formData.rate]);
 
   if (!isOpen) return null;
@@ -1463,7 +1466,7 @@ const Reports = ({
                   <td className="px-6 py-4 text-sm text-slate-600">{format(parseSafeDateTime(mil.date), 'MM/dd/yyyy')}</td>
                   <td className="px-6 py-4 text-sm font-medium text-slate-900">{mil.description}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 text-center">{mil.miles}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-slate-900 text-right">${(mil.miles * 0.67).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900 text-right">${(mil.miles * DEFAULT_MILEAGE_RATE).toFixed(2)}</td>
                 </tr>
               ))}
               {filteredMileage.length === 0 && (
@@ -1480,7 +1483,7 @@ const Reports = ({
                     {filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0)} miles
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-900 text-right">
-                    ${(filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0) * 0.67).toFixed(2)}
+                    ${(filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0) * DEFAULT_MILEAGE_RATE).toFixed(2)}
                   </td>
                 </tr>
               </tfoot>
@@ -1493,7 +1496,7 @@ const Reports = ({
     if (activeReport.id === 'tax' || activeReport.id === 'tax-summary') {
       const totalIncome = filteredAppointments.reduce((sum, app) => sum + Number(app.fee), 0);
       const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
-      const totalMileageDeduction = filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0) * 0.67;
+      const totalMileageDeduction = filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0) * DEFAULT_MILEAGE_RATE;
       const totalDeductions = totalExpenses + totalMileageDeduction;
       const taxableIncome = Math.max(0, totalIncome - totalDeductions);
       const estimatedTax = taxableIncome * 0.153; // Self-employment tax rate approx
@@ -2073,7 +2076,7 @@ const FeeCalculator = () => {
   const [companyName, setCompanyName] = useState<string>('');
 
   const roundTripMiles = oneWayMiles * 2;
-  const travelValue = roundTripMiles * 1.25;
+  const travelValue = roundTripMiles * DEFAULT_MILEAGE_RATE;
   const scanbackFee = scanbacks ? 25 : 0;
   const afterHoursPremium = afterHours ? 25 : 0;
   const trueTargetFee = 90 + travelValue + scanbackFee + afterHoursPremium;
@@ -2275,7 +2278,7 @@ const FeeCalculator = () => {
                   </div>
                   <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                     <p className="text-xs text-white/50 mb-1">Travel Rate</p>
-                    <p className="font-bold text-lg">$1.25/mi</p>
+                    <p className="font-bold text-lg">${DEFAULT_MILEAGE_RATE}/mi</p>
                   </div>
                   <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                     <p className="text-xs text-white/50 mb-1">Scanbacks</p>
@@ -2292,7 +2295,7 @@ const FeeCalculator = () => {
               <div className="bg-indigo-500/20 p-6 rounded-2xl border border-indigo-500/30">
                 <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-2">Quick Formula</h4>
                 <p className="text-sm font-medium leading-relaxed">
-                  Minimum Fee = <span className="text-white font-bold">$90 base</span> + ($1.25 × round trip miles) + scanbacks + after hours premium
+                  Minimum Fee = <span className="text-white font-bold">$90 base</span> + (${DEFAULT_MILEAGE_RATE} × round trip miles) + scanbacks + after hours premium
                 </p>
               </div>
 
@@ -5378,8 +5381,6 @@ const Accounting = ({ appointments, expenses, onNewExpense, onDeleteExpense }: {
 
 // --- Main App ---
 
-const DEFAULT_MILEAGE_RATE = 0.67;
-
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNewSigningModalOpen, setIsNewSigningModalOpen] = useState(false);
@@ -5807,53 +5808,56 @@ export default function App() {
 
   return (
     <Router>
-      {(IS_DEMO_VERSION ? !isDemoUser : (!user && !isDemoUser)) ? (
-        IS_DEMO_VERSION ? (
-          <DemoLoginPage 
-            onEnterDemo={handleDemoSignIn} 
-            onResetDemo={() => {
-              if (window.confirm('Reset all demo data?')) {
-                demoStorage.resetAll();
-                window.location.reload();
-              }
-            }} 
-          />
-        ) : (
-          <LoginPage onSignIn={handleSignIn} onEnterDemo={handleDemoSignIn} />
-        )
-      ) : (
-        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-          <Sidebar 
-            isOpen={isSidebarOpen} 
-            toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
-            onNewSigning={() => setIsNewSigningModalOpen(true)}
-            onNewExpense={() => setIsNewExpenseModalOpen(true)}
-            onExpenseTypes={() => setIsExpenseTypesModalOpen(true)}
-            onRecurringExpense={() => setIsRecurringExpenseModalOpen(true)}
-            onNewMileage={() => setIsNewMileageModalOpen(true)}
-            user={user}
-            onSignIn={handleSignIn}
-            onSignOut={handleSignOut}
-          />
-          
-          <div className={cn(
-            "transition-all duration-300 ease-in-out min-h-screen flex flex-col",
-            isSidebarOpen ? "lg:pl-[280px]" : "lg:pl-[80px]"
-          )}>
-            <Header 
-              toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
-              onNewSigning={() => {
-                setSelectedAppointment(null);
-                setIsNewSigningModalOpen(true);
-              }}
-              onSignOut={handleSignOut}
-              user={user}
-              isDemoMode={isDemoUser}
-              onResetDemo={handleResetDemo}
-            />
-            
-            <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
-              <Routes>
+      <Routes>
+        <Route path="/features" element={<LandingPage />} />
+        <Route path="*" element={
+          (IS_DEMO_VERSION ? !isDemoUser : (!user && !isDemoUser)) ? (
+            IS_DEMO_VERSION ? (
+              <DemoLoginPage 
+                onEnterDemo={handleDemoSignIn} 
+                onResetDemo={() => {
+                  if (window.confirm('Reset all demo data?')) {
+                    demoStorage.resetAll();
+                    window.location.reload();
+                  }
+                }} 
+              />
+            ) : (
+              <LoginPage onSignIn={handleSignIn} onEnterDemo={handleDemoSignIn} />
+            )
+          ) : (
+            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+              <Sidebar 
+                isOpen={isSidebarOpen} 
+                toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+                onNewSigning={() => setIsNewSigningModalOpen(true)}
+                onNewExpense={() => setIsNewExpenseModalOpen(true)}
+                onExpenseTypes={() => setIsExpenseTypesModalOpen(true)}
+                onRecurringExpense={() => setIsRecurringExpenseModalOpen(true)}
+                onNewMileage={() => setIsNewMileageModalOpen(true)}
+                user={user}
+                onSignIn={handleSignIn}
+                onSignOut={handleSignOut}
+              />
+              
+              <div className={cn(
+                "transition-all duration-300 ease-in-out min-h-screen flex flex-col",
+                isSidebarOpen ? "lg:pl-[280px]" : "lg:pl-[80px]"
+              )}>
+                <Header 
+                  toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+                  onNewSigning={() => {
+                    setSelectedAppointment(null);
+                    setIsNewSigningModalOpen(true);
+                  }}
+                  onSignOut={handleSignOut}
+                  user={user}
+                  isDemoMode={isDemoUser}
+                  onResetDemo={handleResetDemo}
+                />
+                
+                <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
+                  <Routes>
                 <Route path="/" element={
                   <Dashboard 
                     appointments={appointments} 
@@ -6100,7 +6104,8 @@ export default function App() {
             )}
           </AnimatePresence>
         </div>
-      )}
+        )} />
+      </Routes>
     </Router>
   );
 }
