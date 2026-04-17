@@ -10,6 +10,8 @@ import { format, parse } from 'date-fns';
 import { Appointment, AppointmentStatus, Customer, SigningCompany, Signer } from '../types';
 import { cn } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebase';
 import SigningCompanyModal from './SigningCompanyModal';
 
 import { HYBRID_LOAN_PACKAGE, PACKAGE_CONFIGS, mergeUniqueDocuments, validateDocuments, normalizeDocName } from '../lib/packageConfigs';
@@ -77,11 +79,26 @@ const NewSigningModal = ({
   };
 
   const handleScanLicense = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("[Scan] Upload flow triggered.");
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log("[Scan] No file selected.");
+      return;
+    }
+
+    console.log(`[Scan] File selected: ${file.name} (Type: ${file.type}, Size: ${file.size} bytes)`);
 
     if (!file.type.startsWith('image/')) {
+      console.error("[Scan] Invalid file type:", file.type);
       setScanError("Please select a valid image file of your driver's license.");
+      return;
+    }
+
+    // Limit to 10MB
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      console.error("[Scan] File too large:", file.size);
+      setScanError("Image is too large. Please select a file under 10MB.");
       return;
     }
 
@@ -90,6 +107,21 @@ const NewSigningModal = ({
     setScanSuccess(false);
 
     try {
+      // 1. Upload to Firebase Storage
+      console.log("[Scan] Starting Firebase Storage upload...");
+      const timestamp = Date.now();
+      const sanitizedName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+      const storagePath = `scan-images/${userId}/${timestamp}-${sanitizedName}`;
+      const storageRef = ref(storage, storagePath);
+
+      const uploadResult = await uploadBytes(storageRef, file);
+      console.log("[Scan] Upload success:", uploadResult.metadata.fullPath);
+
+      const downloadURL = await getDownloadURL(storageRef);
+      console.log("[Scan] Download URL retrieved:", downloadURL);
+
+      // 2. Read file as Base64 for AI Processing
+      console.log("[Scan] Reading file as base64 for AI...");
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve) => {
         reader.onload = () => {
@@ -102,7 +134,7 @@ const NewSigningModal = ({
 
       const apiKey = import.meta.env.GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets via the Secrets panel.");
+        throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets.");
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -119,6 +151,7 @@ const NewSigningModal = ({
 }
 Return only the JSON object, no additional text.`;
 
+      console.log("[Scan] Sending to AI for extraction...");
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: [
@@ -148,10 +181,11 @@ Return only the JSON object, no additional text.`;
       });
 
       const result = JSON.parse(response.text || "{}");
+      console.log("[Scan] AI Result:", result);
       
       if (result.fullName) {
-        // Parse address to extract city, state, zip if possible
-        const addrParts = result.address.split(',').map((p: string) => p.trim());
+        // Parse address to extract city, state, zip
+        const addrParts = (result.address || "").split(',').map((p: string) => p.trim());
         let city = "";
         let state = result.state || "";
         let zip = "";
@@ -182,7 +216,8 @@ Return only the JSON object, no additional text.`;
             idNumber: result.idNumber,
             dob: formatDateForInput(result.dateOfBirth),
             idIssueDate: formatDateForInput(result.issueDate),
-            idExpiration: formatDateForInput(result.expirationDate)
+            idExpiration: formatDateForInput(result.expirationDate),
+            idImageUrl: downloadURL
           };
 
           if (signerIndex !== -1) {
@@ -195,15 +230,15 @@ Return only the JSON object, no additional text.`;
             ...prev,
             signers: updatedSigners,
             customerName: updateSignerSummary(updatedSigners),
-            // Update top-level fields if this is the primary signer
             ...(isFirstSigner ? {
               clientName: result.fullName,
               firstName,
               lastName,
               address: addrParts[0] || "",
-              city: city,
-              state: state,
-              zip: zip,
+              city,
+              state,
+              zip,
+              idImageUrl: downloadURL,
               location: result.address,
               idNumber: result.idNumber,
               dob: formatDateForInput(result.dateOfBirth),
@@ -212,15 +247,20 @@ Return only the JSON object, no additional text.`;
             } : {})
           };
         });
+
         setScanSuccess(true);
+        console.log("[Scan] Success: Data extracted and image saved.");
       } else {
-        throw new Error("Could not extract data");
+        throw new Error("AI could not extract enough information from the image. Please try again or enter manually.");
       }
     } catch (error: any) {
-      console.error("Scan error:", error);
-      const errorMessage = error.message?.includes("key") 
-        ? "AI configuration error. Please contact support." 
-        : "Could not read license image. Please ensure the photo is clear or enter information manually.";
+      console.error("[Scan] Error:", error);
+      let errorMessage = "An error occurred while scanning the license.";
+      if (error.message && error.message.includes('permission')) {
+        errorMessage = "Permission denied. Please check Firebase Storage rules.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
       setScanError(errorMessage);
     } finally {
       setIsScanning(false);
@@ -1200,7 +1240,15 @@ Return only the JSON object, no additional text.`;
                                 </div>
 
                                 {(signer.idType === "NC Driver's License" || signer.idType === "Out-of-State Driver's License") && (
-                                  <div className="pt-2">
+                                  <div className="pt-2 space-y-2">
+                                    {signer.idImageUrl && (
+                                      <div className="relative group rounded-xl overflow-hidden aspect-video bg-slate-100 border border-slate-200 mb-2">
+                                         <img src={signer.idImageUrl} alt="License" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                           <p className="text-white text-[10px] font-bold">License Scan Saved</p>
+                                         </div>
+                                      </div>
+                                    )}
                                     <input 
                                       type="file" 
                                       accept="image/*" 
@@ -1211,7 +1259,10 @@ Return only the JSON object, no additional text.`;
                                     />
                                     <button
                                       type="button"
-                                      onClick={() => fileInputRef.current?.click()}
+                                      onClick={() => {
+                                        console.log("[Scan] Scan License button clicked.");
+                                        fileInputRef.current?.click();
+                                      }}
                                       disabled={isScanning}
                                       className={cn(
                                         "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm",
@@ -1232,6 +1283,20 @@ Return only the JSON object, no additional text.`;
                                         </>
                                       )}
                                     </button>
+
+                                    {scanError && (
+                                      <div className="flex items-center gap-2 p-2 bg-rose-50 text-rose-600 rounded-lg text-xs animate-in slide-in-from-top-1">
+                                        <AlertCircle className="w-3.5 h-3.5" />
+                                        <p>{scanError}</p>
+                                      </div>
+                                    )}
+
+                                    {scanSuccess && (
+                                      <div className="flex items-center gap-2 p-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs animate-in slide-in-from-top-1">
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        <p>Scan successful! Details added.</p>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>

@@ -17,6 +17,7 @@ export interface Signer {
   city?: string;
   state?: string;
   zip?: string;
+  idImageUrl?: string;
 }
 
 export interface Appointment {
