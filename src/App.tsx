@@ -296,6 +296,21 @@ const splitName = (name: string) => {
   return { firstName: name, lastName: '' };
 };
 
+import { HYBRID_LOAN_PACKAGE, normalizeDocName, mergeUniqueDocuments, validateDocuments } from './lib/packageConfigs';
+
+const formatDisplayName = (name: string) => {
+  if (!name) return '';
+  // Convert to Title Case if all caps, splitting by spaces and hyphens
+  return name.split(/(\s+|-)/).map(part => {
+    if (part.length === 0 || /^(\s+|-)$/.test(part)) return part;
+    // Fix ALL CAPS like SMITH or JONES-SMITH
+    if (part === part.toUpperCase() && part.length > 1) {
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    }
+    return part;
+  }).join('');
+};
+
 const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]> => {
   const apiKey = import.meta.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -351,8 +366,16 @@ const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]
             - loanNumber: The loan number (look for "Closing Loan #" or "Primary Loan #").
             - phone: The phone number of the signer (look for "Mobile" under Borrower).
             - email: The email address of the signer.
-            - signingType: The type of signing (e.g., "Refinance", "Purchase"). Look for "Transaction Type" or the service description.
+            - signingType: The type of signing (e.g., "Refinance", "Purchase"). Look for "Transaction Type" or the service description. If it refers to "Hybrid", use "Hybrid Loan Package".
             - notes: Any special instructions or notes.
+            - docs: An array of document titles found in the package. Focus on major documents like Note, Deed of Trust, Affidavits, etc.
+
+            DOC RECOGNITION RULES (Hybrid Loan Package only):
+            If the package is a Hybrid Loan Package, only include documents if they:
+            1. Have borrower or signer signature lines.
+            2. Require notarization.
+            3. Are part of an in-person hybrid closing.
+            Exclude pages that only have Lender/Title signatures, continuation pages, or informational-only pages.
 
             Return them as a JSON array of objects. If a field is missing, use an empty string or a sensible default. Ensure the output is ONLY the JSON array.`
           }
@@ -385,7 +408,11 @@ const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]
             customer: { type: Type.STRING },
             orderNumber: { type: Type.STRING },
             invoiceNumber: { type: Type.STRING },
-            loanNumber: { type: Type.STRING }
+            loanNumber: { type: Type.STRING },
+            docs: { 
+              type: Type.ARRAY, 
+              items: { type: Type.STRING } 
+            }
           },
           required: ["date", "time", "clientName", "signingType", "location", "fee", "status"]
         }
@@ -405,8 +432,14 @@ const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]
           userId: userId,
           status: item.status || 'Scheduled',
           sortableDateTime: parseSafeDateTime(item.date, item.time).toISOString(),
-          invoiceNumber: item.invoiceNumber || `INV-${dateStr}-${randomStr}`
+          invoiceNumber: item.invoiceNumber || `INV-${dateStr}-${randomStr}`,
+          docs: item.docs || []
         };
+
+        // Normalize docs if package type is recognized
+        if (appointment.docs) {
+          appointment.docs = mergeUniqueDocuments([], appointment.docs, appointment.signingType);
+        }
 
       // Ensure clientName is set if firstName/lastName are provided
       if (!appointment.clientName && (appointment.firstName || appointment.lastName)) {
@@ -3049,7 +3082,7 @@ const Dashboard = ({
                       <h2 className="text-5xl font-black text-slate-900 tracking-tighter">{nextSigning.time}</h2>
                       <span className="text-teal-600 font-bold text-lg">${Number(nextSigning.fee).toFixed(2)}</span>
                     </div>
-                    <h3 className="text-2xl font-bold text-slate-800">{nextSigning.clientName}</h3>
+                    <h3 className="text-2xl font-bold text-slate-800">{formatDisplayName(nextSigning.clientName)}</h3>
                   </div>
 
                   <div className="flex flex-wrap gap-6 text-slate-500">
@@ -3203,7 +3236,7 @@ const Dashboard = ({
                         className="w-full text-left bg-white border border-slate-200 p-4 rounded-2xl hover:border-slate-300 transition-all group shadow-sm"
                       >
                         <div className="flex justify-between items-start mb-2">
-                          <p className="text-sm font-bold text-slate-900 truncate max-w-[100px]">{item.clientName.split(' ').pop()}</p>
+                          <p className="text-sm font-bold text-slate-900 truncate max-w-[100px]">{formatDisplayName(item.clientName.split(' ').pop() || '')}</p>
                           <span className="text-[10px] font-black text-teal-600">${Number(item.fee).toFixed(0)}</span>
                         </div>
                         <p className="text-[10px] text-slate-500 font-medium truncate mb-3">
@@ -3257,7 +3290,7 @@ const Dashboard = ({
                       {app.status === 'Paid' ? <DollarSign className="w-5 h-5 text-emerald-600" /> : <Calendar className="w-5 h-5 text-teal-600" />}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{app.clientName}</p>
+                      <p className="text-sm font-bold text-slate-900 truncate">{formatDisplayName(app.clientName)}</p>
                       <p className="text-[10px] font-medium text-slate-500 truncate">
                         {format(parseSafeDateTime(app.date), 'MMM d')} • {app.signingType}
                       </p>
@@ -3392,7 +3425,7 @@ const CalendarView = ({ appointments, onViewSigning }: { appointments: Appointme
       })
       .map(app => ({
         time: app.time.split(' ')[0].toLowerCase() + (app.time.includes('PM') ? 'p' : 'a'),
-        name: `${app.clientName.split(' ').pop() || app.clientName} (${app.location.split(',')[1]?.trim() || app.location})`,
+        name: `${formatDisplayName(app.clientName.split(' ').pop() || app.clientName)} (${app.location.split(',')[1]?.trim() || app.location})`,
         appointment: app
       }));
   };
@@ -3663,21 +3696,21 @@ const Appointments = ({
     'Buyer Package',
     'HELOC',
     'Reverse Mortgage',
-    'Hybrid Loan',
+    'Hybrid Loan Package',
     'General Notary Work'
   ];
 
   const loanSigningDocs = [
     'Closing / Disbursement Instructions',
-    'Title Company Client Acknowledgement (Owner\'s Affidavit)',
+    'Title Company Client Acknowledgement (Owner Affidavit)',
     'Loan Proceeds Delivery Instructions',
     'Correction Agreement',
     'Identity Verification & Acknowledgment Certification',
-    'Deed of Trust / Mortgage / Security Instrument',
+    'Deed of Trust',
     'Note',
     'Occupancy Statement',
-    'Signature / Name Affidavit (Borrower)',
-    'Signature / Name Affidavit (Non-Borrowing Party)',
+    'Signature/Name Affidavit – Borrower',
+    'Signature/Name Affidavit – Non-Borrowing Party',
     'Errors and Omissions / Compliance Agreement',
     'Closing Disclosure (CD)',
     'Right to Cancel (3-Day Rescission Notice)',
@@ -3981,7 +4014,7 @@ const Appointments = ({
 
             <div class="details-grid">
               <div class="details-left">
-                <div>${app.clientName}</div>
+                <div>${formatDisplayName(app.clientName)}</div>
                 <div>138 August Ln</div>
                 <div>Stallings 28104</div>
                 <div>Cell: 6077610961</div>
@@ -4748,6 +4781,19 @@ const Appointments = ({
                 <>
                   <div className="fixed inset-0 z-[60]" onClick={() => setIsBulkDocsDropdownOpen(false)} />
                   <div className="absolute bottom-full md:bottom-auto md:top-full right-0 mt-2 w-64 bg-white text-slate-800 rounded-xl shadow-2xl z-[70] py-2 border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
+                    <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 mb-1">
+                      <button 
+                        onClick={() => {
+                          const allHybrid = HYBRID_LOAN_PACKAGE.canonicalDocs;
+                          const current = new Set(selectedDocsForBulk);
+                          allHybrid.forEach(d => current.add(d));
+                          setSelectedDocsForBulk(Array.from(current));
+                        }}
+                        className="w-full bg-indigo-600 text-white rounded py-1.5 text-[10px] font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <PlusCircle className="w-3 h-3" /> Select Hybrid Loan Package Package
+                      </button>
+                    </div>
                     <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 mb-1">
                       Loan Signing Documents
                     </div>
@@ -4859,7 +4905,13 @@ const Appointments = ({
                 onClick={async () => {
                   if (selectedIds.length > 0 && selectedDocsForBulk.length > 0) {
                     await onBulkUpdateDocs(selectedIds, selectedDocsForBulk);
-                    setBulkSuccessMessage(`Documents added to ${selectedIds.length} entries`);
+                    const isHybrid = selectedDocsForBulk.length === HYBRID_LOAN_PACKAGE.canonicalDocs.length && 
+                      selectedDocsForBulk.every(d => HYBRID_LOAN_PACKAGE.canonicalDocs.includes(d));
+                    
+                    setBulkSuccessMessage(isHybrid 
+                      ? `Hybrid Loan Package applied to ${selectedIds.length} selected entries` 
+                      : `Documents added to ${selectedIds.length} entries`
+                    );
                     setTimeout(() => setBulkSuccessMessage(null), 3000);
                     setIsSelectMode(false);
                     setSelectedIds([]);
@@ -4969,7 +5021,7 @@ const Appointments = ({
                         onClick={() => onViewSigning(app)}
                         className="text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline text-left"
                       >
-                        {app.lastName || app.clientName.split(' ').pop()}
+                        {formatDisplayName((app.lastName || app.clientName || '').split(' ').filter(p => !p.endsWith('.')).pop() || (app.lastName || app.clientName || '').split(' ').pop() || '')}
                       </button>
                     </td>
                     <td className="px-3 py-3">
@@ -5204,7 +5256,7 @@ const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer 
                 </button>
               </div>
             </div>
-            <h3 className="font-bold text-lg text-slate-900 mb-1">{customer.fullName}</h3>
+            <h3 className="font-bold text-lg text-slate-900 mb-1">{formatDisplayName(customer.fullName)}</h3>
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">
               {customer.customerType || 'General'}
             </span>
@@ -5527,18 +5579,38 @@ export default function App() {
   }, []);
 
   const handleBulkUpdateDocs = async (ids: string[], docsToAdd: string[]) => {
+    if (ids.length === 0 || docsToAdd.length === 0) return;
+    
+    // In a real app, we might need to know the package type for each appointment
+    // For now, we'll assume the current operation context or use generic normalization
+    
     if (isDemoUser || !user) {
-      const updated = demoStorage.bulkAddDocs(ids, docsToAdd);
+      // In demo mode, we'll just merge them
+      const apps = appointments.filter(a => ids.includes(a.id));
+      const updated = appointments.map(a => {
+        if (ids.includes(a.id)) {
+          return {
+            ...a,
+            docs: mergeUniqueDocuments(a.docs || [], docsToAdd, a.signingType)
+          };
+        }
+        return a;
+      });
       setAppointments(updated);
       return;
     }
-    if (ids.length === 0 || docsToAdd.length === 0) return;
+
     try {
-      const promises = ids.map(id => 
-        updateDoc(doc(db, 'appointments', id), {
-          docs: arrayUnion(...docsToAdd)
-        })
-      );
+      const promises = ids.map(async (id) => {
+        const appointment = appointments.find(a => a.id === id);
+        if (!appointment) return;
+
+        const newDocs = mergeUniqueDocuments(appointment.docs || [], docsToAdd, appointment.signingType);
+        
+        return updateDoc(doc(db, 'appointments', id), {
+          docs: validateDocuments(newDocs)
+        });
+      });
       await Promise.all(promises);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `appointments/bulk-docs`);

@@ -12,6 +12,8 @@ import { cn } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
 import SigningCompanyModal from './SigningCompanyModal';
 
+import { HYBRID_LOAN_PACKAGE, PACKAGE_CONFIGS, mergeUniqueDocuments, validateDocuments, normalizeDocName } from '../lib/packageConfigs';
+
 interface NewSigningModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,6 +54,7 @@ const NewSigningModal = ({
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanSuccess, setScanSuccess] = useState(false);
+  const [hybridDocsLoaded, setHybridDocsLoaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatDateForInput = (dateStr: string) => {
@@ -225,41 +228,70 @@ Return only the JSON object, no additional text.`;
     }
   };
 
-  const docGroups = [
-    {
-      title: 'Loan Signing Documents',
-      items: [
-        'Closing / Disbursement Instructions',
-        'Title Company Client Acknowledgement (Owner\'s Affidavit)',
-        'Loan Proceeds Delivery Instructions',
-        'Correction Agreement',
-        'Identity Verification & Acknowledgment Certification',
-        'Deed of Trust / Mortgage / Security Instrument',
-        'Note',
-        'Occupancy Statement',
-        'Signature / Name Affidavit (Borrower)',
-        'Signature / Name Affidavit (Non-Borrowing Party)',
-        'Errors and Omissions / Compliance Agreement',
-        'Closing Disclosure (CD)',
-        'Right to Cancel (3-Day Rescission Notice)',
-        'Truth-in-Lending Disclosure (TIL)',
-        'Affidavit of Understanding and Indemnity (NCLTA / E-Courts)',
-        'Preliminary Limited Title Opinion'
-      ]
-    },
-    {
-      title: 'Notarial Acts',
-      items: [
-        'Acknowledgment', 'Jurat', 'Oath / Affirmation', 'Signature Witnessing', 'Copy Certification'
-      ]
-    },
-    {
-      title: 'Other',
-      items: [
-        'Power of Attorney', 'Affidavit of Identity', 'Living Trust'
-      ]
+  useEffect(() => {
+    if (formData.signingType && PACKAGE_CONFIGS[formData.signingType] && !appointment) {
+      const config = PACKAGE_CONFIGS[formData.signingType];
+      const currentDocs = formData.docs || [];
+      const newDocs = mergeUniqueDocuments(currentDocs, config.canonicalDocs, formData.signingType);
+      
+      if (newDocs.length > currentDocs.length) {
+        setFormData(prev => ({
+          ...prev,
+          docs: newDocs
+        }));
+        setHybridDocsLoaded(true);
+        setTimeout(() => setHybridDocsLoaded(false), 3000);
+      }
     }
-  ];
+  }, [formData.signingType, appointment]);
+
+  const docGroups = React.useMemo(() => {
+    if (formData.signingType && PACKAGE_CONFIGS[formData.signingType]) {
+      const config = PACKAGE_CONFIGS[formData.signingType];
+      return [
+        {
+          title: `${config.type} (Canonical)`,
+          items: config.canonicalDocs
+        }
+      ];
+    }
+    
+    return [
+      {
+        title: 'Loan Signing Documents',
+        items: [
+          'Closing / Disbursement Instructions',
+          'Title Company Client Acknowledgement (Owner Affidavit)',
+          'Loan Proceeds Delivery Instructions',
+          'Correction Agreement',
+          'Identity Verification & Acknowledgment Certification',
+          'Deed of Trust',
+          'Note',
+          'Occupancy Statement',
+          'Signature/Name Affidavit – Borrower',
+          'Signature/Name Affidavit – Non-Borrowing Party',
+          'Errors and Omissions / Compliance Agreement',
+          'Closing Disclosure (CD)',
+          'Right to Cancel (3-Day Rescission Notice)',
+          'Truth-in-Lending Disclosure (TIL)',
+          'Affidavit of Understanding and Indemnity (NCLTA / E-Courts)',
+          'Preliminary Limited Title Opinion'
+        ]
+      },
+      {
+        title: 'Notarial Acts',
+        items: [
+          'Acknowledgment', 'Jurat', 'Oath / Affirmation', 'Signature Witnessing', 'Copy Certification'
+        ]
+      },
+      {
+        title: 'Other',
+        items: [
+          'Power of Attorney', 'Affidavit of Identity', 'Living Trust'
+        ]
+      }
+    ];
+  }, [formData.signingType]);
 
   const uniqueCustomers = React.useMemo(() => {
     const fromAppointments = appointments.map(a => a.customerName).filter(Boolean) as string[];
@@ -286,7 +318,7 @@ Return only the JSON object, no additional text.`;
     'Buyer Package',
     'HELOC',
     'Reverse Mortgage',
-    'Hybrid Loan',
+    'Hybrid Loan Package',
     'General Notary Work'
   ];
 
@@ -462,15 +494,18 @@ Return only the JSON object, no additional text.`;
         return;
       }
       
-      // Ensure fee and agreedFee are in sync
+      // Ensure fee and agreedFee are in sync and documents are validated
+      const finalDocs = validateDocuments(formData.docs || []);
       const finalData = { 
         ...formData, 
         customerName: computedCustomerName,
         fee: formData.agreedFee || formData.fee || 0,
-        agreedFee: formData.agreedFee || formData.fee || 0
+        agreedFee: formData.agreedFee || formData.fee || 0,
+        docs: finalDocs
       };
       
       onSave(finalData as Appointment);
+      onClose();
     }
   };
 
@@ -499,11 +534,16 @@ Return only the JSON object, no additional text.`;
 
   const toggleDoc = (doc: string) => {
     const currentDocs = formData.docs || [];
-    const newDocs = currentDocs.includes(doc)
-      ? currentDocs.filter(d => d !== doc)
-      : [...currentDocs, doc];
-    setFormData({ ...formData, docs: newDocs });
-    if (newDocs.length > 0) setShowDocError(false);
+    const newDocs = mergeUniqueDocuments(currentDocs, [doc], formData.signingType);
+    
+    // If merge didn't add anything (because it was already there), then we remove it (toggle behavior)
+    if (currentDocs.includes(normalizeDocName(doc, formData.signingType))) {
+      const normalizedToRemove = normalizeDocName(doc, formData.signingType);
+      setFormData({ ...formData, docs: currentDocs.filter(d => d !== normalizedToRemove) });
+    } else {
+      setFormData({ ...formData, docs: newDocs });
+      if (newDocs.length > 0) setShowDocError(false);
+    }
   };
 
   const addCustomDoc = () => {
@@ -534,6 +574,20 @@ Return only the JSON object, no additional text.`;
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+          <AnimatePresence>
+            {hybridDocsLoaded && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="bg-sky-50 border border-sky-100 rounded-lg p-3 flex items-center gap-3 text-sky-700 mb-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span className="text-xs font-bold">Hybrid Loan Package loaded: 9 canonical documents added.</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Main Form Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
             {/* Left Column */}
@@ -809,6 +863,22 @@ Return only the JSON object, no additional text.`;
                 >
                   <tab.icon className={cn("w-4 h-4", activeTab === tab.name ? "text-indigo-500" : "text-slate-400")} />
                   {tab.name}
+                  {tab.name === 'Signer(s)' && (formData.signers || []).length > 0 && (
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
+                      activeTab === tab.name ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-500"
+                    )}>
+                      {(formData.signers || []).length}
+                    </span>
+                  )}
+                  {tab.name === 'Documents' && (formData.docs || []).length > 0 && (
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
+                      activeTab === tab.name ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-500"
+                    )}>
+                      {(formData.docs || []).length}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
