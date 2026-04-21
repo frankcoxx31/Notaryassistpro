@@ -313,14 +313,14 @@ const formatDisplayName = (name: string) => {
 };
 
 const parseTextWithAI = async (text: string): Promise<Partial<Appointment>> => {
-  const apiKey = import.meta.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets.");
   }
   const ai = new GoogleGenAI({ apiKey });
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: "gemini-3-flash-preview",
     contents: [
       {
         role: "user",
@@ -380,19 +380,24 @@ const parseTextWithAI = async (text: string): Promise<Partial<Appointment>> => {
 };
 
 const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]> => {
-  const apiKey = import.meta.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets.");
   }
   const ai = new GoogleGenAI({ apiKey });
   
   // Convert file to base64
-  const base64 = await new Promise<string>((resolve) => {
+  const base64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      resolve(result.split(',')[1]);
+      if (result) {
+        resolve(result.split(',')[1]);
+      } else {
+        reject(new Error("Failed to read PDF file."));
+      }
     };
+    reader.onerror = () => reject(new Error("Error reading file."));
     reader.readAsDataURL(file);
   });
 
@@ -408,44 +413,25 @@ const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]
             }
           },
           {
-            text: `Read the PDF as plain text. 
+            text: `You are a specialized notary signing document extractor. Analyze the provided PDF and extract all signing appointments.
             
-            Find the exact label: "Scheduled Closing Date and Time:".
-            Copy the EXACT text that appears immediately after that label on the same line.
-            Do NOT interpret, normalize, convert, or reformat this value. 
-            Do NOT infer the date or change the day.
-            Return the value exactly as it appears in the PDF.
+            SIGNING DETAILS TO LOOK FOR:
+            - Date and Time: Look for labels like "Scheduled Closing Date and Time", "Signing Date", "Appointment Date".
+            - Client Names: Signers, Borrowers, or Co-Borrowers.
+            - Customer: The company hiring you (e.g., Rocket Close, Snapdocs, Title companies).
+            - Location: Address, city, state, and zip code where the signing occurs.
+            - Fee: Your payment amount (e.g., "Signing: $150").
+            - Loan Details: Order number, loan number, invoice number.
+            - Contact Info: Signer's phone and email.
+            - Documents: A list of documents included in the package.
             
-            Example: "April 02, 2026 1:00 PM"
+            PACKAGE RECOGNITION:
+            If the package mentions "Hybrid" or is clearly a mix of digital and in-person documents, set signingType to "Hybrid Loan Package". Otherwise, determine if it is a "Refinance", "Purchase", "Seller", or "General Notary Work".
 
-            IMPORTANT FIELD DEFINITIONS:
-            - date: Copy the EXACT text from "Scheduled Closing Date and Time:".
-            - time: Copy the EXACT time portion from "Scheduled Closing Date and Time:" (e.g., "1:00 PM").
-            - clientName: The name of the person signing the documents (often listed as "Borrower" or "Signer").
-            - customer: The company or agency hiring the notary (e.g., "Rocket Close", "Snapdocs").
-            - location: The full address of the signing (often listed as "Closing Location" or "Property Address").
-            - address: Just the street address part of the location.
-            - city: Just the city name.
-            - state: The state (e.g., "NC").
-            - zip: The 5-digit zip code.
-            - fee: The numeric amount being paid to the notary (look for "Signing: $XX.XX").
-            - orderNumber: The order or reference number (look for "Order #").
-            - invoiceNumber: The invoice number.
-            - loanNumber: The loan number (look for "Closing Loan #" or "Primary Loan #").
-            - phone: The phone number of the signer (look for "Mobile" under Borrower).
-            - email: The email address of the signer.
-            - signingType: The type of signing (e.g., "Refinance", "Purchase"). Look for "Transaction Type" or the service description. If it refers to "Hybrid", use "Hybrid Loan Package".
-            - notes: Any special instructions or notes.
-            - docs: An array of document titles found in the package. Focus on major documents like Note, Deed of Trust, Affidavits, etc.
-
-            DOC RECOGNITION RULES (Hybrid Loan Package only):
-            If the package is a Hybrid Loan Package, only include documents if they:
-            1. Have borrower or signer signature lines.
-            2. Require notarization.
-            3. Are part of an in-person hybrid closing.
-            Exclude pages that only have Lender/Title signatures, continuation pages, or informational-only pages.
-
-            Return them as a JSON array of objects. If a field is missing, use an empty string or a sensible default. Ensure the output is ONLY the JSON array.`
+            DOCUMENT SELECTION RULES:
+            Focus on major documents like Note, Deed of Trust, Closing Disclosure, Signature Affidavits.
+            
+            Return them as a JSON array of objects. Use the following schema. If a value cannot be found, provide a sensible default or empty string. DO NOT fail just because one field is missing.`
           }
         ]
       }
@@ -481,15 +467,16 @@ const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]
               type: Type.ARRAY, 
               items: { type: Type.STRING } 
             }
-          },
-          required: ["date", "time", "clientName", "signingType", "location", "fee", "status"]
+          }
         }
       }
     }
   });
 
     try {
-      const data = JSON.parse(response.text || '[]');
+      const responseText = response.text || '[]';
+      console.log("[PDF Import] Raw AI response received:", responseText.length, "chars");
+      const data = JSON.parse(responseText);
       return data.map((item: any) => {
         const now = new Date();
         const dateStr = format(now, 'yyyyMMdd');
@@ -1946,8 +1933,9 @@ const SettingsView = ({
               alert('Could not find any valid signing records in the PDF file.');
             }
           } catch (error) {
-            console.error("PDF Import Error:", error);
-            alert('Failed to parse PDF. Please ensure it is a valid document or try CSV.');
+            console.error("PDF Import Error (Settings):", error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            alert(`Failed to parse PDF: ${errorMessage}\n\nPlease ensure it is a valid document and the API key is configured correctly.`);
           } finally {
             setIsImporting(false);
           }
@@ -4278,8 +4266,9 @@ const Appointments = ({
               alert('Could not find any valid signing records in the PDF file.');
             }
           } catch (error) {
-            console.error("PDF Import Error:", error);
-            alert('Failed to parse PDF. Please ensure it is a valid document or try CSV.');
+            console.error("PDF Import Error (Dashboard):", error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            alert(`Failed to parse PDF: ${errorMessage}\n\nPlease ensure it is a valid document and the API key is configured correctly.`);
           } finally {
             setIsImporting(false);
           }
