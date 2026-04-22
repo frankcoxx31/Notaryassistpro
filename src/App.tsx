@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   BrowserRouter as Router, 
   Routes, 
@@ -53,6 +53,8 @@ import {
   PlusCircle,
   List,
   Briefcase,
+  Camera,
+  Loader2,
   RefreshCw,
   Phone,
   Banknote,
@@ -119,7 +121,8 @@ import {
   MOCK_EXPENSES, 
   MOCK_MILEAGE 
 } from './mockData';
-import { auth, db, provider } from './firebase';
+import { auth, db, provider, storage } from './firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { demoStorage } from './lib/demoStorage';
 import LoginPage from './components/LoginPage';
 import DemoLoginPage from './components/DemoLoginPage';
@@ -313,9 +316,9 @@ const formatDisplayName = (name: string) => {
 };
 
 const parseTextWithAI = async (text: string): Promise<Partial<Appointment>> => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY);
   if (!apiKey) {
-    throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets.");
+    throw new Error("Gemini API key is missing. For development, define VITE_GEMINI_API_KEY in your .env file. For production, ensure the environment variable is set.");
   }
   const ai = new GoogleGenAI({ apiKey });
 
@@ -380,9 +383,9 @@ const parseTextWithAI = async (text: string): Promise<Partial<Appointment>> => {
 };
 
 const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]> => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY);
   if (!apiKey) {
-    throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets.");
+    throw new Error("Gemini API key is missing. For development, define VITE_GEMINI_API_KEY in your .env file. For production, ensure the environment variable is set.");
   }
   const ai = new GoogleGenAI({ apiKey });
   
@@ -1768,8 +1771,45 @@ const Reports = ({
   );
 };
 
-const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: boolean; onClose: () => void; profile: BusinessProfile; onSave: (p: BusinessProfile) => void }) => {
+const BusinessProfileModal = ({ 
+  isOpen, 
+  onClose, 
+  profile, 
+  onSave,
+  userId
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  profile: BusinessProfile; 
+  onSave: (p: BusinessProfile) => void;
+  userId: string;
+}) => {
   const [formData, setFormData] = useState<BusinessProfile>(profile);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUploadLicense = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+
+    setIsUploading(true);
+    try {
+      const timestamp = Date.now();
+      const sanitizedName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+      const storagePath = `notary-credentials/${userId}/${timestamp}-${sanitizedName}`;
+      const storageRef = ref(storage, storagePath);
+
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      setFormData(prev => ({ ...prev, licenseImageUrl: downloadURL }));
+    } catch (error) {
+      console.error("License upload error:", error);
+      alert("Failed to upload license. Please try again.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -1870,6 +1910,66 @@ const BusinessProfileModal = ({ isOpen, onClose, profile, onSave }: { isOpen: bo
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
               <p className="text-[10px] text-slate-500">If using a Service Account, share your calendar with the service account email first.</p>
+            </div>
+
+            {/* License Upload Section */}
+            <div className="md:col-span-2 pt-4 border-t border-slate-100">
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Notary License & Credentials</h3>
+              
+              <div className="flex flex-col md:flex-row gap-6">
+                <div className="flex-1 space-y-4">
+                  <p className="text-xs text-slate-500">Upload a scan or photo of your Notary Commission, Driver's License, or E&O Insurance for quick access when requested by title companies.</p>
+                  
+                  <input 
+                    type="file" 
+                    accept="image/*,application/pdf"
+                    onChange={handleUploadLicense}
+                    className="hidden"
+                    ref={fileInputRef}
+                  />
+                  
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                  >
+                    {isUploading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4" />
+                    )}
+                    Upload Credential / License
+                  </button>
+                </div>
+
+                {formData.licenseImageUrl && (
+                  <div className="w-full md:w-48 aspect-video md:aspect-[4/3] rounded-xl border border-slate-200 bg-slate-50 overflow-hidden relative group">
+                    {formData.licenseImageUrl.toLowerCase().endsWith('.pdf') ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                        <FileText className="w-8 h-8 text-indigo-400" />
+                        <span className="text-[10px] font-bold text-slate-500">PDF Document</span>
+                      </div>
+                    ) : (
+                      <img 
+                        src={formData.licenseImageUrl} 
+                        alt="Notary License" 
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2 text-center">
+                      <a 
+                        href={formData.licenseImageUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-white text-[10px] font-bold hover:underline"
+                      >
+                        View Full Document
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -3759,6 +3859,7 @@ const Appointments = ({
   customers, 
   companies,
   onNewSigning, 
+  onNewSigningWithScan,
   onViewSigning, 
   onDelete, 
   onImport, 
@@ -3773,6 +3874,7 @@ const Appointments = ({
   customers: Customer[]; 
   companies: SigningCompany[];
   onNewSigning: () => void; 
+  onNewSigningWithScan?: () => void;
   onViewSigning: (app: Appointment, tab?: string) => void; 
   onDelete: (ids: string[]) => void; 
   onImport: (apps: Appointment[]) => void; 
@@ -4601,6 +4703,14 @@ const Appointments = ({
             >
               <PlusCircle className="w-4 h-4" /> {viewMode === 'journal' ? 'Add Entry' : 'Add Signing'}
             </button>
+            {viewMode === 'journal' && onNewSigningWithScan && (
+              <button 
+                onClick={onNewSigningWithScan}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-white/10"
+              >
+                <Camera className="w-4 h-4" /> Scan ID
+              </button>
+            )}
           <button 
             onClick={handlePrint}
             className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
@@ -5570,6 +5680,7 @@ export default function App() {
   const [isNewSigningModalOpen, setIsNewSigningModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [modalInitialTab, setModalInitialTab] = useState('Signer(s)');
+  const [modalAutoScan, setModalAutoScan] = useState(false);
   const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
   const [isExpenseTypesModalOpen, setIsExpenseTypesModalOpen] = useState(false);
   const [isRecurringExpenseModalOpen, setIsRecurringExpenseModalOpen] = useState(false);
@@ -6203,11 +6314,18 @@ export default function App() {
                   viewMode="journal"
                   onNewSigning={() => {
                     setSelectedAppointment(null);
+                    setModalAutoScan(false);
                     setIsNewSigningModalOpen(true);
                   }} 
+                  onNewSigningWithScan={() => {
+                    setSelectedAppointment(null);
+                    setModalAutoScan(true);
+                    setIsNewSigningModalOpen(true);
+                  }}
                   onViewSigning={(app, tab = 'Signer(s)') => {
                     setSelectedAppointment(app);
                     setModalInitialTab(tab);
+                    setModalAutoScan(false);
                     setIsNewSigningModalOpen(true);
                   }}
                   onDelete={handleDeleteAppointments}
@@ -6320,9 +6438,11 @@ export default function App() {
               setIsNewSigningModalOpen(false);
               setSelectedAppointment(null);
               setModalInitialTab('Signer(s)');
+              setModalAutoScan(false);
             }} 
             appointment={selectedAppointment}
             initialTab={modalInitialTab}
+            autoScan={modalAutoScan}
             onSave={async (app) => {
               try {
                 await handleSaveAppointment(app);
@@ -6409,6 +6529,7 @@ export default function App() {
             isOpen={isProfileModalOpen} 
             onClose={() => setIsProfileModalOpen(false)} 
             profile={businessProfile}
+            userId={user?.uid || 'mock-user'}
             onSave={(updatedProfile) => {
               handleSaveProfile(updatedProfile);
               setIsProfileModalOpen(false);

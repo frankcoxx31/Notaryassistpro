@@ -4,7 +4,7 @@ import {
   X, Edit2, MapPin, User, Calendar, Clock, 
   HelpCircle, CheckCircle2, Phone, Banknote, 
   List, Pencil, Plus, Trash2, Camera, Loader2, AlertCircle,
-  Car, TrendingUp, PlusCircle
+  Car, TrendingUp, PlusCircle, Upload
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { Appointment, AppointmentStatus, Customer, SigningCompany, Signer } from '../types';
@@ -27,6 +27,7 @@ interface NewSigningModalProps {
   appointments: Appointment[];
   companies: SigningCompany[];
   onSaveCompany: (company: SigningCompany) => void;
+  autoScan?: boolean;
 }
 
 const DEFAULT_MILEAGE_RATE = 0.725;
@@ -41,7 +42,8 @@ const NewSigningModal = ({
   customers,
   appointments,
   companies,
-  onSaveCompany
+  onSaveCompany,
+  autoScan = false
 }: NewSigningModalProps) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formData, setFormData] = useState<Partial<Appointment>>({});
@@ -60,6 +62,7 @@ const NewSigningModal = ({
   const [scanSuccess, setScanSuccess] = useState(false);
   const [packageLoadedMessage, setPackageLoadedMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const formatDateForInput = (dateStr: string) => {
     if (!dateStr) return "";
@@ -109,81 +112,80 @@ const NewSigningModal = ({
     setScanSuccess(false);
 
     try {
-      // 1. Upload to Firebase Storage
-      console.log("[Scan] Starting Firebase Storage upload...");
-      const timestamp = Date.now();
-      const sanitizedName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
-      const storagePath = `scan-images/${userId}/${timestamp}-${sanitizedName}`;
-      const storageRef = ref(storage, storagePath);
+      // Helper to compress image
+      const compressImage = async (imgFile: File): Promise<Blob> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.src = URL.createObjectURL(imgFile);
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const MAX_SIZE = 1200;
+            let w = img.width, h = img.height;
+            if (w > h) { if (w > MAX_SIZE) { h *= MAX_SIZE / w; w = MAX_SIZE; } } 
+            else { if (h > MAX_SIZE) { w *= MAX_SIZE / h; h = MAX_SIZE; } }
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(img, 0, 0, w, h);
+            canvas.toBlob(b => b ? resolve(b) : reject("Blob fail"), "image/jpeg", 0.7);
+          };
+          img.onerror = () => reject("Img fail");
+        });
+      };
 
-      const uploadResult = await uploadBytes(storageRef, file);
-      console.log("[Scan] Upload success:", uploadResult.metadata.fullPath);
+      console.log("[Scan] Preparing image...");
+      const [compBlob, b64] = await Promise.all([
+        compressImage(file).catch(() => file),
+        new Promise<string>((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res((r.result as string).split(",")[1]);
+          r.onerror = rej;
+          r.readAsDataURL(file);
+        })
+      ]);
 
-      const downloadURL = await getDownloadURL(storageRef);
-      console.log("[Scan] Download URL retrieved:", downloadURL);
+      console.log("[Scan] Image prepared. Size:", (compBlob as Blob).size);
 
-      // 2. Read file as Base64 for AI Processing
-      console.log("[Scan] Reading file as base64 for AI...");
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
-        };
-      });
-      reader.readAsDataURL(file);
-      const base64Data = await base64Promise;
+      const tks = Date.now();
+      const path = `scan-images/${userId}/${tks}-${file.name.replace(/[^a-z0-9.]/gi, "_")}`;
+      const sRef = ref(storage, path);
 
-      const apiKey = import.meta.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment variables/secrets.");
-      }
+      const uploadJob = async () => {
+        console.log("[Scan] Uploading...");
+        await Promise.race([uploadBytes(sRef, compBlob as Blob), new Promise((_, r) => setTimeout(() => r("Upload Timeout"), 60000))]);
+        return await getDownloadURL(sRef);
+      };
 
+      const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY);
+      if (!apiKey) throw new Error("Gemini API key missing.");
       const ai = new GoogleGenAI({ apiKey });
       
-      const prompt = `Extract the following information from this driver's license image and return it as a JSON object with these exact keys:
-{
-  "fullName": (full legal name as printed),
-  "address": (full address including city, state, zip),
-  "idNumber": (license number),
-  "dateOfBirth": (format MM/DD/YYYY),
-  "issueDate": (format MM/DD/YYYY),
-  "expirationDate": (format MM/DD/YYYY),
-  "state": (issuing state, 2-letter abbreviation)
-}
-Return only the JSON object, no additional text.`;
+      const aiJob = async () => {
+        console.log("[Scan] AI Starting...");
+        const prompt = `Extract info from this ID image into JSON: fullName, address, idNumber, dateOfBirth (MM/DD/YYYY), issueDate, expirationDate, state, idType.`;
+        const aiPromise = ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: b64 } }, { text: prompt }] }],
+          config: { responseMimeType: "application/json" }
+        });
+        const aiTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("AI Timeout")), 60000)
+        );
+        const response = await Promise.race([aiPromise, aiTimeout]) as any;
+        return JSON.parse(response.text);
+      };
 
-      console.log("[Scan] Sending to AI for extraction...");
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            parts: [
-              { inlineData: { mimeType: file.type, data: base64Data } },
-              { text: prompt }
-            ]
-          }
-        ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              fullName: { type: Type.STRING },
-              address: { type: Type.STRING },
-              idNumber: { type: Type.STRING },
-              dateOfBirth: { type: Type.STRING },
-              issueDate: { type: Type.STRING },
-              expirationDate: { type: Type.STRING },
-              state: { type: Type.STRING }
-            },
-            required: ["fullName", "address", "idNumber", "dateOfBirth", "issueDate", "expirationDate", "state"]
-          }
-        }
-      });
+      console.log("[Scan] Running parallel tasks...");
+      const [aiRes, upRes] = await Promise.allSettled([aiJob(), uploadJob()]);
 
-      const result = JSON.parse(response.text || "{}");
-      console.log("[Scan] AI Result:", result);
+      if (aiRes.status === "rejected") throw new Error(`AI Extraction failed: ${aiRes.reason}`);
+      const result = aiRes.value;
+      const downloadURL = upRes.status === "fulfilled" ? upRes.value : undefined;
+
+      if (!downloadURL) {
+        console.warn("[Scan] Extraction worked but storage failed.");
+      }
+
+      console.log("[Scan] AI Parsed Result:", result);
       
       if (result.fullName) {
         // Parse address to extract city, state, zip
@@ -215,11 +217,12 @@ Return only the JSON object, no additional text.`;
             city: city,
             state: state,
             zip: zip,
+            idType: result.idType || updatedSigners[signerIndex]?.idType || "NC Driver's License",
             idNumber: result.idNumber,
             dob: formatDateForInput(result.dateOfBirth),
             idIssueDate: formatDateForInput(result.issueDate),
             idExpiration: formatDateForInput(result.expirationDate),
-            idImageUrl: downloadURL
+            idImageUrl: downloadURL || undefined
           };
 
           if (signerIndex !== -1) {
@@ -240,7 +243,8 @@ Return only the JSON object, no additional text.`;
               city,
               state,
               zip,
-              idImageUrl: downloadURL,
+              idType: result.idType || "NC Driver's License",
+              idImageUrl: downloadURL || undefined,
               location: result.address,
               idNumber: result.idNumber,
               dob: formatDateForInput(result.dateOfBirth),
@@ -267,6 +271,7 @@ Return only the JSON object, no additional text.`;
     } finally {
       setIsScanning(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
     }
   };
 
@@ -615,6 +620,15 @@ Return only the JSON object, no additional text.`;
       setCustomDoc('');
     }
   };
+
+  useEffect(() => {
+    if (autoScan && isOpen && fileInputRef.current && !isScanning) {
+      console.log("[Scan] Auto-scan triggered by prop.");
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 500);
+    }
+  }, [autoScan, isOpen]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
@@ -1276,13 +1290,13 @@ Return only the JSON object, no additional text.`;
                                   </div>
                                 </div>
 
-                                {(signer.idType === "NC Driver's License" || signer.idType === "Out-of-State Driver's License") && (
+                                {(signer.idType !== "Personal Knowledge" && signer.idType !== "Credible Witness") && (
                                   <div className="pt-2 space-y-2">
                                     {signer.idImageUrl && (
                                       <div className="relative group rounded-xl overflow-hidden aspect-video bg-slate-100 border border-slate-200 mb-2">
                                          <img src={signer.idImageUrl} alt="License" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                           <p className="text-white text-[10px] font-bold">License Scan Saved</p>
+                                           <p className="text-white text-[10px] font-bold">ID Scan Saved</p>
                                          </div>
                                       </div>
                                     )}
@@ -1294,32 +1308,59 @@ Return only the JSON object, no additional text.`;
                                       ref={fileInputRef}
                                       onChange={handleScanLicense}
                                     />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        console.log("[Scan] Scan License button clicked.");
-                                        fileInputRef.current?.click();
-                                      }}
-                                      disabled={isScanning}
-                                      className={cn(
-                                        "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm",
-                                        isScanning 
-                                          ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
-                                          : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 shadow-indigo-200 shadow-lg"
-                                      )}
-                                    >
-                                      {isScanning ? (
-                                        <>
-                                          <Loader2 className="w-4 h-4 animate-spin" />
-                                          Scanning...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Camera className="w-4 h-4" />
-                                          Scan License
-                                        </>
-                                      )}
-                                    </button>
+                                    <input 
+                                      type="file" 
+                                      accept="image/*" 
+                                      className="hidden" 
+                                      ref={uploadInputRef}
+                                      onChange={handleScanLicense}
+                                    />
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          console.log("[Scan] Scan ID (Camera) clicked.");
+                                          fileInputRef.current?.click();
+                                        }}
+                                        disabled={isScanning}
+                                        className={cn(
+                                          "flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm",
+                                          isScanning 
+                                            ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                                            : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 shadow-indigo-200 shadow-md"
+                                        )}
+                                      >
+                                        {isScanning ? (
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <Camera className="w-3.5 h-3.5" />
+                                        )}
+                                        Scan ID
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          console.log("[Scan] Upload ID (Files) clicked.");
+                                          uploadInputRef.current?.click();
+                                        }}
+                                        disabled={isScanning}
+                                        className={cn(
+                                          "flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm",
+                                          isScanning 
+                                            ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                                            : "bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 active:scale-95 shadow-indigo-50 shadow-md"
+                                        )}
+                                      >
+                                        {isScanning ? (
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <Upload className="w-3.5 h-3.5" />
+                                        )}
+                                        Upload ID
+                                      </button>
+                                    </div>
 
                                     {scanError && (
                                       <div className="flex items-center gap-2 p-2 bg-rose-50 text-rose-600 rounded-lg text-xs animate-in slide-in-from-top-1">
