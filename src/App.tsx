@@ -1776,13 +1776,17 @@ const BusinessProfileModal = ({
   onClose, 
   profile, 
   onSave,
-  userId
+  userId,
+  onConnectGoogle,
+  isConnecting
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
   profile: BusinessProfile; 
   onSave: (p: BusinessProfile) => void;
   userId: string;
+  onConnectGoogle: () => void;
+  isConnecting: boolean;
 }) => {
   const [formData, setFormData] = useState<BusinessProfile>(profile);
   const [isUploading, setIsUploading] = useState(false);
@@ -1910,6 +1914,51 @@ const BusinessProfileModal = ({
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
               />
               <p className="text-[10px] text-slate-500">If using a Service Account, share your calendar with the service account email first.</p>
+            </div>
+
+            {/* Google Calendar Connection Section */}
+            <div className="md:col-span-2 pt-4 border-t border-slate-100">
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Google Calendar Sync</h3>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-10 h-10 rounded-lg flex items-center justify-center",
+                    formData.googleCalendarConnected ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
+                  )}>
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      {formData.googleCalendarConnected ? "Calendar Connected" : "Connect Google Calendar"}
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Sync your notary appointments automatically.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onConnectGoogle}
+                  disabled={isConnecting}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shrink-0",
+                    formData.googleCalendarConnected 
+                      ? "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50" 
+                      : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-600/20"
+                  )}
+                >
+                  {isConnecting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : formData.googleCalendarConnected ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Reconnect Calendar
+                    </>
+                  ) : (
+                    "Connect Calendar"
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* License Upload Section */}
@@ -5960,6 +6009,7 @@ export default function App() {
           action,
           eventId,
           appointmentData: appData,
+          googleCalendarId: businessProfile.googleCalendarId,
           googleCalendarTokens: businessProfile.googleCalendarTokens
         })
       });
@@ -6534,6 +6584,8 @@ export default function App() {
               handleSaveProfile(updatedProfile);
               setIsProfileModalOpen(false);
             }}
+            onConnectGoogle={handleConnectGoogle}
+            isConnecting={isConnecting}
           />
         )}
       </AnimatePresence>

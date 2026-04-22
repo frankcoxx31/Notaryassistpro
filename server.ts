@@ -202,40 +202,40 @@ async function startServer() {
   }
 
   app.post("/api/calendar/sync", async (req, res) => {
-    const { appointmentId, uid, action, appointmentData, googleCalendarTokens } = req.body;
+    const { appointmentId, uid, action, appointmentData, googleCalendarTokens, googleCalendarId: bodyCalendarId } = req.body;
     if (!appointmentId || !uid || !appointmentData) return res.status(400).json({ error: "Missing fields" });
 
     try {
       // Determine Auth Method & Calendar ID
       let auth: any;
-      let calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
+      let calendarId = bodyCalendarId || process.env.GOOGLE_CALENDAR_ID || "primary";
+      let refreshedTokens: any = null;
 
-      if (serviceAccountAuth) {
-        console.log("Using Service Account auth for sync...");
-        auth = serviceAccountAuth;
-      } else {
-        // Fallback to OAuth2
+      // Priority: 1. OAuth2 provided by user, 2. Service Account
+      if (googleCalendarTokens) {
+        console.log("Using OAuth2 tokens (user-connected) for sync...");
         const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } = process.env;
         if (!GOOGLE_CLIENT_ID) {
-          return res.status(503).json({ error: "Google OAuth credentials missing" });
+          return res.status(503).json({ error: "Google OAuth credentials missing on server" });
         }
         
-        const tokens = googleCalendarTokens;
-        if (!tokens) return res.status(401).json({ error: "Google Calendar not connected" });
-
         const oauth2 = new google.auth.OAuth2(
           GOOGLE_CLIENT_ID,
           GOOGLE_CLIENT_SECRET,
           GOOGLE_REDIRECT_URI
         );
-        oauth2.setCredentials(tokens);
+        oauth2.setCredentials(googleCalendarTokens);
 
-        // We can't save to firestore securely here; if refresh needed, we'll return the new tokens to client
-        let newTokensData: any = null;
+        // Handle token refresh
         oauth2.on("tokens", (newTokens) => {
-          newTokensData = { ...tokens, ...newTokens };
+          refreshedTokens = { ...googleCalendarTokens, ...newTokens };
         });
         auth = oauth2;
+      } else if (serviceAccountAuth) {
+        console.log("Using Service Account auth for sync...");
+        auth = serviceAccountAuth;
+      } else {
+        return res.status(503).json({ error: "No Google Calendar authentication method available" });
       }
 
       const appointment = appointmentData;
@@ -253,7 +253,7 @@ async function startServer() {
             if (e.code !== 404) throw e;
           }
         }
-        return res.json({ status: "deleted" });
+        return res.json({ status: "deleted", newTokensData: refreshedTokens });
       }
 
       const { start: startDateTime, end: endDateTime } = getGoogleCalendarDateTime(appointment?.date, appointment?.time);
@@ -302,7 +302,8 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
             status: "updated", 
             googleResponse: apiResponse.data,
             sentEvent: event,
-            calendarIdUsed: calendarId
+            calendarIdUsed: calendarId,
+            newTokensData: refreshedTokens
           });
         } catch (error: any) {
           if (error.code === 404) {
@@ -318,7 +319,8 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
                 eventId: newEvent.data.id, 
                 googleResponse: newEvent.data,
                 sentEvent: event,
-                calendarIdUsed: calendarId
+                calendarIdUsed: calendarId,
+                newTokensData: refreshedTokens
               });
           } else {
             throw error;
@@ -342,7 +344,8 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
           eventId: newEvent.data.id, 
           googleResponse: newEvent.data,
           sentEvent: event,
-          calendarIdUsed: calendarId
+          calendarIdUsed: calendarId,
+          newTokensData: refreshedTokens
         });
       }
 
