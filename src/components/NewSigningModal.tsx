@@ -33,6 +33,27 @@ interface NewSigningModalProps {
 
 const DEFAULT_MILEAGE_RATE = 0.725;
 
+const SIGNING_TYPES = [
+  "Refinance", "Purchase - Buyer", "Seller Package", "HELOC", "Reverse Mortgage", 
+  "Loan Modification", "Cash Purchase", "Commercial Loan", "Hybrid Closing", "Other Signing"
+];
+
+const DOCUMENT_TYPES = [
+  "Closing Disclosure", "Promissory Note", "Deed of Trust / Mortgage", "Occupancy Affidavit", 
+  "Signature / Name Affidavit", "Compliance Agreement", "Right to Cancel", "Loan Application", 
+  "Escrow / Impound Disclosure", "First Payment Letter", "Borrower Certification / Authorization", 
+  "Identity Verification Form", "Owner’s Affidavit", "Limited Power of Attorney", "Warranty Deed", 
+  "Quitclaim Deed", "Grant Deed", "Deed of Reconveyance", "Subordination Agreement", 
+  "Loan Modification Agreement", "HELOC Agreement", "Reverse Mortgage Documents", 
+  "Seller Closing Documents", "Buyer Closing Documents", "Disbursement Authorization", 
+  "Settlement Statement / ALTA / HUD-1", "Certificate of Trust", "Tax / Escrow Documents", 
+  "Other Loan Document"
+];
+
+const NOTARIAL_ACTS = [
+  "Acknowledgment", "Jurat", "Oath / Affirmation", "Verification / Proof", "No Notarial Act Required"
+];
+
 const NewSigningModal = ({ 
   isOpen, 
   onClose, 
@@ -745,7 +766,7 @@ const NewSigningModal = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
                     <div className="space-y-4">
                       <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-20 text-right">Date:</label>
+                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Date:</label>
                         <div className="flex-1 relative">
                           <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                           <input 
@@ -758,7 +779,7 @@ const NewSigningModal = ({
                       </div>
 
                       <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-20 text-right">Time:</label>
+                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Time:</label>
                         <div className="flex-1 relative">
                           <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                           <input 
@@ -770,29 +791,55 @@ const NewSigningModal = ({
                           />
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-4">
+                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Signing Type:</label>
+                        <div className="flex-1 relative">
+                          <CheckCircle2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <select 
+                            value={formData.signingType || ""}
+                            onChange={(e) => setFormData({ ...formData, signingType: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
+                          >
+                            <option value="">Select Signing Type</option>
+                            {SIGNING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-4">
                       <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-20 text-right">Act Type:</label>
+                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Doc Type:</label>
                         <div className="flex-1 relative">
                           <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <select 
+                            value={formData.docType || ""}
+                            onChange={(e) => setFormData({ ...formData, docType: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
+                          >
+                            <option value="">Select Document Type</option>
+                            {DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Notarial Act:</label>
+                        <div className="flex-1 relative">
+                          <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                           <select 
                             value={formData.actType || "Acknowledgment"}
                             onChange={(e) => setFormData({ ...formData, actType: e.target.value })}
                             className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
                           >
-                            <option>Acknowledgment</option>
-                            <option>Jurat</option>
-                            <option>Oath / Affirmation</option>
-                            <option>Verification / Proof</option>
-                            <option>Signature Witnessing</option>
-                            <option>Copy Certification</option>
+                            {NOTARIAL_ACTS.map(t => <option key={t} value={t}>{t}</option>)}
                           </select>
                         </div>
                       </div>
+
                       <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-20 text-right">Location:</label>
+                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Location:</label>
                         <div className="flex-1 relative">
                           <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                           <input 
@@ -1656,12 +1703,12 @@ const NewSigningModal = ({
               )}
               {activeTab === 'Notes' && (
                 <div className="space-y-4">
-                  <label className="text-sm font-bold text-slate-700 block">Additional Notes (optional):</label>
+                  <p className="text-sm font-bold text-slate-700 block mb-2">Additional Notes / Signing Company:</p>
                   <textarea 
                     value={formData.notes || ""}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Loan number, lender, title company, or any other details..."
-                    className="w-full h-48 border border-slate-300 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-none transition-all"
+                    placeholder="E.g. Rocket Closing, ServiceLink, Amrock... Also loan number, lender, etc."
+                    className="w-full h-48 border border-slate-300 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none transition-all shadow-sm"
                   />
                 </div>
               )}

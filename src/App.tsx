@@ -3921,6 +3921,7 @@ const Appointments = ({
 
   // Bulk Add Documents state
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedDocsForBulk, setSelectedDocsForBulk] = useState<string[]>([]);
   const [isBulkDocsDropdownOpen, setIsBulkDocsDropdownOpen] = useState(false);
   const [isBulkTypeDropdownOpen, setIsBulkTypeDropdownOpen] = useState(false);
@@ -4067,8 +4068,22 @@ const Appointments = ({
       filtered = filtered.filter(a => (a.estimatedProfit || 0) < 0);
     }
 
+    // Search Term Filter
+    if (searchTerm) {
+      const lowSearch = searchTerm.toLowerCase();
+      filtered = filtered.filter(a => 
+        (a.customerName || '').toLowerCase().includes(lowSearch) ||
+        (a.clientName || '').toLowerCase().includes(lowSearch) ||
+        (a.signingType || '').toLowerCase().includes(lowSearch) ||
+        (a.docType || '').toLowerCase().includes(lowSearch) ||
+        (a.actType || '').toLowerCase().includes(lowSearch) ||
+        (a.notes || '').toLowerCase().includes(lowSearch) ||
+        (a.city || '').toLowerCase().includes(lowSearch)
+      );
+    }
+
     return filtered;
-  }, [appointments, dateFilter, companyFilter, statusFilter, workTypeFilter, paymentStatusFilter, invoiceSentFilter, profitFilter]);
+  }, [appointments, dateFilter, companyFilter, statusFilter, workTypeFilter, paymentStatusFilter, invoiceSentFilter, profitFilter, searchTerm]);
 
   // Sort appointments by combined date and time in descending order (newest at the top)
   const sortedAppointments = useMemo(() => {
@@ -4363,9 +4378,9 @@ const Appointments = ({
 
   const handleExport = () => {
     const headers = [
-      "Entry #", "Date", "Time", "Type of Act", "Documents Signed", "Principal Name", 
-      "Principal Address", "ID Type", "ID Number", "Date of Birth", 
-      "ID Issue Date", "ID Expiration", "Fee Charged", "Signing Company", "Notes"
+      "Entry #", "Date", "Time", "Principal Name", "Signing Type", "Document Type", 
+      "Notarial Act", "Documents Signed", "Principal Address", "ID Type", 
+      "ID Number", "ID Expiration", "Fee Charged", "Signing Company", "Notes"
     ];
     
     // Sort by date/time ascending for entry numbers
@@ -4379,18 +4394,18 @@ const Appointments = ({
       index + 1,
       app.date,
       app.time,
-      app.signingType,
-      (app.docs || []).join("; "),
-      app.clientName,
-      app.location,
-      app.idType || '',
-      app.idNumber || '',
-      app.dob || '',
-      app.idIssueDate || '',
-      app.idExpiration || '',
-      app.fee,
-      app.signingCompany || '',
-      (app.notes || '').replace(/,/g, ';') // Escape commas in notes
+      `"${app.customerName || app.clientName || ''}"`,
+      `"${app.signingType || ''}"`,
+      `"${app.docType || ''}"`,
+      `"${app.actType || 'Acknowledgment'}"`,
+      `"${(app.docs || []).join("; ").replace(/"/g, '""')}"`,
+      `"${(app.location || '').replace(/"/g, '""')}"`,
+      `"${app.idType || ''}"`,
+      `"${app.idNumber || ''}"`,
+      `"${app.idExpiration || ''}"`,
+      `"${(app.fee || 0).toFixed(2)}"`,
+      `"${app.signingCompany || ''}"`,
+      `"${(app.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`
     ]);
     
     const csvContent = [headers, ...csvData].map(e => e.join(",")).join("\n");
@@ -4795,7 +4810,9 @@ const Appointments = ({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
             <input 
               type="text"
-              placeholder={viewMode === 'journal' ? "Search ledger (principal, act type, city)..." : "Search signings..."}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={viewMode === 'journal' ? "Search ledger (principal, type, act, notes)..." : "Search signings..."}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 placeholder:text-slate-400"
             />
           </div>
@@ -5025,11 +5042,10 @@ const Appointments = ({
                     </td>
                     <td className="px-3 py-4">
                       <div className="text-sm font-extrabold text-slate-900 uppercase tracking-tight truncate max-w-[170px]">
-                        {app.customerName || app.clientName || 'Unnamed Principal'}
-                      </div>
-                      <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
-                         <MapPin className="w-2.5 h-2.5" /> 
-                         <span className="truncate">{app.city || 'Charlotte, NC'}</span>
+                        {(app.customerName || app.clientName || 'Unnamed Principal').split(',').map(n => {
+                          const s = splitName(n.trim());
+                          return s.lastName || s.firstName;
+                        }).join(', ')}
                       </div>
                     </td>
                     <td className="px-3 py-4">
@@ -5045,24 +5061,43 @@ const Appointments = ({
                     {viewMode === 'journal' ? (
                       <>
                         <td className="px-3 py-4">
-                          <div className="flex flex-wrap gap-1 max-w-[280px]">
-                            {(app.docs || []).length > 0 ? (
-                              (app.docs || []).slice(0, 4).map(doc => (
-                                <span key={doc} className="px-1.5 py-0.5 bg-white text-slate-600 rounded text-[9px] font-bold border border-slate-100 truncate shadow-sm">
-                                  {doc}
+                          <div className="flex flex-col gap-1.5 max-w-[280px]">
+                            {/* Structured Signing Details */}
+                            {(app.signingType || app.docType) && (
+                              <div className="flex flex-wrap gap-1 mb-1">
+                                {app.signingType && (
+                                  <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase border border-indigo-100 shadow-sm">
+                                    {app.signingType}
+                                  </span>
+                                )}
+                                {app.docType && (
+                                  <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-black uppercase border border-slate-200 shadow-sm">
+                                    {app.docType}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Tagged Documents */}
+                            <div className="flex flex-wrap gap-1">
+                              {(app.docs || []).length > 0 ? (
+                                (app.docs || []).slice(0, 3).map(doc => (
+                                  <span key={doc} className="px-1.5 py-0.5 bg-white text-slate-500 rounded text-[9px] font-bold border border-slate-100 truncate shadow-sm">
+                                    {doc}
+                                  </span>
+                                ))
+                              ) : (
+                                !app.docType && <span className="text-[11px] text-slate-400 italic">No docs logged</span>
+                              )}
+                              {(app.docs || []).length > 3 && (
+                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100">
+                                  +{(app.docs || []).length - 3}
                                 </span>
-                              ))
-                            ) : (
-                              <span className="text-[11px] text-slate-400 italic">No specific documents logged</span>
-                            )}
-                            {(app.docs || []).length > 4 && (
-                              <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100">
-                                +{(app.docs || []).length - 4} more
-                              </span>
-                            )}
+                              )}
+                            </div>
                           </div>
                           {app.notes && (
-                            <div className="text-[10px] text-slate-400 italic mt-1 truncate max-w-[250px]">— {app.notes}</div>
+                            <div className="text-[10px] text-slate-400 italic mt-1.5 truncate max-w-[250px] font-medium">— {app.notes}</div>
                           )}
                         </td>
                         <td className="px-3 py-4">
@@ -5080,7 +5115,12 @@ const Appointments = ({
                     ) : (
                       <>
                         <td className="px-3 py-4">
-                           <div className="text-xs font-semibold text-slate-600 truncate">{app.location || 'N/A'}</div>
+                           <div className="flex flex-col items-start gap-1">
+                             <div className="text-xs font-semibold text-slate-600 truncate">
+                               {app.city || (app.location ? parseLocation(app.location).city : 'Charlotte, NC')}
+                             </div>
+                             <MapPin className="w-3 h-3 text-slate-400" />
+                           </div>
                         </td>
                         <td className="px-3 py-4">
                            <div className="text-sm font-bold text-slate-900">${(app.agreedFee || app.fee || 0).toFixed(2)}</div>

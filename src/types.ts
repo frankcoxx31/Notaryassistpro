@@ -29,7 +29,6 @@ export interface Appointment {
   firstName?: string;
   lastName?: string;
   signers?: Signer[];
-  signingType: string;
   location: string;
   address?: string;
   city?: string;
@@ -63,6 +62,8 @@ export interface Appointment {
   customerName?: string;
   docs?: string[];
   actType?: string;
+  signingType: string;
+  docType?: string;
   
   // Fee Tracking Fields
   offeredFee?: number;
