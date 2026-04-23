@@ -12,6 +12,7 @@ import {
 import { 
   LayoutDashboard, 
   Calendar, 
+  CalendarDays,
   Users, 
   DollarSign, 
   Settings, 
@@ -2967,78 +2968,9 @@ const Sidebar = ({
             })}
           </nav>
 
-          {/* User Profile */}
-          <div className="p-4 border-t border-white/5 bg-black/10">
-            {user ? (
-              <div 
-                onClick={() => !isOpen && onSignOut()}
-                className={cn(
-                  "flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group",
-                  !isOpen && "justify-center"
-                )}
-                title={!isOpen ? "Sign Out" : ""}
-              >
-                <div className="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center overflow-hidden shrink-0">
-                  {user.photoURL ? (
-                    <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <User className="w-6 h-6 text-indigo-400" />
-                  )}
-                </div>
-                {isOpen ? (
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{user.displayName || 'Frank Cox'}</p>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSignOut();
-                      }}
-                      className="text-[10px] text-white/50 hover:text-rose-400 transition-colors flex items-center gap-1"
-                    >
-                      <LogOut className="w-3 h-3" /> Sign Out
-                    </button>
-                  </div>
-                ) : (
-                  <div className="absolute left-full ml-4 px-3 py-2 bg-[#27285C] border border-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl">
-                    <p className="text-sm font-bold text-white">Sign Out</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div 
-                onClick={() => !isOpen && onSignOut()}
-                className={cn(
-                  "flex items-center gap-3 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer group",
-                  !isOpen && "justify-center"
-                )}
-                title={!isOpen ? "Sign Out" : ""}
-              >
-                <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center overflow-hidden shrink-0">
-                  <User className="w-6 h-6 text-white" />
-                </div>
-                {isOpen ? (
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">Demo User</p>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSignOut();
-                      }}
-                      className="text-[10px] text-white/50 hover:text-rose-400 transition-colors flex items-center gap-1"
-                    >
-                      <LogOut className="w-3 h-3" /> Sign Out
-                    </button>
-                  </div>
-                ) : (
-                  <div className="absolute left-full ml-4 px-3 py-2 bg-[#27285C] border border-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl">
-                    <p className="text-sm font-bold text-white">Sign Out</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
         </div>
       </motion.aside>
+
     </>
   );
 };
@@ -3051,60 +2983,136 @@ const Header = ({ toggleSidebar, onNewSigning, onSignOut, user, isDemoMode, onRe
   isDemoMode: boolean;
   onResetDemo: () => void;
 }) => {
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const location = useLocation();
+  const pageTitle = useMemo(() => {
+    const path = location.pathname;
+    if (path === '/') return 'Dashboard';
+    if (path === '/journal') return 'Notary Journal';
+    if (path === '/calendar') return 'Schedule';
+    if (path === '/customers') return 'Clients';
+    if (path === '/companies') return 'Partners';
+    if (path === '/accounting') return 'Finances';
+    if (path === '/tools') return 'Resources';
+    if (path.startsWith('/reports')) return 'Analytics';
+    if (path === '/settings') return 'Settings';
+    return 'NotaryPro';
+  }, [location.pathname]);
+
   return (
-    <header className="flex flex-col sticky top-0 z-30">
+    <header className="flex flex-col sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
       {isDemoMode && (
-        <div className="bg-amber-500 text-white px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-4 shadow-inner">
+        <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-4 shadow-inner">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-3 h-3" />
-            <span>Demo Mode — changes saved only in this browser</span>
+            <span>Demo Mode — Private Local Session</span>
           </div>
           <button 
             onClick={onResetDemo}
             className="bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors flex items-center gap-1"
           >
-            <RefreshCw className="w-2.5 h-2.5" /> Reset Data
+            <RefreshCw className="w-2.5 h-2.5" /> Reset Demo
           </button>
         </div>
       )}
-      <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8">
-        <div className="flex items-center gap-4">
+      <div className="h-16 flex items-center justify-between px-4 lg:px-8">
+        <div className="flex items-center gap-6">
           <button 
             onClick={toggleSidebar}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors lg:hidden"
+            className="p-2 hover:bg-slate-100 rounded-xl transition-colors lg:hidden"
           >
             <Menu className="w-5 h-5 text-slate-600" />
           </button>
-          <div className="relative hidden md:block">
+          
+          <div className="hidden lg:flex flex-col">
+            <h2 className="text-lg font-black text-slate-900 tracking-tight leading-none">{pageTitle}</h2>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Integrity Closings CLT</p>
+          </div>
+
+          <div className="relative hidden xl:block">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input 
               type="text" 
-              placeholder="Search clients, addresses, signings..." 
-              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500/50 w-[350px] transition-all"
+              placeholder="Search signings, clients, or addresses..." 
+              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/10 focus:border-sky-500/30 w-[300px] transition-all"
             />
           </div>
         </div>
-        <div className="flex items-center gap-2 md:gap-4">
-          <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative">
-            <Bell className="w-5 h-5 text-slate-600" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
-          </button>
+
+        <div className="flex items-center gap-3">
           <button 
             onClick={onNewSigning}
-            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-sky-600/20 border border-sky-500/50"
+            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-sky-600/20 border border-sky-500/50 group"
           >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New Signing</span>
+            <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
+            <span>New Signing</span>
           </button>
+
+          <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
           
-          {/* Quick Sign Out for Header */}
-          <button 
-            onClick={onSignOut}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            title="Sign Out"
-          >
-            <LogOut className="w-5 h-5 text-slate-600" />
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="flex items-center gap-2 p-1 pr-3 hover:bg-slate-50 rounded-full border border-transparent hover:border-slate-200 transition-all group"
+            >
+              <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <User className="w-4 h-4 text-slate-500" />
+                )}
+              </div>
+              <div className="hidden sm:flex flex-col items-start">
+                <span className="text-[11px] font-black text-slate-900 truncate max-w-[100px]">
+                  {user?.displayName || 'Integrity Notary'}
+                </span>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Pro Account</span>
+              </div>
+              <ChevronDown className={cn("w-3 h-3 text-slate-400 transition-transform", isProfileOpen && "rotate-180")} />
+            </button>
+
+            <AnimatePresence>
+              {isProfileOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsProfileOpen(false)} 
+                  />
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                  >
+                    <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Signed in as</p>
+                      <p className="text-xs font-bold text-slate-900 truncate">{user?.email || 'demo@notarypro.app'}</p>
+                    </div>
+                    <div className="p-2">
+                      <Link 
+                        to="/settings" 
+                        onClick={() => setIsProfileOpen(false)}
+                        className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+                      >
+                        <Settings className="w-4 h-4 text-slate-400" />
+                        Account Settings
+                      </Link>
+                      <button 
+                        onClick={() => {
+                          setIsProfileOpen(false);
+                          onSignOut();
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors text-left"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </header>
@@ -3125,7 +3133,6 @@ const Dashboard = ({
   onViewSigning: (app: Appointment, tab?: string) => void;
 }) => {
   const navigate = useNavigate();
-  const [selectedYear, setSelectedYear] = useState('2026');
 
   const todaySignings = useMemo(() => {
     const now = new Date();
@@ -3171,68 +3178,42 @@ const Dashboard = ({
     ).length;
   }, [appointments]);
 
-  const totalPaid = useMemo(() => {
-    return appointments
-      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
-      .reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0), 0);
-  }, [appointments]);
-
-  const totalGross = useMemo(() => {
-    return appointments
-      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
-      .reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
-  }, [appointments]);
-
-  const totalUnpaid = useMemo(() => {
-    return appointments
-      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
-      .reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0), 0);
-  }, [appointments]);
-
-  const totalExpenses = useMemo(() => {
-    return appointments
-      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
-      .reduce((sum, a) => sum + (Number(a.totalJobCost) || 0), 0);
-  }, [appointments]);
-
-  const totalProfit = useMemo(() => {
-    return appointments
-      .filter(a => a.status !== 'Cancelled' && a.status !== 'No Show')
-      .reduce((sum, a) => sum + (Number(a.estimatedProfit) || 0), 0);
-  }, [appointments]);
-
-  const thisWeekIncome = useMemo(() => {
+  const stats = useMemo(() => {
     const now = new Date();
-    return appointments
-      .filter(a => isSameWeek(parseSafeDateTime(a.date), now) && (a.status === 'Completed' || a.status === 'Paid'))
-      .reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+    const monthStart = startOfMonth(now);
+    
+    const monthAppointments = appointments.filter(a => 
+      isAfter(parseSafeDateTime(a.date), monthStart) && 
+      a.status !== 'Cancelled' && 
+      a.status !== 'No Show'
+    );
+
+    const paid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0), 0);
+    const gross = monthAppointments.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
+    const unpaid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0), 0);
+    
+    return { paid, gross, unpaid, count: monthAppointments.length };
   }, [appointments]);
 
   const monthlyGoal = 5000;
-  const goalProgress = Math.min(100, (totalPaid / monthlyGoal) * 100);
+  const goalProgress = Math.min(100, (stats.paid / monthlyGoal) * 100);
 
   const lanes = useMemo(() => {
     const now = new Date();
     return [
-      { id: 'today', title: 'Today', items: todaySignings, color: 'text-teal-400', bg: 'bg-teal-400/10', icon: Zap },
-      { id: 'scanbacks', title: 'Needs Scanbacks', items: appointments
+      { id: 'today', title: 'Schedule Today', items: todaySignings, color: 'text-sky-600', bg: 'bg-sky-50', icon: CalendarDays },
+      { id: 'scanbacks', title: 'Awaiting Scans', items: appointments
         .filter(a => a.scanbackStatus === 'Pending')
         .sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime()), 
-        color: 'text-amber-400', bg: 'bg-amber-400/10', icon: RefreshCw },
-      { id: 'payment', title: 'Follow Up for Payment', items: appointments.filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate && isBefore(parseSafeDateTime(a.date), now) && a.status !== 'Cancelled' && a.status !== 'No Show').slice(0, 5), color: 'text-rose-400', bg: 'bg-rose-400/10', icon: DollarSign },
-      { id: 'completed', title: 'Completed', items: appointments.filter(a => a.status === 'Paid').slice(0, 5), color: 'text-emerald-400', bg: 'bg-emerald-400/10', icon: CheckCircle2 },
+        color: 'text-amber-600', bg: 'bg-amber-50', icon: RefreshCw },
+      { id: 'payment', title: 'Pending Payment', items: appointments.filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate && isBefore(parseSafeDateTime(a.date), now) && a.status !== 'Cancelled' && a.status !== 'No Show').slice(0, 5), color: 'text-rose-600', bg: 'bg-rose-50', icon: DollarSign },
+      { id: 'completed', title: 'Recently Paid', items: appointments.filter(a => a.status === 'Paid').sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime()).slice(0, 5), color: 'text-emerald-600', bg: 'bg-emerald-50', icon: CheckCircle2 },
     ];
   }, [appointments, todaySignings]);
 
-  const recentSignings = useMemo(() => {
-    return [...appointments]
-      .sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime())
-      .slice(0, 8);
-  }, [appointments]);
-
   const topCompanies = useMemo(() => {
     const companyStats = appointments.reduce((acc, app) => {
-      const name = app.signingCompany || 'Unknown';
+      const name = app.signingCompany || app.companyName || 'Unknown';
       if (!acc[name]) {
         acc[name] = { name, count: 0, total: 0 };
       }
@@ -3248,200 +3229,129 @@ const Dashboard = ({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 -m-4 lg:-m-8 p-4 lg:p-8 space-y-8 font-sans">
-      {/* 1. TOP HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Today's Work</h1>
-          <p className="text-slate-500 font-medium">{format(new Date(), 'EEEE, MMMM do, yyyy')}</p>
-        </div>
-        
-        <div className="flex flex-wrap gap-3">
-          <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-sm">
-            <div className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></div>
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{todaySignings.length} Signings Today</span>
-          </div>
-          <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-sm">
-            <DollarSign className="w-3 h-3 text-emerald-600" />
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">${totalDueToday.toLocaleString()} Due</span>
-          </div>
-          <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-sm">
-            <AlertTriangle className="w-3 h-3 text-amber-600" />
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{followUpsNeeded} Follow-ups</span>
-          </div>
-        </div>
-      </div>
-
+      {/* 1. OPERATIONS OVERVIEW */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* LEFT COLUMN: MAIN OPS */}
+        
+        {/* LEFT COLUMN: TODAY'S FOCUS */}
         <div className="lg:col-span-8 space-y-8">
-          
-          {/* 2. HERO CARD: NEXT SIGNING */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Daily Briefing</h1>
+              <p className="text-sm text-slate-500 font-bold">{format(new Date(), 'EEEE, MMMM do')}</p>
+            </div>
+            <div className="flex gap-2">
+              <div className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{todaySignings.length} Active</span>
+              </div>
+            </div>
+          </div>
+
+          {/* NEXT SIGNING HERO */}
           {nextSigning ? (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="relative bg-white rounded-[2rem] p-8 border border-slate-200 shadow-xl overflow-hidden group"
             >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/5 rounded-full -mr-32 -mt-32 blur-3xl transition-all group-hover:bg-teal-500/10"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/5 rounded-full -mr-32 -mt-32 blur-3xl transition-all group-hover:bg-sky-500/10"></div>
               
               <div className="relative z-10 flex flex-col md:flex-row justify-between gap-8">
-                <div className="space-y-6">
+                <div className="space-y-6 flex-1">
                   <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 bg-teal-50 text-teal-600 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-teal-100">
-                      Next Signing
+                    <span className="px-3 py-1 bg-sky-50 text-sky-600 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-sky-100">
+                      Incoming Appointment
                     </span>
                     <span className="text-slate-400 text-xs font-bold">
-                      {isSameDay(parseSafeDateTime(nextSigning.date), new Date()) ? 'Starting soon' : format(parseSafeDateTime(nextSigning.date), 'MMM d')}
+                      {isSameDay(parseSafeDateTime(nextSigning.date), new Date()) ? 'Next Up' : format(parseSafeDateTime(nextSigning.date), 'MMM d')}
                     </span>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-baseline gap-3">
                       <h2 className="text-5xl font-black text-slate-900 tracking-tighter">{nextSigning.time}</h2>
-                      <span className="text-teal-600 font-bold text-lg">${Number(nextSigning.fee).toFixed(2)}</span>
+                      <span className="text-sky-600 font-bold text-lg">${Number(nextSigning.fee).toFixed(2)}</span>
                     </div>
                     <h3 className="text-2xl font-bold text-slate-800">{formatDisplayName(nextSigning.clientName)}</h3>
                   </div>
 
-                  <div className="flex flex-wrap gap-6 text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-teal-500" />
-                      <span className="text-sm font-medium">{nextSigning.city || nextSigning.location?.split(',')[1]?.trim() || 'TBD'}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-slate-500">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MapPin className="w-4 h-4 text-sky-500 shrink-0" />
+                      <span className="text-xs font-bold truncate">{nextSigning.city || nextSigning.location?.split(',')[1]?.trim() || 'Location TBD'}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Briefcase className="w-4 h-4 text-teal-500" />
-                      <span className="text-sm font-medium">{nextSigning.signingType}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Briefcase className="w-4 h-4 text-sky-500 shrink-0" />
+                      <span className="text-xs font-bold truncate">{nextSigning.signingType}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-teal-500" />
-                      <span className="text-sm font-medium">{nextSigning.customer || "Rocket Close"}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Building2 className="w-4 h-4 text-sky-500 shrink-0" />
+                      <span className="text-xs font-bold truncate">{nextSigning.signingCompany || nextSigning.companyName || "Direct Client"}</span>
                     </div>
                   </div>
                 </div>
 
-                  <div className="flex flex-col justify-end gap-3 min-w-[200px]">
+                <div className="flex flex-col justify-end gap-3 min-w-[200px]">
+                  <button 
+                    onClick={() => onViewSigning(nextSigning)}
+                    className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 group"
+                  >
+                    <FileText className="w-5 h-5" />
+                    Open Signing File
+                  </button>
+                  <div className="grid grid-cols-2 gap-3">
                     <button 
-                      onClick={() => onViewSigning(nextSigning)}
-                      className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white font-black rounded-2xl shadow-lg shadow-teal-100 transition-all flex items-center justify-center gap-2 group"
+                      onClick={() => {
+                        if (nextSigning.location && nextSigning.location !== 'TBD') {
+                          window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nextSigning.location)}`, '_blank');
+                        } else {
+                          alert('Address not available for this signing yet.');
+                        }
+                      }}
+                      className="py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
                     >
-                      <FileText className="w-5 h-5" />
-                      Open File
+                      <Navigation className="w-4 h-4 text-sky-600" />
+                      Nav
                     </button>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button 
-                        onClick={() => {
-                          if (nextSigning.location && nextSigning.location !== 'TBD') {
-                            window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nextSigning.location)}`, '_blank');
-                          } else {
-                            alert('Navigation not set up yet: No address provided for this signing.');
-                          }
-                        }}
-                        className="py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                      >
-                        <Navigation className="w-4 h-4 text-teal-600" />
-                        Nav
-                      </button>
-                      <button 
-                        onClick={() => onViewSigning(nextSigning, 'Status')}
-                        className="py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                      >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        Done
-                      </button>
-                    </div>
+                    <button 
+                      onClick={() => onViewSigning(nextSigning, 'Status')}
+                      className="py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      Done
+                    </button>
                   </div>
+                </div>
               </div>
             </motion.div>
           ) : (
             <div className="bg-white rounded-[2rem] p-12 border border-slate-200 border-dashed text-center space-y-4">
               <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto">
-                <Calendar className="w-8 h-8 text-slate-300" />
+                <Calendar className="w-8 h-8 text-slate-200" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-xl font-bold text-slate-900">No upcoming signings</h3>
-                <p className="text-slate-500">Your schedule is clear for now. Time to market!</p>
+                <h3 className="text-lg font-bold text-slate-900">No more signings scheduled for today</h3>
+                <p className="text-sm text-slate-500">Ready to take on more work? Add a new signing to your schedule.</p>
               </div>
               <button 
-                onClick={() => navigate('/signings')}
-                className="px-6 py-2 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition-all"
+                onClick={onNewSigning}
+                className="px-6 py-2.5 bg-sky-600 text-white font-black rounded-xl hover:bg-sky-700 transition-all uppercase tracking-widest text-xs"
               >
-                Schedule New
+                Create New Signing
               </button>
             </div>
           )}
 
-          {/* 3. QUICK ACTIONS DOCK */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {[
-              { label: 'New Signing', icon: Plus, onClick: onNewSigning, color: 'bg-teal-500' },
-              { label: 'Add Journal', icon: BookOpen, onClick: () => navigate('/journal'), color: 'bg-indigo-500' },
-              { label: 'Upload ID', icon: Upload, onClick: () => navigate('/journal'), color: 'bg-slate-400' },
-              { label: 'Job Evaluator', icon: Calculator, onClick: () => navigate('/fee-calculator'), color: 'bg-emerald-500' },
-              { label: 'Laws Lookup', icon: Library, onClick: () => navigate('/laws-lookup'), color: 'bg-amber-500' },
-            ].map((action) => (
-              <button 
-                key={action.label}
-                onClick={action.onClick}
-                className="bg-white border border-slate-200 p-6 rounded-3xl flex flex-col items-center justify-center gap-4 hover:bg-slate-50 hover:border-slate-300 transition-all group shadow-sm"
-              >
-                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-110", action.color)}>
-                  <action.icon className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-xs font-black text-slate-600 uppercase tracking-widest text-center leading-tight">{action.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* 4. MONEY STRIP */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: 'Collected', value: totalPaid, icon: CreditCard, color: 'text-emerald-600', onClick: () => navigate('/appointments?paymentStatus=Paid') },
-              { label: 'Outstanding', value: totalUnpaid, icon: AlertTriangle, color: 'text-rose-600', onClick: () => navigate('/appointments?paymentStatus=Follow Up') },
-              { label: 'Total Agreed', value: totalGross, icon: TrendingUp, color: 'text-teal-600', onClick: () => navigate('/appointments') },
-              { label: 'Month Goal', value: monthlyGoal, icon: Zap, color: 'text-indigo-600', isGoal: true, onClick: () => navigate('/reports/income') },
-            ].map((stat) => (
-              <button 
-                key={stat.label} 
-                onClick={stat.onClick}
-                className="bg-white border border-slate-200 p-5 rounded-3xl space-y-3 shadow-sm text-left w-full hover:bg-slate-50 transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</span>
-                  <stat.icon className={cn("w-4 h-4", stat.color)} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-2xl font-black text-slate-900">${stat.value.toLocaleString()}</p>
-                  {stat.isGoal && (
-                    <div className="space-y-2">
-                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${goalProgress}%` }}
-                          className="h-full bg-indigo-500 rounded-full"
-                        />
-                      </div>
-                      <p className="text-[9px] font-bold text-slate-400">{Math.round(goalProgress)}% of target</p>
-                    </div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* 5. TASK LANES / WORKFLOW SECTION */}
+          {/* WORKFLOW PIPELINE */}
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Workflow Status</h2>
-              <Link to="/signings" className="text-xs font-bold text-teal-600 hover:underline uppercase tracking-widest">View Pipeline</Link>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Active Pipeline</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {lanes.map((lane) => (
                 <div key={lane.id} className="space-y-4">
                   <div className="flex items-center gap-2 px-2">
-                    <lane.icon className={cn("w-4 h-4", lane.color.replace('400', '600'))} />
-                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{lane.title}</h3>
-                    <span className="ml-auto bg-slate-200 text-slate-600 text-[10px] font-black px-2 py-0.5 rounded-full">
+                    <lane.icon className={cn("w-4 h-4", lane.color)} />
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{lane.title}</h3>
+                    <span className="ml-auto bg-slate-200 text-slate-600 text-[10px] font-black px-1.5 py-0.5 rounded-md">
                       {lane.items.length}
                     </span>
                   </div>
@@ -3451,31 +3361,29 @@ const Dashboard = ({
                       <button 
                         key={item.id} 
                         onClick={() => onViewSigning(item)}
-                        className="w-full text-left bg-white border border-slate-200 p-4 rounded-2xl hover:border-slate-300 transition-all group shadow-sm"
+                        className="w-full text-left bg-white border border-slate-200 p-4 rounded-3xl hover:border-sky-300 transition-all group shadow-sm"
                       >
                         <div className="flex justify-between items-start mb-2">
-                          <p className="text-sm font-bold text-slate-900 truncate max-w-[100px]">{formatDisplayName(item.clientName?.split(' ').pop() || '')}</p>
-                          <span className="text-[10px] font-black text-teal-600">${Number(item.fee).toFixed(0)}</span>
+                          <p className="text-xs font-black text-slate-900 truncate max-w-[120px]">{formatDisplayName(item.clientName)}</p>
+                          <span className="text-[10px] font-black text-sky-600">${Number(item.fee).toFixed(0)}</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 font-medium truncate mb-3">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter truncate mb-3">
                           {format(parseSafeDateTime(item.date), 'MMM d')} • {item.time}
                         </p>
                         <div className="flex items-center justify-between">
                           <span className={cn(
-                            "text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider border",
+                            "text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border",
                             getStatusBadgeClass(item.status)
                           )}>
                             {getStatusLabel(item.status)}
                           </span>
-                          <div className="p-1.5 bg-slate-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                            <ChevronRight className="w-3 h-3 text-slate-400" />
-                          </div>
+                          <ChevronRight className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                         </div>
                       </button>
                     ))}
                     {lane.items.length === 0 && (
-                      <div className="border border-slate-200 border-dashed rounded-2xl p-8 text-center bg-white/50">
-                        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Clear</p>
+                      <div className="border border-slate-200 border-dashed rounded-3xl p-6 text-center bg-slate-50/50">
+                        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest italic">Station Clear</p>
                       </div>
                     )}
                   </div>
@@ -3485,130 +3393,110 @@ const Dashboard = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: RECENT ACTIVITY & INSIGHTS */}
+        {/* RIGHT COLUMN: BUSINESS HEALTH */}
         <div className="lg:col-span-4 space-y-8">
-          
-          {/* 6. RECENT RECORDS PANEL */}
-          <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden flex flex-col shadow-xl">
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-900">Recent Activity</h2>
-              <Activity className="w-4 h-4 text-teal-600" />
-            </div>
-            <div className="divide-y divide-slate-100">
-              {recentSignings.map((app) => (
-                <button 
-                  key={app.id} 
-                  onClick={() => onViewSigning(app)}
-                  className="w-full text-left p-5 hover:bg-slate-50 transition-colors flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", 
-                      app.status === 'Paid' ? 'bg-emerald-50' : 'bg-teal-50'
-                    )}>
-                      {app.status === 'Paid' ? <DollarSign className="w-5 h-5 text-emerald-600" /> : <Calendar className="w-5 h-5 text-teal-600" />}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{formatDisplayName(app.clientName)}</p>
-                      <p className="text-[10px] font-medium text-slate-500 truncate">
-                        {format(parseSafeDateTime(app.date), 'MMM d')} • {app.signingType}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-black text-slate-900">${Number(app.fee).toFixed(2)}</p>
-                    <div className="flex items-center gap-1 justify-end mt-1">
-                      {app.status === 'Paid' ? (
-                        <ArrowUpRight className="w-3 h-3 text-emerald-600" />
-                      ) : (
-                        <Clock className="w-3 h-3 text-amber-400" />
-                      )}
-                      <span className={cn("text-[8px] font-black uppercase tracking-widest", 
-                        app.status === 'Paid' ? 'text-emerald-600' : 'text-amber-600'
-                      )}>
-                        {app.status}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            
-            <Link to="/signings" className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-teal-600 transition-colors bg-slate-50/50">
-              View Full History
-            </Link>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Business Health</h2>
+            <p className="text-sm text-slate-500 font-bold">{format(new Date(), 'MMMM yyyy')}</p>
           </div>
 
-          {/* 7. OPTIONAL SMALL INSIGHTS: MONTH PROGRESS */}
-          <div className="bg-gradient-to-br from-indigo-50 to-teal-50 border border-indigo-100 rounded-[2rem] p-8 space-y-6 relative overflow-hidden shadow-sm">
-            <div className="absolute top-0 right-0 p-4">
-              <Zap className="w-8 h-8 text-indigo-200" />
-            </div>
-            
-            <div className="space-y-2">
-              <h3 className="text-xl font-black text-slate-900 tracking-tight">Performance Insight</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                You've collected <span className="text-emerald-600 font-bold">${totalPaid.toLocaleString()}</span> this month. 
-                You are <span className="text-indigo-600 font-bold">{Math.round(goalProgress)}%</span> of the way to your goal.
-              </p>
+          {/* MONEY STACK */}
+          <div className="space-y-4">
+            <div className="bg-slate-900 text-white rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
+              <div className="absolute bottom-0 right-0 w-32 h-32 bg-white/5 rounded-full -mb-16 -mr-16 blur-2xl group-hover:bg-white/10 transition-all"></div>
+              <div className="flex justify-between items-start mb-6">
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-sky-400" />
+                </div>
+                <Zap className="w-5 h-5 text-amber-400 animate-pulse" />
+              </div>
+              <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-1">Gross Month-to-Date</p>
+              <h2 className="text-4xl font-black tracking-tighter">${stats.gross.toLocaleString()}</h2>
+              
+              <div className="mt-8 space-y-2">
+                <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest">
+                  <span>Goal Progress</span>
+                  <span>{Math.round(goalProgress)}% of ${monthlyGoal.toLocaleString()}</span>
+                </div>
+                <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${goalProgress}%` }}
+                    className="h-full bg-gradient-to-r from-sky-400 to-indigo-500 rounded-full shadow-[0_0_15px_rgba(56,189,248,0.5)]"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="relative pt-4">
-              <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                <span>Progress</span>
-                <span>${monthlyGoal.toLocaleString()} Goal</span>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Collected</span>
+                </div>
+                <p className="text-xl font-black text-slate-900">${stats.paid.toLocaleString()}</p>
               </div>
-              <div className="h-4 w-full bg-white rounded-full overflow-hidden p-1 shadow-inner">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${goalProgress}%` }}
-                  className="h-full bg-gradient-to-r from-indigo-500 to-teal-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.2)]"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Avg Fee</p>
-                <p className="text-lg font-black text-slate-900">${appointments.length > 0 ? (totalGross / appointments.length).toFixed(0) : 0}</p>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Profit</p>
-                <p className="text-lg font-black text-emerald-600">${(totalGross - expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)).toLocaleString()}</p>
+              <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pending</span>
+                </div>
+                <p className="text-xl font-black text-slate-900">${stats.unpaid.toLocaleString()}</p>
               </div>
             </div>
           </div>
 
-          {/* 8. TOP COMPANIES WIDGET */}
-          <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden flex flex-col shadow-xl">
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-900">Top Companies</h2>
-              <Building2 className="w-4 h-4 text-indigo-600" />
+          {/* TOP COMPANIES */}
+          <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden flex flex-col shadow-sm">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">Volume Partners</h2>
+              <Building2 className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-5">
               {topCompanies.map((company, idx) => (
                 <div key={company.name} className="flex items-center justify-between group cursor-pointer" onClick={() => navigate('/companies')}>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-xs font-bold text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400 group-hover:bg-sky-50 group-hover:text-sky-600 transition-colors">
                       {idx + 1}
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{company.name}</p>
-                      <p className="text-[10px] font-medium text-slate-400">{company.count} signings</p>
+                      <p className="text-[11px] font-black text-slate-800 group-hover:text-sky-600 transition-colors uppercase tracking-tight">{company.name}</p>
+                      <p className="text-[9px] font-bold text-slate-400">{company.count} bookings</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-black text-slate-900">${company.total.toLocaleString()}</p>
-                    <p className="text-[10px] font-bold text-emerald-600">Avg: ${(company.total / company.count).toFixed(0)}</p>
+                    <p className="text-xs font-black text-slate-900">${company.total.toLocaleString()}</p>
+                    <p className="text-[9px] font-bold text-emerald-600">AVG ${Math.round(company.total / company.count)}</p>
                   </div>
                 </div>
               ))}
               {topCompanies.length === 0 && (
-                <p className="text-center text-sm text-slate-400 py-4 italic">No company data yet</p>
+                <div className="text-center py-8">
+                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic leading-relaxed">No company partnerships<br/>recorded yet.</p>
+                </div>
               )}
             </div>
-            <Link to="/companies" className="p-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-indigo-600 transition-colors bg-slate-50/50">
-              Manage Database
+            <Link to="/companies" className="p-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-sky-600 transition-colors bg-slate-50/50 border-t border-slate-100">
+              Directory
             </Link>
+          </div>
+
+          {/* QUICK TOOL LINKS */}
+          <div className="grid grid-cols-2 gap-4">
+            <button 
+              onClick={() => navigate('/journal')}
+              className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col items-center gap-3 hover:bg-slate-50 transition-all shadow-sm"
+            >
+              <BookOpen className="w-5 h-5 text-indigo-500" />
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Journal</span>
+            </button>
+            <button 
+              onClick={() => navigate('/reports/income')}
+              className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col items-center gap-3 hover:bg-slate-50 transition-all shadow-sm"
+            >
+              <PieChart className="w-5 h-5 text-emerald-500" />
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Reports</span>
+            </button>
           </div>
 
         </div>
