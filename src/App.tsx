@@ -3039,34 +3039,34 @@ const Header = ({ toggleSidebar, onNewSigning, onSignOut, user, isDemoMode, onRe
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-6">
           <button 
             onClick={onNewSigning}
-            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-sky-600/20 border border-sky-500/50 group"
+            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-sky-600/20 border border-sky-500/50 group shrink-0"
           >
             <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
             <span>New Signing</span>
           </button>
 
-          <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+          <div className="h-6 w-px bg-slate-200 mx-2 hidden sm:block"></div>
           
           <div className="relative">
             <button 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 p-1 pr-3 hover:bg-slate-50 rounded-full border border-transparent hover:border-slate-200 transition-all group"
+              className="flex items-center gap-3 p-1 pr-4 hover:bg-slate-50 rounded-full border border-transparent hover:border-slate-200 transition-all group whitespace-nowrap"
             >
-              <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+              <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                 {user?.photoURL ? (
                   <img src={user.photoURL} alt="User" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   <User className="w-4 h-4 text-slate-500" />
                 )}
               </div>
-              <div className="hidden sm:flex flex-col items-start">
-                <span className="text-[11px] font-black text-slate-900 truncate max-w-[100px]">
+              <div className="hidden sm:flex flex-col items-start leading-[1.1]">
+                <span className="text-[11px] font-black text-slate-900 truncate max-w-[120px]">
                   {user?.displayName || 'Integrity Notary'}
                 </span>
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Pro Account</span>
+                <span className="text-[9px] font-bold text-sky-600 uppercase tracking-tighter">Pro Account</span>
               </div>
               <ChevronDown className={cn("w-3 h-3 text-slate-400 transition-transform", isProfileOpen && "rotate-180")} />
             </button>
@@ -3188,9 +3188,9 @@ const Dashboard = ({
       a.status !== 'No Show'
     );
 
-    const paid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0), 0);
     const gross = monthAppointments.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
-    const unpaid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0), 0);
+    const paid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0), 0);
+    const unpaid = Math.max(0, gross - paid);
     const avgOrderValue = monthAppointments.length > 0 ? gross / monthAppointments.length : 0;
     
     const monthExpenses = expenses.filter(e => isAfter(parseSafeDateTime(e.date), monthStart)).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
@@ -3430,8 +3430,8 @@ const Dashboard = ({
               <h2 className="text-4xl font-black tracking-tighter">${stats.gross.toLocaleString()}</h2>
               <p className="text-[9px] font-bold text-white/30 uppercase tracking-[0.1em] mt-1">Total value of confirmed assignments.</p>
               
-              <div className="mt-8 space-y-2">
-                <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest">
+              <div className="mt-10 space-y-3">
+                <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest bg-white/5 p-2 rounded-lg">
                   <span>Goal Progress</span>
                   <span>{Math.round(goalProgress)}% of ${monthlyGoal.toLocaleString()}</span>
                 </div>
@@ -3559,21 +3559,30 @@ const Dashboard = ({
           </div>
 
           {/* QUICK TOOL LINKS */}
-          <div className="grid grid-cols-2 gap-4">
-            <button 
-              onClick={() => navigate('/journal')}
-              className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col items-center gap-3 hover:bg-slate-50 transition-all shadow-sm"
-            >
-              <BookOpen className="w-5 h-5 text-indigo-500" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">New Journal Entry</span>
-            </button>
-            <button 
-              onClick={() => navigate('/reports/income')}
-              className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col items-center gap-3 hover:bg-slate-50 transition-all shadow-sm"
-            >
-              <PieChart className="w-5 h-5 text-emerald-500" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Performance Reports</span>
-            </button>
+          <div className="pt-4 mt-4 border-t border-slate-200">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Quick Productivity Links</h3>
+            <div className="grid grid-cols-1 gap-3">
+              <button 
+                onClick={() => navigate('/journal')}
+                className="w-full bg-white border border-slate-200 p-4 rounded-2xl flex items-center gap-4 hover:bg-slate-50 transition-all shadow-sm group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-500 group-hover:scale-110 transition-transform">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">New Journal Entry</span>
+                <ChevronRight className="w-4 h-4 ml-auto text-slate-300" />
+              </button>
+              <button 
+                onClick={() => navigate('/reports/income')}
+                className="w-full bg-white border border-slate-200 p-4 rounded-2xl flex items-center gap-4 hover:bg-slate-50 transition-all shadow-sm group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+                  <PieChart className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Performance Reports</span>
+                <ChevronRight className="w-4 h-4 ml-auto text-slate-300" />
+              </button>
+            </div>
           </div>
 
         </div>
