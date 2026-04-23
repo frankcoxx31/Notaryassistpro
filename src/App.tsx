@@ -3890,6 +3890,7 @@ const Appointments = ({
   onBulkUpdateDocs,
   onBulkUpdateInvoiceStatus,
   onBulkUpdateSigningType,
+  onBulkMarkPaid,
   userId, 
   viewMode = 'journal',
   setModalInitialTab,
@@ -3907,6 +3908,7 @@ const Appointments = ({
   onBulkUpdateDocs: (ids: string[], docs: string[]) => Promise<void>;
   onBulkUpdateInvoiceStatus: (ids: string[], sent: boolean) => Promise<void>;
   onBulkUpdateSigningType: (ids: string[], type: string) => Promise<void>;
+  onBulkMarkPaid: (ids: string[], data: { paidDate: string; paymentMethod: string; notes: string }) => Promise<void>;
   userId: string; 
   viewMode?: 'signings' | 'journal';
   setModalInitialTab: (tab: string) => void;
@@ -3928,6 +3930,12 @@ const Appointments = ({
   const [isCustomBulkType, setIsCustomBulkType] = useState(false);
   const [customBulkType, setCustomBulkType] = useState('');
   const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
+  const [isBulkMarkPaidModalOpen, setIsBulkMarkPaidModalOpen] = useState(false);
+  const [bulkMarkPaidData, setBulkMarkPaidData] = useState({
+    paidDate: new Date().toISOString().split('T')[0],
+    paymentMethod: 'Check',
+    notes: ''
+  });
 
   const defaultSigningTypes = [
     'Loan Signing',
@@ -4373,6 +4381,20 @@ const Appointments = ({
       setIsSelectMode(false);
     } catch (error) {
       console.error('Error updating invoice status:', error);
+    }
+  };
+
+  const handleConfirmBulkMarkPaid = async () => {
+    try {
+      await onBulkMarkPaid(selectedIds, bulkMarkPaidData);
+      setBulkSuccessMessage(`${selectedIds.length} signings marked as Paid`);
+      setTimeout(() => setBulkSuccessMessage(null), 3000);
+      setIsBulkMarkPaidModalOpen(false);
+      setSelectedIds([]);
+      setIsSelectMode(false);
+    } catch (error) {
+      console.error('Error in bulk mark paid:', error);
+      alert('Failed to update some signings. Please try again.');
     }
   };
 
@@ -4936,6 +4958,12 @@ const Appointments = ({
             >
               Mark Invoice Sent
             </button>
+            <button 
+              onClick={() => setIsBulkMarkPaidModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-emerald-500"
+            >
+              <DollarSign className="w-3.5 h-3.5" /> Mark Paid
+            </button>
             <div className="w-px h-6 bg-indigo-800 mx-2 hidden md:block"></div>
             <button 
               onClick={handleDelete}
@@ -5229,6 +5257,15 @@ const Appointments = ({
           </div>
         )}
       </div>
+
+      <BulkMarkPaidModal 
+        isOpen={isBulkMarkPaidModalOpen}
+        onClose={() => setIsBulkMarkPaidModalOpen(false)}
+        onConfirm={handleConfirmBulkMarkPaid}
+        count={selectedIds.length}
+        currentData={bulkMarkPaidData}
+        onChange={setBulkMarkPaidData}
+      />
     </div>
   );
 };
@@ -5761,6 +5798,59 @@ export default function App() {
     }
   };
 
+  const handleBulkMarkPaid = async (ids: string[], data: { paidDate: string; paymentMethod: string; notes: string }) => {
+    if (ids.length === 0) return;
+    
+    if (isDemoUser || !user) {
+      const updated = appointments.map(app => {
+        if (ids.includes(app.id)) {
+          const agreed = app.agreedFee || app.fee || 0;
+          return { 
+            ...app, 
+            status: 'Paid' as any,
+            paymentStatus: 'Paid' as any,
+            amountCollected: agreed,
+            amountOutstanding: 0,
+            paymentReceivedDate: data.paidDate,
+            paymentMethod: data.paymentMethod,
+            notesBilling: app.notesBilling ? `${app.notesBilling}\n${data.notes}` : data.notes
+          };
+        }
+        return app;
+      });
+      setAppointments(updated);
+      return;
+    }
+
+    try {
+      const promises = ids.map(id => {
+        const app = appointments.find(a => a.id === id);
+        if (!app) return Promise.resolve();
+        
+        const agreed = app.agreedFee || app.fee || 0;
+        const updates: any = {
+          status: 'Paid',
+          paymentStatus: 'Paid',
+          amountCollected: agreed,
+          amountOutstanding: 0,
+          paymentReceivedDate: data.paidDate,
+          paymentMethod: data.paymentMethod,
+          updatedAt: new Date().toISOString()
+        };
+        
+        if (data.notes) {
+          updates.notesBilling = app.notesBilling ? `${app.notesBilling}\n${data.notes}` : data.notes;
+        }
+
+        return updateDoc(doc(db, 'appointments', id), sanitizeData(updates));
+      });
+      await Promise.all(promises);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `appointments/bulk-mark-paid`);
+      throw error;
+    }
+  };
+
   const syncToGoogleCalendar = async (appointmentId: string, action: 'create' | 'update' | 'delete', eventId?: string, appData?: any) => {
     if (!user || isDemoUser) return;
     
@@ -6116,6 +6206,7 @@ export default function App() {
                   onBulkUpdateDocs={handleBulkUpdateDocs}
                   onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
                   onBulkUpdateSigningType={handleBulkUpdateSigningType}
+                  onBulkMarkPaid={handleBulkMarkPaid}
                   userId={user?.uid || 'mock-user'}
                   setModalInitialTab={setModalInitialTab}
                   setModalAutoScan={setModalAutoScan}
@@ -6152,6 +6243,7 @@ export default function App() {
                   onBulkUpdateDocs={handleBulkUpdateDocs}
                   onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
                   onBulkUpdateSigningType={handleBulkUpdateSigningType}
+                  onBulkMarkPaid={handleBulkMarkPaid}
                   userId={user?.uid || 'mock-user'}
                   setModalInitialTab={setModalInitialTab}
                   setModalAutoScan={setModalAutoScan}
@@ -6394,3 +6486,90 @@ export default function App() {
     </Router>
   );
 }
+
+const BulkMarkPaidModal = ({ isOpen, onClose, onConfirm, count, currentData, onChange }: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onConfirm: () => void; 
+  count: number;
+  currentData: { paidDate: string; paymentMethod: string; notes: string };
+  onChange: (data: any) => void;
+}) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+      >
+        <div className="bg-emerald-600 p-6 text-white text-center">
+          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <DollarSign className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-xl font-black uppercase tracking-tight">Bulk Mark Paid</h2>
+          <p className="text-emerald-100 text-sm mt-1">{count} signings selected for payment</p>
+        </div>
+        
+        <div className="p-8 space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Payment Date</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input 
+                  type="date" 
+                  value={currentData.paidDate}
+                  onChange={(e) => onChange({ ...currentData, paidDate: e.target.value })}
+                  className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-bold"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Payment Method</label>
+              <select 
+                value={currentData.paymentMethod}
+                onChange={(e) => onChange({ ...currentData, paymentMethod: e.target.value })}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white font-bold"
+              >
+                <option>Check</option>
+                <option>Direct Deposit / ACH</option>
+                <option>Zelle</option>
+                <option>Venmo</option>
+                <option>Cash</option>
+                <option>Credit Card</option>
+                <option>Snapdocs Pay</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Payment Notes (optional)</label>
+              <textarea 
+                value={currentData.notes}
+                onChange={(e) => onChange({ ...currentData, notes: e.target.value })}
+                placeholder="Bulk payment reference..."
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all h-24 resize-none"
+              />
+            </div>
+          </div>
+          
+          <div className="flex gap-4 pt-4">
+            <button 
+              onClick={onClose}
+              className="flex-1 py-3 px-4 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={onConfirm}
+              className="flex-1 py-3 px-4 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
+            >
+              Confirm Payment
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
