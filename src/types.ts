@@ -62,6 +62,7 @@ export interface Appointment {
   customerId?: string;
   customerName?: string;
   docs?: string[];
+  actType?: string;
   
   // Fee Tracking Fields
   offeredFee?: number;

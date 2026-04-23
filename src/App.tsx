@@ -3891,7 +3891,9 @@ const Appointments = ({
   onBulkUpdateInvoiceStatus,
   onBulkUpdateSigningType,
   userId, 
-  viewMode = 'journal' 
+  viewMode = 'journal',
+  setModalInitialTab,
+  setModalAutoScan
 }: { 
   appointments: Appointment[]; 
   customers: Customer[]; 
@@ -3906,7 +3908,9 @@ const Appointments = ({
   onBulkUpdateInvoiceStatus: (ids: string[], sent: boolean) => Promise<void>;
   onBulkUpdateSigningType: (ids: string[], type: string) => Promise<void>;
   userId: string; 
-  viewMode?: 'signings' | 'journal' 
+  viewMode?: 'signings' | 'journal';
+  setModalInitialTab: (tab: string) => void;
+  setModalAutoScan: (scan: boolean) => void;
 }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -3995,8 +3999,10 @@ const Appointments = ({
   }, [appointments]);
 
   const uniqueCompanies = useMemo(() => {
-    const fromAppointments = appointments.map(a => a.signingCompany || a.companyName || a.customer).filter(Boolean) as string[];
+    const fromAppointments = appointments.map(a => a.signingCompany || a.companyName || a.clientName).filter(Boolean) as string[];
     const fromDatabase = companies.map(c => c.companyName);
+    
+    // Professional defaults for the industry
     const defaults = ['Rocket Close', 'Snapdocs', 'Amrock', 'ServiceLink', 'Xome', 'Signature Closings', 'Bancserv'];
     
     const combined = [...defaults, ...fromAppointments, ...fromDatabase];
@@ -4128,6 +4134,29 @@ const Appointments = ({
     return sortedAppointments.slice(start, start + itemsPerPage);
   }, [sortedAppointments, currentPage]);
 
+  // Optimized performance stats for Journal Ledger
+  const journalStats = useMemo(() => {
+    if (viewMode !== 'journal') return null;
+    const all = filteredAppointments;
+    const actCounts: Record<string, number> = {};
+    all.forEach(a => {
+      const act = a.actType || 'Acknowledgment';
+      actCounts[act] = (actCounts[act] || 0) + 1;
+    });
+    const mostCommonAct = Object.entries(actCounts).sort((a,b) => b[1] - a[1])[0]?.[0] || 'N/A';
+    
+    // Retention logic: first entry date
+    const firstEntry = appointments.length > 0 ? [...appointments].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] : null;
+    const retentionYears = firstEntry ? Math.max(1, new Date().getFullYear() - new Date(firstEntry.date).getFullYear()) : 0;
+
+    return {
+      totalEntries: all.length,
+      mostCommonAct,
+      retentionYears,
+      totalFees: all.reduce((sum, a) => sum + (a.fee || 0), 0)
+    };
+  }, [filteredAppointments, appointments, viewMode]);
+
   // Reset to page 1 if sortedAppointments changes
   useEffect(() => {
     setCurrentPage(1);
@@ -4152,48 +4181,53 @@ const Appointments = ({
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
+      const title = viewMode === 'journal' ? `NC Notary Journal Ledger - ${format(new Date(), 'MMMM yyyy')}` : `Signings Report - ${format(new Date(), 'MMMM yyyy')}`;
       printWindow.document.write(`
         <html>
           <head>
-            <title>Signings Report - ${format(new Date(), 'MMMM yyyy')}</title>
+            <title>${title}</title>
             <style>
-              body { font-family: sans-serif; padding: 20px; color: #334155; }
-              h1 { color: #0f172a; font-size: 24px; margin-bottom: 20px; text-align: center; }
+              body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; background: white; }
+              header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+              h1 { font-size: 20px; font-weight: 800; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; }
+              p.meta { font-size: 11px; color: #64748b; margin-top: 5px; font-weight: 600; }
               table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; font-size: 12px; }
-              th { background-color: #f8fafc; font-weight: bold; }
-              .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #94a3b8; }
+              th, td { border-bottom: 1px solid #f1f5f9; padding: 12px 8px; text-align: left; font-size: 10px; }
+              th { background-color: #f8fafc; font-weight: 800; text-transform: uppercase; color: #475569; letter-spacing: 0.025em; border-top: 1px solid #e2e8f0; }
+              td { color: #334155; }
+              .bold { font-weight: 700; color: #0f172a; }
+              .footer { margin-top: 50px; text-align: center; font-size: 9px; color: #94a3b8; font-weight: 500; border-top: 1px solid #f1f5f9; padding-top: 20px; }
+              @media print { body { padding: 0px; } }
             </style>
           </head>
           <body>
-            <h1>Signings Report - ${format(new Date(), 'MMMM yyyy')}</h1>
+            <header>
+              <h1>${title}</h1>
+              <p class="meta">Official Record of Notarial Acts | Integrity Closings CLT</p>
+            </header>
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th>Client</th>
-                  <th>Type</th>
-                  <th>Location</th>
+                  <th>Date / Time</th>
+                  <th>Principal(s)</th>
+                  <th>Notarial Act</th>
+                  <th>Identification</th>
                   <th>Fee</th>
-                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 ${sortedAppointments.map(app => `
                   <tr>
-                    <td>${app.date}</td>
-                    <td>${app.time}</td>
-                    <td>${app.clientName}</td>
-                    <td>${app.signingType}</td>
-                    <td>${app.location}</td>
-                    <td>$${app.fee.toFixed(2)}</td>
-                    <td>${app.status}</td>
+                    <td><span class="bold">${app.date}</span><br/>${app.time}</td>
+                    <td><span class="bold">${app.customerName || app.clientName}</span><br/>${app.city || ''}</td>
+                    <td>${app.actType || 'Acknowledgment'}</td>
+                    <td>${app.idType || 'Document Inspection'}</td>
+                    <td class="bold">$${(app.fee || 0).toFixed(2)}</td>
                   </tr>
                 `).join('')}
               </tbody>
             </table>
-            <div class="footer">Generated on ${new Date().toLocaleString()}</div>
+            <div class="footer">Generated via NotaryPro Integrity Engine on ${new Date().toLocaleString()}</div>
           </body>
         </html>
       `);
@@ -4240,7 +4274,7 @@ const Appointments = ({
           <body>
             <div class="header-box">
               <h1>Signing Report</h1>
-              <p>Frank Coxx Sunday, April 5, 2026</p>
+              <p>NotaryPro Professional Hub ${format(new Date(), 'yyyy')}</p>
             </div>
             
             <div class="main-info">
@@ -4250,19 +4284,17 @@ const Appointments = ({
 
             <div class="details-grid">
               <div class="details-left">
-                <div>${formatDisplayName(app.clientName)}</div>
-                <div>138 August Ln</div>
-                <div>Stallings 28104</div>
-                <div>Cell: 6077610961</div>
+                <div>${formatDisplayName(app.customerName || app.clientName)}</div>
+                <div>${app.location || ''}</div>
               </div>
               <div class="details-right">
-                <div>Rocket Close</div>
-                <div style="margin-top: 20px;">Order No. 75787${410 + parseInt(app.id)}</div>
+                <div style="margin-top: 20px;">Order No. ${app.orderNumber || 'N/A'}</div>
               </div>
             </div>
 
             <div class="notes-section">
               <span class="notes-label">NOTES:</span>
+              <p>${app.notes || ''}</p>
             </div>
 
             <hr class="bottom-line" />
@@ -4645,338 +4677,222 @@ const Appointments = ({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-700">
-      {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Signings</p>
-          <p className="text-2xl font-black text-slate-900">{stats.totalSignings}</p>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Title & Actions Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+            {viewMode === 'journal' ? (
+              <>
+                <ShieldCheck className="w-7 h-7 text-indigo-600" />
+                NC Notary Journal
+              </>
+            ) : (
+              <>
+                <FileText className="w-7 h-7 text-indigo-600" />
+                Signings
+              </>
+            )}
+          </h1>
+          <p className="text-slate-500 mt-1 max-w-xl">
+            {viewMode === 'journal' 
+              ? 'Official chronological record of all notarial acts. Maintained for legal compliance and professional accountability.' 
+              : 'Manage your signing appointments, track workflow status, and monitor client communications.'}
+          </p>
         </div>
-        
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Collected</p>
-          <p className="text-2xl font-black text-emerald-600">${stats.paidIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-          <p className="text-[10px] font-medium text-slate-500 mt-1">{stats.percentCollected}% collected</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button 
+            onClick={() => handleExport()}
+            className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button 
+            onClick={() => handlePrint()}
+            className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+          >
+            <Printer className="w-4 h-4" /> {viewMode === 'journal' ? 'Print Ledger' : 'Print Report'}
+          </button>
+          <button 
+            onClick={() => {
+              setModalInitialTab('Signer(s)');
+              setModalAutoScan(true);
+              onNewSigning();
+            }}
+            className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+          >
+            <Plus className="w-4 h-4" /> {viewMode === 'journal' ? 'New Journal Entry' : 'Schedule Signing'}
+          </button>
         </div>
+      </div>
 
-        <div className="bg-white p-5 rounded-xl border-2 border-amber-100 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Outstanding</p>
-            <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">Follow Up</span>
+      {/* KPIs Section */}
+      {viewMode === 'journal' && journalStats ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 animate-in fade-in slide-in-from-top-4 duration-1000 delay-150">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Record Capacity</p>
+            <div className="flex items-end justify-between">
+              <h4 className="text-2xl font-bold text-slate-900">{journalStats.totalEntries}</h4>
+              <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Entries</span>
+            </div>
           </div>
-          <p className="text-2xl font-black text-amber-600">${stats.unpaidIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-          <p className="text-[10px] font-medium text-slate-500 mt-1">Unpaid invoices</p>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Primary Act Type</p>
+            <div className="flex items-end justify-between">
+              <h4 className="text-lg font-bold text-slate-800 truncate">{journalStats.mostCommonAct}</h4>
+              <FileText className="w-4 h-4 text-slate-300" />
+            </div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Retention Standing</p>
+            <div className="flex items-end justify-between">
+              <h4 className="text-2xl font-bold text-slate-900">{journalStats.retentionYears} Years</h4>
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Active</span>
+            </div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Legally Earned</p>
+            <div className="flex items-end justify-between">
+              <h4 className="text-2xl font-bold text-slate-900">${journalStats.totalFees.toLocaleString()}</h4>
+              <Banknote className="w-4 h-4 text-slate-300" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Signings</p>
+            <p className="text-2xl font-black text-slate-900">{stats.totalSignings}</p>
+          </div>
+          
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Collected</p>
+            <p className="text-2xl font-black text-emerald-600">${stats.paidIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            <p className="text-[10px] font-medium text-slate-500 mt-1">{stats.percentCollected}% collected</p>
+          </div>
+
+          <div className="bg-white p-5 rounded-xl border-2 border-amber-100 shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Outstanding</p>
+              <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">Follow Up</span>
+            </div>
+            <p className="text-2xl font-black text-amber-600">${stats.unpaidIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            <p className="text-[10px] font-medium text-slate-500 mt-1">Unpaid invoices</p>
+          </div>
+
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Profit</p>
+            <p className="text-2xl font-black text-indigo-600">${stats.totalProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            <p className="text-[10px] font-medium text-slate-500 mt-1">${stats.monthlyProfit.toLocaleString()} this month</p>
+          </div>
+        </div>
+      )}
+
+      {/* Main Filter & Action Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <input 
+              type="text"
+              placeholder={viewMode === 'journal' ? "Search ledger (principal, act type, city)..." : "Search signings..."}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 placeholder:text-slate-400"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1">
+              <Calendar className="w-4 h-4 text-slate-400" />
+              <select 
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="bg-transparent text-sm font-bold text-slate-600 outline-none pr-4 py-1.5 cursor-pointer"
+              >
+                <option value="All">All Time</option>
+                <option value="This year">This Year</option>
+                <option value="Last year">Last Year</option>
+                <option value="This month">This Month</option>
+                <option value="Last month">Last Month</option>
+                <option value="This week">This Week</option>
+                <option value="Last week">Last Week</option>
+              </select>
+            </div>
+            
+            <select 
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+            >
+              <option value="All Companies">All Companies</option>
+              {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+            >
+              <option value="All">All Status</option>
+              <option value="Paid">Paid</option>
+              <option value="Unpaid">Unpaid</option>
+            </select>
+
+            <button 
+              onClick={() => {
+                setIsSelectMode(!isSelectMode);
+                if (isSelectMode) setSelectedIds([]);
+              }}
+              className={cn(
+                "px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all border shadow-sm",
+                isSelectMode 
+                  ? "bg-indigo-50 border-indigo-200 text-indigo-700" 
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+              )}
+            >
+              <CheckCircle2 className="w-4 h-4" /> {isSelectMode ? 'Exit Select' : 'Select'}
+            </button>
+            
+            <button 
+              onClick={handleImport}
+              disabled={isImporting}
+              className="hidden lg:flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 shadow-sm disabled:opacity-50"
+            >
+              {isImporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {isImporting ? '...' : 'Import'}
+            </button>
+          </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Profit</p>
-          <p className="text-2xl font-black text-indigo-600">${stats.totalProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-          <p className="text-[10px] font-medium text-slate-500 mt-1">${stats.monthlyProfit.toLocaleString()} this month</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Avg Profit</p>
-          <p className="text-2xl font-black text-slate-900">${stats.avgProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-          <p className="text-[10px] font-medium text-slate-500 mt-1">Per signing</p>
-        </div>
-
-        {viewMode === 'journal' && (
-          <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100 shadow-sm">
-            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Retention Notice</p>
-            <p className="text-xs font-bold text-indigo-900 leading-tight">Journals must be kept for 10 years from the date of the last entry.</p>
-            <p className="text-[9px] text-indigo-400 mt-1">NC Requirement 18 NCAC 07I .0302</p>
+        {companyStats && viewMode !== 'journal' && (
+          <div className="flex items-center gap-6 px-4 py-3 bg-indigo-50/30 border border-indigo-100 rounded-xl text-xs font-bold animate-in fade-in slide-in-from-left-2 transition-all">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 uppercase tracking-widest text-[10px]">Company Rev:</span>
+              <span className="text-slate-900">${companyStats.total.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center gap-2 pl-6 border-l border-indigo-100/50">
+              <span className="text-slate-400 uppercase tracking-widest text-[10px]">Paid:</span>
+              <span className="text-emerald-600">${companyStats.paid.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center gap-2 pl-6 border-l border-indigo-100/50">
+              <span className="text-slate-400 uppercase tracking-widest text-[10px]">Outstanding:</span>
+              <span className="text-amber-600">${companyStats.unpaid.toLocaleString()}</span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Profit Insights */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Highest Profit</p>
-            <p className="text-xl font-black text-emerald-700">${stats.highestProfit.toLocaleString()}</p>
-          </div>
-          <TrendingUp className="w-8 h-8 text-emerald-200" />
-        </div>
-        <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Low Margin Jobs</p>
-            <p className="text-xl font-black text-amber-700">{stats.lowProfitCount}</p>
-          </div>
-          <Car className="w-8 h-8 text-amber-200" />
-        </div>
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Expenses</p>
-            <p className="text-xl font-black text-slate-700">${stats.totalExpenses.toLocaleString()}</p>
-          </div>
-          <RefreshCw className="w-8 h-8 text-slate-200" />
-        </div>
-      </div>
-
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{viewMode === 'journal' ? 'NC Notary Journal' : 'Signings'}</h1>
-          <p className="text-slate-500">{viewMode === 'journal' ? 'Official record of all notarial acts performed.' : 'Manage and track your signing appointments.'}</p>
-        </div>
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2 lg:gap-3">
-            <button 
-              onClick={onNewSigning}
-              className="bg-[#27285C] hover:bg-[#1e1f4a] text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-white/10"
-            >
-              <PlusCircle className="w-4 h-4" /> {viewMode === 'journal' ? 'Add Entry' : 'Add Signing'}
-            </button>
-            {viewMode === 'journal' && onNewSigningWithScan && (
-              <button 
-                onClick={onNewSigningWithScan}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-white/10"
-              >
-                <Camera className="w-4 h-4" /> Scan ID
-              </button>
-            )}
-          <button 
-            onClick={handlePrint}
-            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
-          >
-            <Printer className="w-4 h-4" /> Print
-          </button>
-          
-          <button 
-            onClick={() => {
-              setIsSelectMode(!isSelectMode);
-              if (isSelectMode) setSelectedIds([]);
-            }}
-            className={cn(
-              "px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm border",
-              isSelectMode 
-                ? "bg-indigo-50 border-indigo-300 text-indigo-700" 
-                : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
-            )}
-          >
-            <CheckCircle2 className="w-4 h-4" /> {isSelectMode ? 'Exit Selection' : 'Select Entries'}
-          </button>
-          
-          <div className="relative">
-            <button 
-              onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
-              className={cn(
-                "px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm border",
-                selectedIds.length > 0 
-                  ? "bg-white border-slate-300 text-slate-700 hover:bg-slate-50" 
-                  : "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
-              )}
-              disabled={selectedIds.length === 0}
-            >
-              Batch Actions {selectedIds.length > 0 && `(${selectedIds.length})`} <ChevronDown className="w-4 h-4" />
-            </button>
-            {isBatchDropdownOpen && selectedIds.length > 0 && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setIsBatchDropdownOpen(false)}
-                />
-                <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-50 py-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <button 
-                    onClick={() => {
-                      handleApplyPayments();
-                      setIsBatchDropdownOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Mark as Paid
-                  </button>
-                  <button 
-                    onClick={() => {
-                      handleBatchInvoiceStatus(true);
-                      setIsBatchDropdownOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
-                  >
-                    <Printer className="w-4 h-4 text-blue-500" /> Mark Invoice Sent
-                  </button>
-                  <button 
-                    onClick={() => {
-                      handleBatchInvoiceStatus(false);
-                      setIsBatchDropdownOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
-                  >
-                    <X className="w-4 h-4 text-slate-400" /> Mark Invoice Not Sent
-                  </button>
-                  <button 
-                    onClick={() => handleBatchStatusUpdate('Completed')}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-blue-500" /> Mark Completed
-                  </button>
-                  <button 
-                    onClick={() => handleBatchStatusUpdate('Cancelled')}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100"
-                  >
-                    <X className="w-4 h-4 text-rose-500" /> Mark Canceled
-                  </button>
-                  
-                  <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100">
-                    Change Company
-                  </div>
-                  <div className="max-h-48 overflow-y-auto border-b border-slate-100">
-                    {uniqueCompanies.map(company => (
-                      <button 
-                        key={company}
-                        onClick={() => handleBatchCompanyUpdate(company)}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 border-b border-slate-100 last:border-0"
-                      >
-                        {company}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button 
-                    onClick={() => {
-                      handleDelete();
-                      setIsBatchDropdownOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 font-medium flex items-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" /> Delete Selected
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          <button 
-            onClick={handleExport}
-            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
-          >
-            <Download className="w-4 h-4" /> Export
-          </button>
-          <button 
-            onClick={handleImport}
-            disabled={isImporting}
-            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
-          >
-            {isImporting ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4" />
-            )}
-            {isImporting ? 'Importing...' : 'Import'}
-          </button>
-          
-          <button 
-            className="bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-600 border border-slate-300 p-2 rounded text-sm font-bold flex items-center justify-center transition-all shadow-sm"
-            title="More Actions"
-          >
-            <Settings2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
 
 
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <select 
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
-          >
-            <option value="This year">This year</option>
-            <option value="Last year">Last year</option>
-            <option value="This month">This month</option>
-            <option value="Last month">Last month</option>
-            <option value="This week">This week</option>
-            <option value="Last week">Last week</option>
-          </select>
-          <select 
-            value={companyFilter}
-            onChange={(e) => setCompanyFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-44 shadow-sm"
-          >
-            <option value="All Companies">All Companies</option>
-            {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          
-          {companyStats && (
-            <div className="flex items-center gap-4 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold animate-in fade-in slide-in-from-left-2 duration-300 shadow-sm">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 uppercase tracking-widest">Paid:</span>
-                <span className="text-emerald-600">${companyStats.paid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
-                <span className="text-slate-400 uppercase tracking-widest">Unpaid:</span>
-                <span className="text-amber-600">${companyStats.unpaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
-                <span className="text-slate-400 uppercase tracking-widest">Total:</span>
-                <span className="text-slate-900">${companyStats.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-          )}
 
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
-          >
-            <option value="All">All Status</option>
-            <option value="Paid">Paid</option>
-            <option value="Unpaid">Unpaid</option>
-          </select>
-          <select 
-            value={workTypeFilter}
-            onChange={(e) => setWorkTypeFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-44 shadow-sm"
-          >
-            <option value="All Types of work">All Types</option>
-            {workTypes.map(w => <option key={w} value={w}>{w}</option>)}
-          </select>
-
-          <select 
-            value={paymentStatusFilter}
-            onChange={(e) => setPaymentStatusFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
-          >
-            <option value="All">All Payments</option>
-            <option>Not Sent</option>
-            <option>Sent</option>
-            <option>Partial</option>
-            <option>Paid</option>
-            <option>Follow Up</option>
-          </select>
-
-          <select 
-            value={invoiceSentFilter}
-            onChange={(e) => setInvoiceSentFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
-          >
-            <option value="All">Invoice Status</option>
-            <option value="Sent">Sent</option>
-            <option value="Not Sent">Not Sent</option>
-          </select>
-
-          <select 
-            value={profitFilter}
-            onChange={(e) => setProfitFilter(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-32 shadow-sm"
-          >
-            <option value="All">All Profit</option>
-            <option value="High Profit">High Profit</option>
-            <option value="Low Profit">Low Profit</option>
-            <option value="Unprofitable">Unprofitable</option>
-          </select>
-        </div>
-      </div>
 
       {/* Bulk Action Bar */}
       {(isSelectMode || selectedIds.length > 0) && (
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-indigo-900 text-white p-4 rounded-xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-4"
+          className="bg-indigo-900 text-white p-4 rounded-2xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border border-indigo-800"
         >
           <div className="flex items-center gap-4">
-            <span className="text-sm font-bold bg-indigo-800 px-3 py-1 rounded-full border border-indigo-700">
+            <span className="text-sm font-bold bg-indigo-800 px-3 py-1 rounded-full border border-indigo-700 shadow-inner">
               {selectedIds.length} entries selected
             </span>
             <div className="flex items-center gap-2">
@@ -4991,7 +4907,7 @@ const Appointments = ({
                 onClick={() => setSelectedIds([])}
                 className="text-xs font-bold hover:text-indigo-200 transition-colors"
               >
-                Deselect All
+                Deselect
               </button>
             </div>
           </div>
@@ -4999,197 +4915,23 @@ const Appointments = ({
           <div className="flex flex-wrap items-center gap-2">
             <button 
               onClick={() => handleBatchInvoiceStatus(true)}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-sm"
+              className="bg-indigo-700 hover:bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-indigo-600"
             >
-              <Printer className="w-3.5 h-3.5" /> Mark Invoice Sent
-            </button>
-            <button 
-              onClick={() => handleBatchInvoiceStatus(false)}
-              className="bg-indigo-800 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-indigo-700"
-            >
-              <X className="w-3.5 h-3.5" /> Mark Not Sent
+              Mark Invoice Sent
             </button>
             <div className="w-px h-6 bg-indigo-800 mx-2 hidden md:block"></div>
-            <div className="relative">
-              <button 
-                onClick={() => setIsBulkDocsDropdownOpen(!isBulkDocsDropdownOpen)}
-                className="bg-indigo-800 border border-indigo-700 rounded-lg px-4 py-2 text-xs font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all"
-              >
-                <FileText className="w-3.5 h-3.5" />
-                {selectedDocsForBulk.length === 0 
-                  ? "Add Documents" 
-                  : `${selectedDocsForBulk.length} docs`}
-                <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", isBulkDocsDropdownOpen && "rotate-180")} />
-              </button>
-
-              {isBulkDocsDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setIsBulkDocsDropdownOpen(false)} />
-                  <div className="absolute bottom-full md:bottom-auto md:top-full right-0 mt-2 w-64 bg-white text-slate-800 rounded-xl shadow-2xl z-[70] py-2 border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
-                    <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex flex-col gap-2 mb-1">
-                      <button 
-                        onClick={() => {
-                          const allHybrid = HYBRID_LOAN_PACKAGE.canonicalDocs;
-                          const current = new Set(selectedDocsForBulk);
-                          allHybrid.forEach(d => current.add(d));
-                          setSelectedDocsForBulk(Array.from(current));
-                        }}
-                        className="w-full bg-indigo-600 text-white rounded py-1.5 text-[10px] font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <PlusCircle className="w-3 h-3" /> Select Hybrid Loan Package
-                      </button>
-                      <button 
-                        onClick={() => {
-                          const allRefi = REFINANCE_PACKAGE.canonicalDocs;
-                          const current = new Set(selectedDocsForBulk);
-                          allRefi.forEach(d => current.add(d));
-                          setSelectedDocsForBulk(Array.from(current));
-                        }}
-                        className="w-full bg-slate-800 text-white rounded py-1.5 text-[10px] font-bold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <PlusCircle className="w-3 h-3" /> Select Refinance Package
-                      </button>
-                    </div>
-                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 mb-1">
-                      Loan Signing Documents
-                    </div>
-                    {loanSigningDocs.map(doc => (
-                      <label key={doc} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedDocsForBulk.includes(doc)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedDocsForBulk([...selectedDocsForBulk, doc]);
-                            else setSelectedDocsForBulk(selectedDocsForBulk.filter(d => d !== doc));
-                          }}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span className="text-[11px] font-medium">{doc}</span>
-                      </label>
-                    ))}
-                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 my-1">
-                      Notarial Acts
-                    </div>
-                    {notarialActs.map(doc => (
-                      <label key={doc} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedDocsForBulk.includes(doc)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedDocsForBulk([...selectedDocsForBulk, doc]);
-                            else setSelectedDocsForBulk(selectedDocsForBulk.filter(d => d !== doc));
-                          }}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span className="text-[11px] font-medium">{doc}</span>
-                      </label>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="relative">
-              <button 
-                onClick={() => setIsBulkTypeDropdownOpen(!isBulkTypeDropdownOpen)}
-                className="bg-indigo-800 border border-indigo-700 rounded-lg px-4 py-2 text-xs font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all"
-              >
-                <Tag className="w-3.5 h-3.5" />
-                Change Type
-                <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", isBulkTypeDropdownOpen && "rotate-180")} />
-              </button>
-
-              {isBulkTypeDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setIsBulkTypeDropdownOpen(false)} />
-                  <div className="absolute bottom-full md:bottom-auto md:top-full right-0 mt-2 w-64 bg-white text-slate-800 rounded-xl shadow-2xl z-[70] py-2 border border-slate-200 max-h-96 overflow-y-auto custom-scrollbar">
-                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 mb-1">
-                      Standard Types
-                    </div>
-                    {defaultSigningTypes.map(type => (
-                      <button
-                        key={type}
-                        onClick={async () => {
-                          await onBulkUpdateSigningType(selectedIds, type);
-                          setBulkSuccessMessage(`${selectedIds.length} signings updated to ${type}`);
-                          setTimeout(() => setBulkSuccessMessage(null), 3000);
-                          setSelectedIds([]);
-                          setIsBulkTypeDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-slate-50 text-[11px] font-medium transition-colors"
-                      >
-                        {type}
-                      </button>
-                    ))}
-                    
-                    <div className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-100 my-1">
-                      Custom Type
-                    </div>
-                    <div className="px-4 py-2">
-                      <div className="flex flex-col gap-2">
-                        <input 
-                          type="text"
-                          value={customBulkType}
-                          onChange={(e) => setCustomBulkType(e.target.value)}
-                          placeholder="Enter custom type..."
-                          className="w-full border border-slate-200 rounded px-2 py-1.5 text-[11px] outline-none focus:ring-1 focus:ring-indigo-500"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <button
-                          disabled={!customBulkType.trim()}
-                          onClick={async () => {
-                            await onBulkUpdateSigningType(selectedIds, customBulkType.trim());
-                            setBulkSuccessMessage(`${selectedIds.length} signings updated to ${customBulkType.trim()}`);
-                            setTimeout(() => setBulkSuccessMessage(null), 3000);
-                            setSelectedIds([]);
-                            setIsBulkTypeDropdownOpen(false);
-                            setCustomBulkType('');
-                          }}
-                          className="w-full bg-indigo-600 text-white rounded py-1.5 text-[10px] font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                        >
-                          Apply Custom Type
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {selectedDocsForBulk.length > 0 && (
-              <button 
-                onClick={async () => {
-                  if (selectedIds.length > 0 && selectedDocsForBulk.length > 0) {
-                    await onBulkUpdateDocs(selectedIds, selectedDocsForBulk);
-                    const isHybrid = selectedDocsForBulk.length === HYBRID_LOAN_PACKAGE.canonicalDocs.length && 
-                      selectedDocsForBulk.every(d => HYBRID_LOAN_PACKAGE.canonicalDocs.includes(d));
-                    const isRefi = selectedDocsForBulk.length === REFINANCE_PACKAGE.canonicalDocs.length && 
-                      selectedDocsForBulk.every(d => REFINANCE_PACKAGE.canonicalDocs.includes(d));
-                    
-                    setBulkSuccessMessage(isHybrid 
-                      ? `Hybrid Loan Package applied to ${selectedIds.length} selected entries` 
-                      : isRefi 
-                        ? `Refinance Package applied to ${selectedIds.length} selected entries`
-                        : `Documents added to ${selectedIds.length} entries`
-                    );
-                    setTimeout(() => setBulkSuccessMessage(null), 3000);
-                    setIsSelectMode(false);
-                    setSelectedIds([]);
-                    setSelectedDocsForBulk([]);
-                  }
-                }}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm"
-              >
-                Apply Docs
-              </button>
-            )}
+            <button 
+              onClick={handleDelete}
+              className="bg-rose-500/20 hover:bg-rose-500 text-rose-200 hover:text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-rose-500/30"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete Permanently
+            </button>
             <button 
               onClick={() => {
                 setIsSelectMode(false);
                 setSelectedIds([]);
-                setSelectedDocsForBulk([]);
               }}
-              className="text-indigo-300 hover:text-white px-2 py-2 text-xs font-bold transition-all"
+              className="text-indigo-300 hover:text-white px-3 py-2 text-xs font-bold transition-all ml-2"
             >
               Cancel
             </button>
@@ -5202,9 +4944,9 @@ const Appointments = ({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
-          className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl z-[100] flex items-center gap-3 font-bold"
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl z-[100] flex items-center gap-3 font-bold border border-slate-800"
         >
-          <CheckCircle2 className="w-5 h-5" />
+          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
           {bulkSuccessMessage}
         </motion.div>
       )}
@@ -5214,40 +4956,42 @@ const Appointments = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                <th className="px-4 py-3 w-10">
+              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">
+                <th className="px-4 py-4 w-10">
                   <input 
                     type="checkbox" 
                     checked={selectedIds.length === paginatedAppointments.length && paginatedAppointments.length > 0}
                     onChange={toggleSelectAll}
-                    className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                   />
                 </th>
-                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('date')}>
-                  Date & Time {sortField === 'date' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
+                <th className="px-3 py-4 cursor-pointer hover:bg-slate-100 transition-colors w-32" onClick={() => handleSort('date')}>
+                  <div className="flex items-center gap-1.5">
+                    Date & Time 
+                    {sortField === 'date' ? (
+                      sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 text-indigo-600" /> : <ChevronDown className="w-3 h-3 text-indigo-600" />
+                    ) : <ChevronDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                  </div>
                 </th>
-                <th className="px-3 py-3">Last Name <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3">{viewMode === 'journal' ? 'Documents Signed' : 'Type'} <ChevronDown className="inline w-3 h-3" /></th>
-                {viewMode === 'journal' && <th className="px-3 py-3">ID Type <ChevronDown className="inline w-3 h-3" /></th>}
-                <th className="px-3 py-3">City <ChevronDown className="inline w-3 h-3" /></th>
-                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('agreedFee')}>
-                  Agreed {sortField === 'agreedFee' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
+                <th className="px-3 py-4 w-48">Principal / Signer</th>
+                <th className="px-3 py-4 w-40">{viewMode === 'journal' ? 'Notarial Act' : 'Type'}</th>
+                {viewMode === 'journal' ? (
+                  <>
+                    <th className="px-3 py-4 min-w-[200px]">Documents & Details</th>
+                    <th className="px-3 py-4 w-44">Identification</th>
+                  </>
+                ) : (
+                  <>
+                     <th className="px-3 py-4">City</th>
+                     <th className="px-3 py-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('agreedFee')}>Agreed</th>
+                     <th className="px-3 py-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('amountCollected')}>Collected</th>
+                  </>
+                )}
+                <th className="px-3 py-4 w-28 cursor-pointer hover:bg-slate-100 text-right pr-6" onClick={() => handleSort('agreedFee')}>
+                   Fee
                 </th>
-                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('amountCollected')}>
-                  Collected {sortField === 'amountCollected' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
-                </th>
-                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('amountOutstanding')}>
-                  Owed {sortField === 'amountOutstanding' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
-                </th>
-                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('estimatedProfit')}>
-                  Profit {sortField === 'estimatedProfit' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
-                </th>
-                <th className="px-3 py-3">Margin {sortField === 'profitMarginPercent' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('company')}>
-                  Company {sortField === 'company' && (sortOrder === 'asc' ? <ChevronUp className="inline w-3 h-3" /> : <ChevronDown className="inline w-3 h-3" />)}
-                </th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-3 py-4 w-32">Status</th>
+                <th className="px-4 py-4 w-20 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -5257,109 +5001,117 @@ const Appointments = ({
                     key={app.id} 
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return;
-                      toggleSelect(app.id);
+                      onViewSigning(app);
                     }}
                     className={cn(
                       "transition-colors group cursor-pointer",
-                      selectedIds.includes(app.id) ? "bg-amber-50" : "hover:bg-slate-50/50"
+                      selectedIds.includes(app.id) ? "bg-indigo-50/50" : "hover:bg-slate-50/30"
                     )}
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-4">
                       <input 
                         type="checkbox" 
                         checked={selectedIds.includes(app.id)}
-                        onChange={() => toggleSelect(app.id)}
-                        className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelect(app.id);
+                        }}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                       />
                     </td>
-                    <td className="px-3 py-3">
-                      <div className="text-sm font-bold text-slate-900">{format(parseSafeDateTime(app.date), 'MM/dd/yyyy')}</div>
-                      <div className="text-[10px] font-medium text-slate-500">{app.time}</div>
+                    <td className="px-3 py-4">
+                      <div className="text-sm font-bold text-slate-900">{format(parseSafeDateTime(app.date), 'MMM dd, yyyy')}</div>
+                      <div className="text-[11px] font-semibold text-indigo-600 mt-0.5">{app.time}</div>
                     </td>
-                    <td className="px-3 py-3">
-                      <button 
-                        onClick={() => onViewSigning(app)}
-                        className="text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline text-left"
-                      >
-                        {formatDisplayName((app.lastName || app.clientName || '').split(' ').filter(p => !p.endsWith('.')).pop() || (app.lastName || app.clientName || '').split(' ').pop() || '')}
-                      </button>
-                    </td>
-                    <td className="px-3 py-3">
-                      {viewMode === 'journal' ? (
-                        <div className="flex flex-wrap gap-1 max-w-[200px]">
-                          {(app.docs || []).slice(0, 3).map(doc => (
-                            <span key={doc} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold border border-slate-200 truncate max-w-[80px]">
-                              {doc}
-                            </span>
-                          ))}
-                          {(app.docs || []).length > 3 && (
-                            <span className="px-1.5 py-0.5 bg-sky-50 text-sky-600 rounded text-[9px] font-bold border border-sky-100">
-                              +{(app.docs || []).length - 3} more
-                            </span>
-                          )}
-                          {(app.docs || []).length === 0 && (
-                            <div className="text-xs font-medium text-slate-400 italic">No docs</div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="text-xs font-medium text-slate-600">{app.signingType}</div>
-                      )}
-                    </td>
-                    {viewMode === 'journal' && (
-                      <td className="px-3 py-3">
-                        <div className="text-xs font-bold text-slate-900">{app.idType || 'Not Logged'}</div>
-                        {app.idNumber && <div className="text-[10px] text-slate-500">#{app.idNumber}</div>}
-                        <div className="text-[9px] text-slate-400 mt-0.5">
-                          {app.dob && <span>DOB: {app.dob} </span>}
-                          {app.idIssueDate && <span>ISS: {app.idIssueDate}</span>}
-                        </div>
-                        {app.idExpiration && <div className="text-[9px] text-slate-400">EXP: {app.idExpiration}</div>}
-                      </td>
-                    )}
-                    <td className="px-3 py-3">
-                      <div className="text-xs font-medium text-slate-600">{app.city || app.location?.split(',')[1]?.trim() || 'TBD'}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="text-sm font-bold text-[#111827]">${(Number(app.agreedFee) || Number(app.fee) || 0).toFixed(2)}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="text-sm font-bold text-emerald-600">${(Number(app.amountCollected) || (app.status === 'Paid' ? Number(app.fee) : 0) || 0).toFixed(2)}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="text-sm font-bold text-rose-600">${(Number(app.amountOutstanding) || ((app.status !== 'Paid' && !app.invoicePaidDate) ? Number(app.fee) : 0) || 0).toFixed(2)}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="text-sm font-bold text-indigo-600">${(Number(app.estimatedProfit) || 0).toFixed(2)}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className={cn(
-                        "text-[10px] font-black px-2 py-0.5 rounded-full border inline-block",
-                        (app.profitMarginPercent || 0) >= 70 ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
-                        (app.profitMarginPercent || 0) >= 40 ? "bg-amber-50 border-amber-200 text-amber-700" :
-                        "bg-rose-50 border-rose-200 text-rose-700"
-                      )}>
-                        {Math.round(app.profitMarginPercent || 0)}%
+                    <td className="px-3 py-4">
+                      <div className="text-sm font-extrabold text-slate-900 uppercase tracking-tight truncate max-w-[170px]">
+                        {app.customerName || app.clientName || 'Unnamed Principal'}
+                      </div>
+                      <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
+                         <MapPin className="w-2.5 h-2.5" /> 
+                         <span className="truncate">{app.city || 'Charlotte, NC'}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-3">
-                      {getStatusBadge(app.status, app)}
+                    <td className="px-3 py-4">
+                       <span className={cn(
+                         "px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest border",
+                         viewMode === 'journal' 
+                           ? "bg-slate-50 text-slate-600 border-slate-200" 
+                           : "bg-indigo-50 text-indigo-700 border-indigo-100"
+                       )}>
+                         {viewMode === 'journal' ? (app.actType || 'Acknowledgment') : (app.signingType || 'General Notary')}
+                       </span>
                     </td>
-                    <td className="px-3 py-3">
-                      {app.signingCompany && <div className="text-xs font-bold text-sky-600 mb-1">{app.signingCompany}</div>}
+                    {viewMode === 'journal' ? (
+                      <>
+                        <td className="px-3 py-4">
+                          <div className="flex flex-wrap gap-1 max-w-[280px]">
+                            {(app.docs || []).length > 0 ? (
+                              (app.docs || []).slice(0, 4).map(doc => (
+                                <span key={doc} className="px-1.5 py-0.5 bg-white text-slate-600 rounded text-[9px] font-bold border border-slate-100 truncate shadow-sm">
+                                  {doc}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">No specific documents logged</span>
+                            )}
+                            {(app.docs || []).length > 4 && (
+                              <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100">
+                                +{(app.docs || []).length - 4} more
+                              </span>
+                            )}
+                          </div>
+                          {app.notes && (
+                            <div className="text-[10px] text-slate-400 italic mt-1 truncate max-w-[250px]">— {app.notes}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[11px] font-bold text-slate-800">{app.idType || 'Document Inspection'}</span>
+                            {app.idNumber && (
+                              <span className="text-[10px] font-mono text-slate-400">ID: {app.idNumber.slice(0, 4)}••••</span>
+                            )}
+                            {app.idExpiration && (
+                              <span className="text-[9px] font-bold text-rose-500/80">Expires {app.idExpiration}</span>
+                            )}
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-4">
+                           <div className="text-xs font-semibold text-slate-600 truncate">{app.location || 'N/A'}</div>
+                        </td>
+                        <td className="px-3 py-4">
+                           <div className="text-sm font-bold text-slate-900">${(app.agreedFee || app.fee || 0).toFixed(2)}</div>
+                        </td>
+                        <td className="px-3 py-4">
+                           <div className="text-sm font-bold text-emerald-600">${(app.amountCollected || 0).toFixed(2)}</div>
+                        </td>
+                      </>
+                    )}
+                    <td className="px-3 py-4 text-right pr-6">
+                      <div className="text-sm font-black text-slate-900 font-mono tracking-tighter">${(app.fee || 0).toFixed(2)}</div>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <td className="px-3 py-4">
+                       <div className="flex items-center gap-2">
+                        {getStatusBadge(app.status, app)}
+                        {app.invoiceSent && <Printer className="w-3 h-3 text-sky-500" />}
+                       </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
                         <button 
-                          onClick={() => onViewSigning(app, 'Invoice')}
-                          className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded transition-all"
-                          title="Print Invoice"
+                          onClick={(e) => { e.stopPropagation(); onViewSigning(app); }}
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          title="Open Details"
                         >
-                          <Printer className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => onDelete([app.id])}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all"
-                          title="Delete"
+                          onClick={(e) => { e.stopPropagation(); onDelete([app.id]); }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                          title="Delete Permanently"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -6325,6 +6077,8 @@ export default function App() {
                   onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
                   onBulkUpdateSigningType={handleBulkUpdateSigningType}
                   userId={user?.uid || 'mock-user'}
+                  setModalInitialTab={setModalInitialTab}
+                  setModalAutoScan={setModalAutoScan}
                 />
               } 
             />
@@ -6359,6 +6113,8 @@ export default function App() {
                   onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
                   onBulkUpdateSigningType={handleBulkUpdateSigningType}
                   userId={user?.uid || 'mock-user'}
+                  setModalInitialTab={setModalInitialTab}
+                  setModalAutoScan={setModalAutoScan}
                 />
               } 
             />

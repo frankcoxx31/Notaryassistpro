@@ -4,7 +4,8 @@ import {
   X, Edit2, MapPin, User, Calendar, Clock, 
   HelpCircle, CheckCircle2, Phone, Banknote, 
   List, Pencil, Plus, Trash2, Camera, Loader2, AlertCircle,
-  Car, TrendingUp, PlusCircle, Upload
+  Car, TrendingUp, PlusCircle, Upload, ChevronLeft, ChevronRight,
+  FileText, ShieldCheck
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { Appointment, AppointmentStatus, Customer, SigningCompany, Signer } from '../types';
@@ -55,8 +56,15 @@ const NewSigningModal = ({
   const [customType, setCustomType] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
   
-  // Scanner state
+  const steps = [
+    { name: 'Signer(s)', icon: User, description: 'Identity & IDs' },
+    { name: 'Documents', icon: List, description: 'Act Details' },
+    { name: 'Contacts', icon: Phone, description: 'Communication' },
+    { name: 'Invoice', icon: Banknote, description: 'Fee & Billing' },
+    { name: 'Notes', icon: Pencil, description: 'Final Remarks' },
+  ];
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanSuccess, setScanSuccess] = useState(false);
@@ -377,11 +385,19 @@ const NewSigningModal = ({
 
   useEffect(() => {
     setActiveTab(initialTab);
+    const stepIdx = steps.findIndex(s => s.name === initialTab);
+    if (stepIdx !== -1) setCurrentStep(stepIdx);
   }, [initialTab, isOpen]);
 
   useEffect(() => {
     if (appointment) {
       const data = { ...appointment };
+      
+      // Initialize actType if missing
+      if (!data.actType) {
+        data.actType = 'Acknowledgment';
+      }
+
       // Derive first/last name if missing
       if (data.customerName && (!data.firstName || !data.lastName)) {
         const parts = data.customerName.trim().split(/\s+/);
@@ -524,93 +540,44 @@ const NewSigningModal = ({
         estimatedProfit: 150, // agreedFee (150) - totalJobCost (0)
         profitMarginPercent: 100,
         roundTripMiles: true,
-        scanbackStatus: 'Not Required'
+        scanbackStatus: 'Not Required',
+        actType: 'Acknowledgment'
       });
     }
   }, [appointment, isOpen, userId]);
 
   if (!isOpen) return null;
 
-  const handleSave = async () => {
-    const computedCustomerName = updateSignerSummary(formData.signers || []) || formData.customerName || "";
+  const updateProfitFields = (updates: Partial<Appointment>) => {
+    const newData = { ...formData, ...updates };
     
-    if (formData.id && formData.date && formData.time && computedCustomerName && formData.signingType && formData.location && formData.fee !== undefined && formData.status) {
-      if (!formData.docs || formData.docs.length === 0) {
-        setShowDocError(true);
-        setActiveTab('Documents');
-        return;
-      }
-      
-      setSaveError(null);
-      setIsSaving(true);
-      
-      try {
-        // Ensure fee and agreedFee are in sync and documents are validated
-        const finalDocs = validateDocuments(formData.docs || []);
-        const finalData = { 
-          ...formData, 
-          customerName: computedCustomerName,
-          fee: formData.agreedFee || formData.fee || 0,
-          agreedFee: formData.agreedFee || formData.fee || 0,
-          docs: finalDocs
-        };
-        
-        await onSave(finalData as Appointment);
-        // onClose is called by the parent if onSave succeeds
-      } catch (error: any) {
-        console.error("Save failed in NewSigningModal:", error);
-        let msg = "Failed to save signing. Please check your connection and try again.";
-        try {
-          // Attempt to parse FirestoreErrorInfo
-          const parsed = JSON.parse(error.message);
-          if (parsed.error) msg = `Error: ${parsed.error}`;
-        } catch (e) {
-          if (error.message) msg = error.message;
-        }
-        setSaveError(msg);
-      } finally {
-        setIsSaving(false);
-      }
-    } else {
-      // Basic validation feedback
-      setSaveError("Please fill in all required fields (Date, Time, Customer, Type, Location, Amount, and Documents).");
-    }
-  };
-
-  const updateProfitFields = (updatedData: Partial<Appointment>) => {
-    const miles = updatedData.milesDriven !== undefined ? updatedData.milesDriven : (formData.milesDriven || 0);
-    const rate = updatedData.mileageRate !== undefined ? updatedData.mileageRate : (formData.mileageRate || DEFAULT_MILEAGE_RATE);
-    const parkingTolls = updatedData.parkingTollsCost !== undefined ? updatedData.parkingTollsCost : (formData.parkingTollsCost || 0);
-    const printing = updatedData.printingCost !== undefined ? updatedData.printingCost : (formData.printingCost || 0);
-    const other = updatedData.otherSigningCost !== undefined ? updatedData.otherSigningCost : (formData.otherSigningCost || 0);
-    const agreed = updatedData.agreedFee !== undefined ? updatedData.agreedFee : (formData.agreedFee || 0);
-
+    // Recalculate costs
+    const miles = newData.milesDriven || 0;
+    const rate = newData.mileageRate || DEFAULT_MILEAGE_RATE;
+    const parking = newData.parkingTollsCost || 0;
+    const printing = newData.printingCost || 0;
+    const other = newData.otherSigningCost || 0;
+    
     const travelCost = miles * rate;
-    const totalJobCost = travelCost + parkingTolls + printing + other;
-    const estimatedProfit = agreed - totalJobCost;
-    const profitMarginPercent = agreed > 0 ? (estimatedProfit / agreed) * 100 : 0;
-
-    setFormData(prev => ({
-      ...prev,
-      ...updatedData,
+    const totalJobCost = travelCost + parking + printing + other;
+    const estimatedProfit = (newData.agreedFee || 0) - totalJobCost;
+    const profitMarginPercent = (newData.agreedFee || 0) > 0 ? (estimatedProfit / (newData.agreedFee || 0)) * 100 : 0;
+    
+    setFormData({
+      ...newData,
       travelCost,
       totalJobCost,
       estimatedProfit,
       profitMarginPercent
-    }));
+    });
   };
 
   const toggleDoc = (doc: string) => {
     const currentDocs = formData.docs || [];
-    const newDocs = mergeUniqueDocuments(currentDocs, [doc], formData.signingType);
-    
-    // If merge didn't add anything (because it was already there), then we remove it (toggle behavior)
-    if (currentDocs.includes(normalizeDocName(doc, formData.signingType))) {
-      const normalizedToRemove = normalizeDocName(doc, formData.signingType);
-      setFormData({ ...formData, docs: currentDocs.filter(d => d !== normalizedToRemove) });
+    if (currentDocs.includes(doc)) {
+      setFormData({ ...formData, docs: currentDocs.filter(d => d !== doc) });
     } else {
-      setFormData({ ...formData, docs: newDocs });
-      if (newDocs.length > 0) setShowDocError(false);
+      setFormData({ ...formData, docs: [...currentDocs, doc] });
     }
   };
 
@@ -621,361 +588,224 @@ const NewSigningModal = ({
     }
   };
 
-  useEffect(() => {
-    if (autoScan && isOpen && fileInputRef.current && !isScanning) {
-      console.log("[Scan] Auto-scan triggered by prop.");
-      setTimeout(() => {
-        fileInputRef.current?.click();
-      }, 500);
+  const handleSave = async () => {
+    if ((formData.docs || []).length === 0) {
+      setShowDocError(true);
+      setActiveTab('Documents');
+      setCurrentStep(1);
+      return;
     }
-  }, [autoScan, isOpen]);
+
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const finalData = {
+        ...formData,
+        customerName: updateSignerSummary(formData.signers || []),
+        updatedAt: new Date().toISOString()
+      };
+      await onSave(finalData as Appointment);
+      onClose();
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to save signing');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(prev => prev + 1);
+      setActiveTab(steps[currentStep + 1].name);
+    } else {
+      handleSave();
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(prev => prev - 1);
+      setActiveTab(steps[currentStep - 1].name);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-sm animate-in fade-in duration-300">
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-lg shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-sky-50 rounded-lg flex items-center justify-center border border-sky-100">
-              <Edit2 className="w-6 h-6 text-sky-600" />
+        <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center border border-indigo-100/50 shadow-sm">
+              <ShieldCheck className="w-6 h-6 text-indigo-600" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800">{appointment ? 'View Entry' : 'New Entry'}:</h2>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-          <AnimatePresence>
-            {saveError && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="bg-red-50 border border-red-100 rounded-lg p-3 flex items-start gap-3 text-red-700 mb-2"
-              >
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-bold">Save Error</p>
-                  <p>{saveError}</p>
-                </div>
-              </motion.div>
-            )}
-            {packageLoadedMessage && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="bg-sky-50 border border-sky-100 rounded-lg p-3 flex items-center gap-3 text-sky-700 mb-2"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span className="text-xs font-bold">{packageLoadedMessage}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Main Form Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
-            {/* Left Column */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Type:</label>
-                <div className="flex-1 flex flex-col gap-2">
-                  <select 
-                    value={isCustomType ? "Other" : (formData.signingType || "Loan Signing")}
-                    onChange={(e) => {
-                      if (e.target.value === "Other") {
-                        setIsCustomType(true);
-                      } else {
-                        setIsCustomType(false);
-                        setFormData({ ...formData, signingType: e.target.value });
-                      }
-                    }}
-                    className="w-full bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none transition-all"
-                  >
-                    <optgroup label="Standard Types">
-                      {defaultSigningTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Previously Used / Custom">
-                      {allSigningTypes.filter(t => !defaultSigningTypes.includes(t)).map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                      <option value="Other">Other / Custom...</option>
-                    </optgroup>
-                  </select>
-                  
-                  {isCustomType && (
-                    <div className="flex gap-2 animate-in slide-in-from-top-1 duration-200">
-                      <input 
-                        type="text"
-                        value={customType}
-                        onChange={(e) => {
-                          setCustomType(e.target.value);
-                          setFormData({ ...formData, signingType: e.target.value });
-                        }}
-                        placeholder="Enter custom signing type..."
-                        className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500"
-                        autoFocus
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setIsCustomType(false);
-                          setCustomType('');
-                        }}
-                        className="text-xs text-slate-400 hover:text-slate-600 px-2"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Date:</label>
-                <div className="flex-1 relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="date" 
-                    value={formData.date || ""}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Time:</label>
-                <div className="flex-1 relative">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="text" 
-                    value={formData.time || ""}
-                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    placeholder="10:00 AM"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Amount:</label>
-                <div className="flex-1 flex border border-slate-300 rounded overflow-hidden">
-                  <div className="bg-slate-50 px-3 py-2 border-r border-slate-300 text-sm text-slate-500 font-medium">
-                    $
-                  </div>
-                  <input 
-                    type="number" 
-                    value={formData.fee || 0} 
-                    onChange={(e) => setFormData({ ...formData, fee: parseFloat(e.target.value) })}
-                    className="flex-1 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Order #:</label>
-                <input 
-                  type="text" 
-                  value={formData.orderNumber || ""}
-                  onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
-                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Loan #:</label>
-                <input 
-                  type="text" 
-                  value={formData.loanNumber || ""}
-                  onChange={(e) => setFormData({ ...formData, loanNumber: e.target.value })}
-                  className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-bold text-slate-700 w-20 text-right">Company:</label>
-                <div className="flex-1 flex gap-2">
-                  <select 
-                    value={formData.companyName || ""}
-                    onChange={(e) => {
-                      const selectedName = e.target.value;
-                      const company = companies.find(c => c.companyName === selectedName);
-                      setFormData({ 
-                        ...formData, 
-                        companyName: selectedName,
-                        signingCompany: selectedName,
-                        companyId: company?.id || undefined
-                      });
-                    }}
-                    className="flex-1 bg-white border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none transition-all"
-                  >
-                    <option value="">Select Company</option>
-                    {uniqueCompanies.map(company => (
-                      <option key={company} value={company}>{company}</option>
-                    ))}
-                  </select>
-                  <button 
-                    type="button"
-                    onClick={() => setIsNewCompanyModalOpen(true)}
-                    className="p-2 bg-sky-50 text-sky-600 border border-sky-100 rounded hover:bg-sky-100 transition-all"
-                    title="Add New Company to Database"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">{appointment ? 'Review Journal Entry' : 'New Journal Entry'}</h2>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest leading-none mt-1">Official Mandatory Record</p>
             </div>
           </div>
-
-          <SigningCompanyModal 
-            isOpen={isNewCompanyModalOpen}
-            onClose={() => setIsNewCompanyModalOpen(false)}
-            onSave={(c) => {
-              onSaveCompany(c);
-              setFormData({ 
-                ...formData, 
-                signingCompany: c.companyName, 
-                companyName: c.companyName,
-                companyId: c.id 
-              });
-              setIsNewCompanyModalOpen(false);
-            }}
-            userId={userId}
-          />
-
-
-          {/* Location Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-bold text-slate-700 w-20 text-right">Location:</label>
-              <div className="flex-1 relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="text" 
-                  value={formData.location || ""}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                  placeholder="Street Address, City, State Zip"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-bold text-slate-700 w-20 text-right">Signer(s):</label>
-              <div className="flex-1 flex gap-2">
-                <div className="flex-1 relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="text" 
-                    readOnly
-                    value={updateSignerSummary(formData.signers || []) || formData.customerName || ""}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded text-sm outline-none bg-slate-50 text-slate-500 cursor-not-allowed" 
-                    placeholder="Signers will be added in the Signer(s) tab"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Status Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-bold text-slate-700 w-20 text-right">Status:</label>
-              <div className="flex-1 flex gap-2 flex-wrap">
-                {['Scheduled', 'Completed', 'Paid', 'Cancelled', 'No Show'].map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setFormData({ ...formData, status: status as AppointmentStatus })}
+          <div className="flex items-center gap-6">
+            {/* Step Progress Indicators */}
+            <div className="hidden lg:flex items-center gap-2 mr-6">
+              {steps.map((step, idx) => (
+                <div key={step.name} className="flex items-center">
+                  <div 
+                    title={step.name}
                     className={cn(
-                      "flex-1 min-w-[80px] py-1.5 text-[10px] font-bold rounded border transition-all",
-                      formData.status === status 
-                        ? "bg-sky-50 border-sky-500 text-sky-700" 
-                        : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                    )}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-bold text-slate-700 w-20 text-right">Scanbacks:</label>
-              <div className="flex-1 flex gap-2 flex-wrap">
-                {['Not Required', 'Pending', 'Sent', 'Confirmed'].map((sStatus) => (
-                  <button
-                    key={sStatus}
-                    onClick={() => setFormData({ ...formData, scanbackStatus: sStatus as any })}
-                    className={cn(
-                      "flex-1 min-w-[70px] py-1.5 text-[10px] font-bold rounded border transition-all",
-                      formData.scanbackStatus === sStatus 
-                        ? "bg-amber-50 border-amber-500 text-amber-700" 
-                        : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                    )}
-                  >
-                    {sStatus}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs Section */}
-          <div className="border border-slate-200 rounded-md overflow-hidden">
-            <div className="flex border-b border-slate-200 bg-slate-50">
-              {[
-                { name: 'Signer(s)', icon: User },
-                { name: 'Contacts', icon: Phone },
-                { name: 'Invoice', icon: Banknote },
-                { name: 'Documents', icon: List },
-                { name: 'Notes', icon: Pencil },
-              ].map((tab) => (
-                <button
-                  key={tab.name}
-                  onClick={() => setActiveTab(tab.name)}
-                  className={cn(
-                    "flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all border-r border-slate-200",
-                    activeTab === tab.name 
-                      ? "bg-white text-slate-800 border-t-2 border-t-indigo-500 -mt-px" 
-                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
+                      "w-2.5 h-2.5 rounded-full transition-all duration-300",
+                      idx <= currentStep ? "bg-indigo-600 shadow-[0_0_8px_rgba(79,70,229,0.4)]" : "bg-slate-200"
+                    )} 
+                  ></div>
+                  {idx < steps.length - 1 && (
+                    <div className={cn(
+                      "w-8 h-[2px] mx-1 transition-all duration-300",
+                      idx < currentStep ? "bg-indigo-600" : "bg-slate-100"
+                    )} ></div>
                   )}
-                >
-                  <tab.icon className={cn("w-4 h-4", activeTab === tab.name ? "text-indigo-500" : "text-slate-400")} />
-                  {tab.name}
-                  {tab.name === 'Signer(s)' && (formData.signers || []).length > 0 && (
-                    <span className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
-                      activeTab === tab.name ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-500"
-                    )}>
-                      {(formData.signers || []).length}
-                    </span>
-                  )}
-                  {tab.name === 'Documents' && (formData.docs || []).length > 0 && (
-                    <span className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
-                      activeTab === tab.name ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-500"
-                    )}>
-                      {(formData.docs || []).length}
-                    </span>
-                  )}
-                </button>
+                </div>
               ))}
             </div>
+            <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-0 flex flex-col lg:flex-row min-h-0 bg-white">
+          {/* Enhanced Tab Sidebar */}
+          <div className="w-full lg:w-72 bg-slate-50/50 border-r border-slate-100 p-6 space-y-2 border-t lg:border-t-0">
+             <div className="mb-6">
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Workflow Progress</p>
+               {steps.map((step, idx) => (
+                 <button
+                   key={step.name}
+                   onClick={() => {
+                     setCurrentStep(idx);
+                     setActiveTab(step.name);
+                   }}
+                   className={cn(
+                     "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-left",
+                     activeTab === step.name 
+                       ? "bg-white text-slate-900 shadow-sm border border-slate-200" 
+                       : "text-slate-500 hover:bg-white/50"
+                   )}
+                 >
+                   <div className={cn(
+                     "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+                     activeTab === step.name ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 group-hover:bg-slate-200"
+                   )}>
+                     <step.icon className="w-4 h-4" />
+                   </div>
+                   <div>
+                     <p className="text-xs font-bold leading-none mb-1">{step.name}</p>
+                     <p className="text-[10px] text-slate-400 font-medium leading-none">{step.description}</p>
+                   </div>
+                 </button>
+               ))}
+             </div>
 
-            <div className="p-6 space-y-4">
+             {/* Appointment Summary Card */}
+             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Entry Details</label>
+                  <p className="text-xs font-bold text-slate-800">{formData.date ? format(new Date(formData.date), 'MMMM d, yyyy') : 'No Date'}</p>
+                  <p className="text-[10px] font-bold text-slate-500">{formData.time || '10:00 AM'}</p>
+                </div>
+                <div className="space-y-1 pt-3 border-t border-slate-100">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Notarial Act</label>
+                  <p className="text-xs font-bold text-indigo-600">{formData.actType || 'Acknowledgment'}</p>
+                </div>
+             </div>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+            <AnimatePresence mode="wait">
               {activeTab === 'Signer(s)' && (
+                <motion.div 
+                   key="signer-tab"
+                   initial={{ opacity: 0, x: 10 }}
+                   animate={{ opacity: 1, x: 0 }}
+                   exit={{ opacity: 0, x: -10 }}
+                   className="space-y-8"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Signer Identification</h3>
+                      <p className="text-sm text-slate-500">Capture principal information and identity verification method.</p>
+                    </div>
+                  </div>
+
+                  {/* Basic Info Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <label className="text-xs font-bold text-slate-700 w-20 text-right">Date:</label>
+                        <div className="flex-1 relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input 
+                            type="date" 
+                            value={formData.date || ""}
+                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <label className="text-xs font-bold text-slate-700 w-20 text-right">Time:</label>
+                        <div className="flex-1 relative">
+                          <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input 
+                            type="text" 
+                            value={formData.time || ""}
+                            onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
+                            placeholder="10:00 AM"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <label className="text-xs font-bold text-slate-700 w-20 text-right">Act Type:</label>
+                        <div className="flex-1 relative">
+                          <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <select 
+                            value={formData.actType || "Acknowledgment"}
+                            onChange={(e) => setFormData({ ...formData, actType: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
+                          >
+                            <option>Acknowledgment</option>
+                            <option>Jurat</option>
+                            <option>Oath / Affirmation</option>
+                            <option>Verification / Proof</option>
+                            <option>Signature Witnessing</option>
+                            <option>Copy Certification</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <label className="text-xs font-bold text-slate-700 w-20 text-right">Location:</label>
+                        <div className="flex-1 relative">
+                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input 
+                            type="text" 
+                            value={formData.location || ""}
+                            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
+                            placeholder="Street Address, City, State Zip"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 <div className="space-y-6">
                   {/* Signers List */}
                   <div className="space-y-3">
@@ -1380,12 +1210,13 @@ const NewSigningModal = ({
                               </div>
                             </div>
                           );
-                        })()}
+                          })()}
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
-              )}
+            </motion.div>
+          )}
               {activeTab === 'Contacts' && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
@@ -1839,46 +1670,47 @@ const NewSigningModal = ({
                   Content for {activeTab} tab will be implemented soon.
                 </div>
               )}
-            </div>
+            </AnimatePresence>
           </div>
-
-          {/* Notes Section (Duplicate removed in refactor) */}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-          <div className="flex gap-2">
-            <button className="bg-sky-400 hover:bg-sky-500 text-white px-4 py-2 rounded text-sm font-medium shadow-sm transition-colors">
-              Invoice
-            </button>
-            <button className="bg-sky-400 hover:bg-sky-500 text-white px-4 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
-              Map
-            </button>
-            <button className="bg-sky-400 hover:bg-sky-500 text-white px-4 py-2 rounded text-sm font-medium shadow-sm transition-colors">
-              Expenses
-            </button>
-            <button className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
-              Send Email
-            </button>
-          </div>
-          <div className="flex gap-2">
+        {/* Sticky Footer for Navigation */}
+        <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between bg-white sticky bottom-0 z-10 w-full">
+          <button
+            type="button"
+            onClick={handleBack}
+            disabled={currentStep === 0}
+            className={cn(
+              "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all",
+              currentStep === 0 
+                ? "bg-slate-50 text-slate-300 cursor-not-allowed border border-slate-100" 
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+            )}
+          >
+            <ChevronLeft className="w-4 h-4" /> Back
+          </button>
+          
+          <div className="flex items-center gap-3">
             <button 
-              onClick={handleSave}
-              disabled={isSaving}
+              type="button"
+              onClick={onClose}
+              className="hidden md:block px-6 py-3 text-slate-400 hover:text-slate-600 text-sm font-bold uppercase tracking-wider"
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
               className={cn(
-                "bg-sky-400 hover:bg-sky-500 text-white px-8 py-2 rounded text-sm font-medium shadow-sm transition-colors flex items-center gap-2",
-                isSaving && "opacity-70 cursor-not-allowed"
+                "flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-lg",
+                currentStep === steps.length - 1
+                  ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
+                  : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200"
               )}
             >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
-                </>
-              ) : 'Save'}
-            </button>
-            <button onClick={onClose} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-6 py-2 rounded text-sm font-medium shadow-sm transition-colors">
-              Close
+              {currentStep === steps.length - 1 ? 'Commit to Journal' : 'Next Step'}
+              {currentStep < steps.length - 1 && <ChevronRight className="w-4 h-4" />}
+              {currentStep === steps.length - 1 && isSaving && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
             </button>
           </div>
         </div>
