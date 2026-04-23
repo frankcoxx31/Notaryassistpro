@@ -3191,9 +3191,13 @@ const Dashboard = ({
     const paid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0), 0);
     const gross = monthAppointments.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
     const unpaid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0), 0);
+    const avgOrderValue = monthAppointments.length > 0 ? gross / monthAppointments.length : 0;
     
-    return { paid, gross, unpaid, count: monthAppointments.length };
-  }, [appointments]);
+    const monthExpenses = expenses.filter(e => isAfter(parseSafeDateTime(e.date), monthStart)).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const netEarnings = gross - monthExpenses;
+    
+    return { paid, gross, unpaid, count: monthAppointments.length, avgOrderValue, netEarnings };
+  }, [appointments, expenses]);
 
   const monthlyGoal = 5000;
   const goalProgress = Math.min(100, (stats.paid / monthlyGoal) * 100);
@@ -3201,13 +3205,13 @@ const Dashboard = ({
   const lanes = useMemo(() => {
     const now = new Date();
     return [
-      { id: 'today', title: 'Schedule Today', items: todaySignings, color: 'text-sky-600', bg: 'bg-sky-50', icon: CalendarDays },
-      { id: 'scanbacks', title: 'Awaiting Scans', items: appointments
+      { id: 'today', title: 'Today’s Priorities', items: todaySignings, color: 'text-sky-600', bg: 'bg-sky-50', icon: CalendarDays },
+      { id: 'scanbacks', title: 'In-Progress Signings', items: appointments
         .filter(a => a.scanbackStatus === 'Pending')
         .sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime()), 
         color: 'text-amber-600', bg: 'bg-amber-50', icon: RefreshCw },
-      { id: 'payment', title: 'Pending Payment', items: appointments.filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate && isBefore(parseSafeDateTime(a.date), now) && a.status !== 'Cancelled' && a.status !== 'No Show').slice(0, 5), color: 'text-rose-600', bg: 'bg-rose-50', icon: DollarSign },
-      { id: 'completed', title: 'Recently Paid', items: appointments.filter(a => a.status === 'Paid').sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime()).slice(0, 5), color: 'text-emerald-600', bg: 'bg-emerald-50', icon: CheckCircle2 },
+      { id: 'payment', title: 'Follow-Ups Due', items: appointments.filter(a => (a.status as string) !== 'Paid' && !a.invoicePaidDate && isBefore(parseSafeDateTime(a.date), now) && a.status !== 'Cancelled' && a.status !== 'No Show').slice(0, 5), color: 'text-rose-600', bg: 'bg-rose-50', icon: DollarSign },
+      { id: 'completed', title: 'Payments Collected', items: appointments.filter(a => a.status === 'Paid').sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime()).slice(0, 5), color: 'text-emerald-600', bg: 'bg-emerald-50', icon: CheckCircle2 },
     ];
   }, [appointments, todaySignings]);
 
@@ -3227,6 +3231,12 @@ const Dashboard = ({
       .slice(0, 5);
   }, [appointments]);
 
+  const recentActivity = useMemo(() => {
+    return [...appointments]
+      .sort((a, b) => parseSafeDateTime(b.date, b.time).getTime() - parseSafeDateTime(a.date, a.time).getTime())
+      .slice(0, 5);
+  }, [appointments]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 -m-4 lg:-m-8 p-4 lg:p-8 space-y-8 font-sans">
       {/* 1. OPERATIONS OVERVIEW */}
@@ -3236,13 +3246,13 @@ const Dashboard = ({
         <div className="lg:col-span-8 space-y-8">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Daily Briefing</h1>
-              <p className="text-sm text-slate-500 font-bold">{format(new Date(), 'EEEE, MMMM do')}</p>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Business Overview</h1>
+              <p className="text-sm text-slate-500 font-medium">Manage signings, track revenue, and stay ahead of follow-ups from one professional workspace.</p>
             </div>
             <div className="flex gap-2">
-              <div className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-sm">
+              <div className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-sm" title="Appointments scheduled for today.">
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
-                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{todaySignings.length} Active</span>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{todaySignings.length} Signings Today</span>
               </div>
             </div>
           </div>
@@ -3260,7 +3270,7 @@ const Dashboard = ({
                 <div className="space-y-6 flex-1">
                   <div className="flex items-center gap-3">
                     <span className="px-3 py-1 bg-sky-50 text-sky-600 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-sky-100">
-                      Incoming Appointment
+                      Upcoming Appointment
                     </span>
                     <span className="text-slate-400 text-xs font-bold">
                       {isSameDay(parseSafeDateTime(nextSigning.date), new Date()) ? 'Next Up' : format(parseSafeDateTime(nextSigning.date), 'MMM d')}
@@ -3330,28 +3340,31 @@ const Dashboard = ({
                 <Calendar className="w-8 h-8 text-slate-200" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-lg font-bold text-slate-900">No more signings scheduled for today</h3>
-                <p className="text-sm text-slate-500">Ready to take on more work? Add a new signing to your schedule.</p>
+                <h3 className="text-lg font-bold text-slate-900">Your upcoming appointments will appear here.</h3>
+                <p className="text-sm text-slate-500">Add a signing to start tracking time, status, and payment in one place.</p>
               </div>
               <button 
                 onClick={onNewSigning}
                 className="px-6 py-2.5 bg-sky-600 text-white font-black rounded-xl hover:bg-sky-700 transition-all uppercase tracking-widest text-xs"
               >
-                Create New Signing
+                Schedule Signing
               </button>
             </div>
           )}
 
           {/* WORKFLOW PIPELINE */}
           <div className="space-y-6">
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">Active Pipeline</h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Today’s Priorities</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {lanes.map((lane) => (
                 <div key={lane.id} className="space-y-4">
                   <div className="flex items-center gap-2 px-2">
                     <lane.icon className={cn("w-4 h-4", lane.color)} />
                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{lane.title}</h3>
-                    <span className="ml-auto bg-slate-200 text-slate-600 text-[10px] font-black px-1.5 py-0.5 rounded-md">
+                    <span className="ml-auto bg-slate-200 text-slate-600 text-[10px] font-black px-1.5 py-0.5 rounded-md" title={
+                      lane.id === 'payment' ? 'Clients or companies needing attention.' : 
+                      lane.id === 'completed' ? 'Revenue received this month.' : undefined
+                    }>
                       {lane.items.length}
                     </span>
                   </div>
@@ -3383,7 +3396,10 @@ const Dashboard = ({
                     ))}
                     {lane.items.length === 0 && (
                       <div className="border border-slate-200 border-dashed rounded-3xl p-6 text-center bg-slate-50/50">
-                        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest italic">Station Clear</p>
+                        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest italic leading-tight">
+                          {lane.id === 'payment' ? 'No follow-ups right now.' : 
+                           lane.id === 'today' ? 'Nothing urgent right now.' : 'Station Clear'}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -3393,10 +3409,10 @@ const Dashboard = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: BUSINESS HEALTH */}
+        {/* RIGHT COLUMN: REVENUE SNAPSHOT */}
         <div className="lg:col-span-4 space-y-8">
           <div className="space-y-1">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Business Health</h2>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Revenue Snapshot</h2>
             <p className="text-sm text-slate-500 font-bold">{format(new Date(), 'MMMM yyyy')}</p>
           </div>
 
@@ -3410,8 +3426,9 @@ const Dashboard = ({
                 </div>
                 <Zap className="w-5 h-5 text-amber-400 animate-pulse" />
               </div>
-              <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-1">Gross Month-to-Date</p>
+              <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-1">Booked Revenue</p>
               <h2 className="text-4xl font-black tracking-tighter">${stats.gross.toLocaleString()}</h2>
+              <p className="text-[9px] font-bold text-white/30 uppercase tracking-[0.1em] mt-1">Total value of confirmed assignments.</p>
               
               <div className="mt-8 space-y-2">
                 <div className="flex justify-between text-[10px] font-black text-white/40 uppercase tracking-widest">
@@ -3429,27 +3446,87 @@ const Dashboard = ({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Collected</span>
+              <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-2">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Payments Collected</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-900">${stats.paid.toLocaleString()}</p>
                 </div>
-                <p className="text-xl font-black text-slate-900">${stats.paid.toLocaleString()}</p>
+                <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tight">Revenue received this month.</p>
               </div>
-              <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pending</span>
+              <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-2">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Outstanding Revenue</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-900">${stats.unpaid.toLocaleString()}</p>
                 </div>
-                <p className="text-xl font-black text-slate-900">${stats.unpaid.toLocaleString()}</p>
+                <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tight">Work awaiting payment.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-2">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-sky-500"></div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Average Order Value</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-900">${Math.round(stats.avgOrderValue).toLocaleString()}</p>
+                </div>
+                <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tight">Average fee per signing.</p>
+              </div>
+              <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-2">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Net Earnings</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-900">${stats.netEarnings.toLocaleString()}</p>
+                </div>
+                <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tight">Revenue after deductions.</p>
               </div>
             </div>
           </div>
 
-          {/* TOP COMPANIES */}
+          {/* LATEST ACTIVITY */}
           <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden flex flex-col shadow-sm">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">Volume Partners</h2>
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">Latest Activity</h2>
+              <Activity className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="p-6 space-y-5">
+              {recentActivity.map((app) => (
+                <div key={app.id} className="flex items-center justify-between group cursor-pointer" onClick={() => onViewSigning(app)}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-sky-50 group-hover:text-sky-600 transition-colors">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-800 group-hover:text-sky-600 transition-colors uppercase tracking-tight">{formatDisplayName(app.clientName)}</p>
+                      <p className="text-[9px] font-bold text-slate-400">{format(parseSafeDateTime(app.date), 'MMM d')} • {app.status}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-black text-slate-900">${Number(app.fee).toFixed(0)}</p>
+                  </div>
+                </div>
+              ))}
+              {recentActivity.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic leading-relaxed">Recent signings and status updates will appear here.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* BEST REFERRAL SOURCES */}
+          <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden flex flex-col shadow-sm">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">Best Referral Sources</h2>
               <Building2 className="w-4 h-4 text-slate-400" />
             </div>
             <div className="p-6 space-y-5">
@@ -3472,12 +3549,12 @@ const Dashboard = ({
               ))}
               {topCompanies.length === 0 && (
                 <div className="text-center py-8">
-                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic leading-relaxed">No company partnerships<br/>recorded yet.</p>
+                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic leading-relaxed">Track which companies send the most work. Add assignments to see your partner ranking.</p>
                 </div>
               )}
             </div>
             <Link to="/companies" className="p-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-sky-600 transition-colors bg-slate-50/50 border-t border-slate-100">
-              Directory
+              Business Directory
             </Link>
           </div>
 
@@ -3488,14 +3565,14 @@ const Dashboard = ({
               className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col items-center gap-3 hover:bg-slate-50 transition-all shadow-sm"
             >
               <BookOpen className="w-5 h-5 text-indigo-500" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Journal</span>
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">New Journal Entry</span>
             </button>
             <button 
               onClick={() => navigate('/reports/income')}
               className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col items-center gap-3 hover:bg-slate-50 transition-all shadow-sm"
             >
               <PieChart className="w-5 h-5 text-emerald-500" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Reports</span>
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Performance Reports</span>
             </button>
           </div>
 
