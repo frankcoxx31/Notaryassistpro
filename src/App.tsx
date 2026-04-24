@@ -5030,6 +5030,7 @@ const Appointments = ({
                   </>
                 ) : (
                   <>
+                     <th className="px-3 py-4 w-40">Company</th>
                      <th className="px-3 py-4">City</th>
                      <th className="px-3 py-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('agreedFee')}>Agreed</th>
                      <th className="px-3 py-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('amountCollected')}>Collected</th>
@@ -5145,6 +5146,11 @@ const Appointments = ({
                       </>
                     ) : (
                       <>
+                        <td className="px-3 py-4">
+                           <div className="text-[11px] font-bold text-slate-800 truncate max-w-[140px] uppercase tracking-tight">
+                             {app.companyName || app.signingCompany || 'Private Direct'}
+                           </div>
+                        </td>
                         <td className="px-3 py-4">
                            <div className="flex flex-col items-start gap-1">
                              <div className="text-xs font-semibold text-slate-600 truncate">
