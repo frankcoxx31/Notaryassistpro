@@ -664,8 +664,8 @@ const NewSigningModal = ({
               <ShieldCheck className="w-6 h-6 text-indigo-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900">{appointment ? 'Review Journal Entry' : 'New Journal Entry'}</h2>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest leading-none mt-1">Official Mandatory Record</p>
+              <h2 className="text-xl font-bold text-slate-900">{appointment ? 'Edit Signing' : 'Schedule New Signing'}</h2>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest leading-none mt-1">Professional Appointment</p>
             </div>
           </div>
           <div className="flex items-center gap-6">
@@ -730,13 +730,13 @@ const NewSigningModal = ({
              {/* Appointment Summary Card */}
              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Entry Details</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Signing Details</label>
                   <p className="text-xs font-bold text-slate-800">{formData.date ? format(new Date(formData.date), 'MMMM d, yyyy') : 'No Date'}</p>
                   <p className="text-[10px] font-bold text-slate-500">{formData.time || '10:00 AM'}</p>
                 </div>
                 <div className="space-y-1 pt-3 border-t border-slate-100">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Notarial Act</label>
-                  <p className="text-xs font-bold text-indigo-600">{formData.actType || 'Acknowledgment'}</p>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Type</label>
+                  <p className="text-xs font-bold text-indigo-600">{formData.signingType || 'Loan Signing'}</p>
                 </div>
              </div>
           </div>
@@ -1755,7 +1755,7 @@ const NewSigningModal = ({
                   : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200"
               )}
             >
-              {currentStep === steps.length - 1 ? 'Commit to Journal' : 'Next Step'}
+              {currentStep === steps.length - 1 ? 'Schedule Signing' : 'Next Step'}
               {currentStep < steps.length - 1 && <ChevronRight className="w-4 h-4" />}
               {currentStep === steps.length - 1 && isSaving && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
             </button>

@@ -129,6 +129,7 @@ import LoginPage from './components/LoginPage';
 import DemoLoginPage from './components/DemoLoginPage';
 import LandingPage from './components/LandingPage';
 import NewSigningModal from './components/NewSigningModal';
+import NewJournalEntryModal from './components/NewJournalEntryModal';
 import NewCustomerModal from './components/NewCustomerModal';
 import SigningCompanyModal from './components/SigningCompanyModal';
 import SigningCompaniesPage from './components/SigningCompaniesPage';
@@ -2721,6 +2722,7 @@ const Sidebar = ({
   isOpen, 
   toggle, 
   onNewSigning, 
+  onNewJournalEntry,
   onNewExpense, 
   onExpenseTypes, 
   onRecurringExpense, 
@@ -2732,6 +2734,7 @@ const Sidebar = ({
   isOpen: boolean; 
   toggle: () => void; 
   onNewSigning: () => void; 
+  onNewJournalEntry: () => void;
   onNewExpense: () => void; 
   onExpenseTypes: () => void; 
   onRecurringExpense: () => void; 
@@ -2769,7 +2772,7 @@ const Sidebar = ({
       setIsOpen: setIsJournalOpen,
       subItems: [
         { name: 'View Journal', icon: List, path: '/journal' },
-        { name: 'New Entry', icon: PlusCircle, path: '#', onClick: onNewSigning },
+        { name: 'New Entry', icon: PlusCircle, path: '#', onClick: onNewJournalEntry },
       ]
     },
     { name: 'Calendar', icon: Calendar, path: '/calendar' },
@@ -3045,7 +3048,7 @@ const Header = ({ toggleSidebar, onNewSigning, onSignOut, user, isDemoMode, onRe
             className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-sky-600/20 border border-sky-500/50 group shrink-0"
           >
             <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
-            <span>New Signing</span>
+            <span>{location.pathname.startsWith('/journal') ? 'New Journal Entry' : 'New Signing'}</span>
           </button>
 
           <div className="h-6 w-px bg-slate-200 mx-2 hidden sm:block"></div>
@@ -5530,6 +5533,7 @@ const Accounting = ({ appointments, expenses, onNewExpense, onDeleteExpense }: {
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNewSigningModalOpen, setIsNewSigningModalOpen] = useState(false);
+  const [isNewJournalModalOpen, setIsNewJournalModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [modalInitialTab, setModalInitialTab] = useState('Signer(s)');
   const [modalAutoScan, setModalAutoScan] = useState(false);
@@ -6140,6 +6144,7 @@ export default function App() {
         isOpen={isSidebarOpen} 
         toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
         onNewSigning={() => setIsNewSigningModalOpen(true)}
+        onNewJournalEntry={() => setIsNewJournalModalOpen(true)}
         onNewExpense={() => setIsNewExpenseModalOpen(true)}
         onExpenseTypes={() => setIsExpenseTypesModalOpen(true)}
         onRecurringExpense={() => setIsRecurringExpenseModalOpen(true)}
@@ -6157,7 +6162,12 @@ export default function App() {
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
           onNewSigning={() => {
             setSelectedAppointment(null);
-            setIsNewSigningModalOpen(true);
+            setModalInitialTab('Signer(s)');
+            if (location.pathname.startsWith('/journal')) {
+              setIsNewJournalModalOpen(true);
+            } else {
+              setIsNewSigningModalOpen(true);
+            }
           }}
           onSignOut={handleSignOut}
           user={user}
@@ -6193,6 +6203,7 @@ export default function App() {
                   viewMode="signings"
                   onNewSigning={() => {
                     setSelectedAppointment(null);
+                    setModalInitialTab('Signer(s)');
                     setIsNewSigningModalOpen(true);
                   }} 
                   onViewSigning={(app, tab = 'Signer(s)') => {
@@ -6223,19 +6234,21 @@ export default function App() {
                   viewMode="journal"
                   onNewSigning={() => {
                     setSelectedAppointment(null);
+                    setModalInitialTab('Signer(s)');
                     setModalAutoScan(false);
-                    setIsNewSigningModalOpen(true);
+                    setIsNewJournalModalOpen(true);
                   }} 
                   onNewSigningWithScan={() => {
                     setSelectedAppointment(null);
+                    setModalInitialTab('Signer(s)');
                     setModalAutoScan(true);
-                    setIsNewSigningModalOpen(true);
+                    setIsNewJournalModalOpen(true);
                   }}
                   onViewSigning={(app, tab = 'Signer(s)') => {
                     setSelectedAppointment(app);
                     setModalInitialTab(tab);
                     setModalAutoScan(false);
-                    setIsNewSigningModalOpen(true);
+                    setIsNewJournalModalOpen(true);
                   }}
                   onDelete={handleDeleteAppointments}
                   onImport={handleImport}
@@ -6363,8 +6376,37 @@ export default function App() {
                 setModalInitialTab('Signer(s)');
               } catch (error) {
                 console.error('Caught error in NewSigningModal onSave:', error);
-                // The error is re-thrown by handleSaveAppointment -> handleFirestoreError
-                // We re-throw it so the modal can catch it internally if we change the Prop type
+                throw error;
+              }
+            }}
+            userId={user?.uid || 'mock-user'}
+            customers={customers}
+            appointments={appointments}
+            companies={companies}
+            onSaveCompany={handleSaveCompany}
+          />
+        )}
+
+        {isNewJournalModalOpen && (
+          <NewJournalEntryModal 
+            isOpen={isNewJournalModalOpen} 
+            onClose={() => {
+              setIsNewJournalModalOpen(false);
+              setSelectedAppointment(null);
+              setModalInitialTab('Signer(s)');
+              setModalAutoScan(false);
+            }} 
+            appointment={selectedAppointment}
+            initialTab={modalInitialTab}
+            autoScan={modalAutoScan}
+            onSave={async (app) => {
+              try {
+                await handleSaveAppointment(app);
+                setIsNewJournalModalOpen(false);
+                setSelectedAppointment(null);
+                setModalInitialTab('Signer(s)');
+              } catch (error) {
+                console.error('Caught error in NewJournalEntryModal onSave:', error);
                 throw error;
               }
             }}
