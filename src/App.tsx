@@ -3893,6 +3893,7 @@ const Appointments = ({
   onBulkUpdateDocs,
   onBulkUpdateInvoiceStatus,
   onBulkUpdateSigningType,
+  onBulkUpdateCompany,
   onBulkMarkPaid,
   userId, 
   viewMode = 'journal',
@@ -3911,6 +3912,7 @@ const Appointments = ({
   onBulkUpdateDocs: (ids: string[], docs: string[]) => Promise<void>;
   onBulkUpdateInvoiceStatus: (ids: string[], sent: boolean) => Promise<void>;
   onBulkUpdateSigningType: (ids: string[], type: string) => Promise<void>;
+  onBulkUpdateCompany: (ids: string[], company: SigningCompany) => Promise<void>;
   onBulkMarkPaid: (ids: string[], data: { paidDate: string; paymentMethod: string; notes: string }) => Promise<void>;
   userId: string; 
   viewMode?: 'signings' | 'journal';
@@ -3934,6 +3936,7 @@ const Appointments = ({
   const [customBulkType, setCustomBulkType] = useState('');
   const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
   const [isBulkMarkPaidModalOpen, setIsBulkMarkPaidModalOpen] = useState(false);
+  const [isBulkAssignCompanyModalOpen, setIsBulkAssignCompanyModalOpen] = useState(false);
   const [bulkMarkPaidData, setBulkMarkPaidData] = useState({
     paidDate: new Date().toISOString().split('T')[0],
     paymentMethod: 'Check',
@@ -4967,6 +4970,12 @@ const Appointments = ({
             >
               <DollarSign className="w-3.5 h-3.5" /> Mark Paid
             </button>
+            <button 
+              onClick={() => setIsBulkAssignCompanyModalOpen(true)}
+              className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-sky-500"
+            >
+              <Building2 className="w-3.5 h-3.5" /> Assign Company
+            </button>
             <div className="w-px h-6 bg-indigo-800 mx-2 hidden md:block"></div>
             <button 
               onClick={handleDelete}
@@ -5274,6 +5283,19 @@ const Appointments = ({
         count={selectedIds.length}
         currentData={bulkMarkPaidData}
         onChange={setBulkMarkPaidData}
+      />
+
+      <BulkAssignCompanyModal
+        isOpen={isBulkAssignCompanyModalOpen}
+        onClose={() => setIsBulkAssignCompanyModalOpen(false)}
+        onConfirm={async (company) => {
+          setIsBulkAssignCompanyModalOpen(false);
+          await onBulkUpdateCompany(selectedIds, company);
+          setSelectedIds([]);
+          setIsSelectMode(false);
+        }}
+        count={selectedIds.length}
+        companies={companies}
       />
     </div>
   );
@@ -5808,6 +5830,37 @@ export default function App() {
     }
   };
 
+  const handleBulkUpdateCompany = async (ids: string[], company: SigningCompany) => {
+    if (isDemoUser || !user) {
+      const updated = appointments.map(app => {
+        if (ids.includes(app.id)) {
+          return { 
+            ...app, 
+            companyId: company.id, 
+            companyName: company.companyName, 
+            signingCompany: company.companyName 
+          };
+        }
+        return app;
+      });
+      setAppointments(updated);
+      return;
+    }
+    if (ids.length === 0) return;
+    try {
+      const promises = ids.map(id => 
+        updateDoc(doc(db, 'appointments', id), sanitizeData({
+          companyId: company.id,
+          companyName: company.companyName,
+          signingCompany: company.companyName
+        }))
+      );
+      await Promise.all(promises);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `appointments/bulk-company`);
+    }
+  };
+
   const handleBulkMarkPaid = async (ids: string[], data: { paidDate: string; paymentMethod: string; notes: string }) => {
     if (ids.length === 0) return;
     
@@ -6223,6 +6276,7 @@ export default function App() {
                   onBulkUpdateDocs={handleBulkUpdateDocs}
                   onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
                   onBulkUpdateSigningType={handleBulkUpdateSigningType}
+                  onBulkUpdateCompany={handleBulkUpdateCompany}
                   onBulkMarkPaid={handleBulkMarkPaid}
                   userId={user?.uid || 'mock-user'}
                   setModalInitialTab={setModalInitialTab}
@@ -6262,6 +6316,7 @@ export default function App() {
                   onBulkUpdateDocs={handleBulkUpdateDocs}
                   onBulkUpdateInvoiceStatus={handleBulkUpdateInvoiceStatus}
                   onBulkUpdateSigningType={handleBulkUpdateSigningType}
+                  onBulkUpdateCompany={handleBulkUpdateCompany}
                   onBulkMarkPaid={handleBulkMarkPaid}
                   userId={user?.uid || 'mock-user'}
                   setModalInitialTab={setModalInitialTab}
@@ -6614,6 +6669,87 @@ const BulkMarkPaidModal = ({ isOpen, onClose, onConfirm, count, currentData, onC
               className="flex-1 py-3 px-4 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
             >
               Confirm Payment
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const BulkAssignCompanyModal = ({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  count, 
+  companies 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onConfirm: (company: SigningCompany) => void; 
+  count: number;
+  companies: SigningCompany[];
+}) => {
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  
+  if (!isOpen) return null;
+
+  const handleConfirm = () => {
+    const company = companies.find(c => c.id === selectedCompanyId);
+    if (company) {
+      onConfirm(company);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+      >
+        <div className="bg-sky-600 p-6 text-white text-center">
+          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Building2 className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-xl font-black uppercase tracking-tight">Assign Company</h2>
+          <p className="text-sky-100 text-sm mt-1">Assigning company to {count} signings</p>
+        </div>
+        
+        <div className="p-8 space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Select Signing Company</label>
+              <select 
+                value={selectedCompanyId}
+                onChange={(e) => setSelectedCompanyId(e.target.value)}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all bg-white font-bold"
+              >
+                <option value="">Choose a company...</option>
+                {[...(companies || [])].sort((a, b) => a.companyName.localeCompare(b.companyName)).map(c => (
+                  <option key={c.id} value={c.id}>{c.companyName}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <AlertCircle className="w-3 h-3 inline mr-1 -mt-0.5 text-amber-500" />
+              This will overwrite any existing company assignments for the selected signings.
+            </p>
+          </div>
+          
+          <div className="flex gap-4 pt-4">
+            <button 
+              onClick={onClose}
+              className="flex-1 py-3 px-4 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleConfirm}
+              disabled={!selectedCompanyId}
+              className="flex-1 py-3 px-4 bg-sky-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-sky-200 hover:bg-sky-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Confirm Assignment
             </button>
           </div>
         </div>

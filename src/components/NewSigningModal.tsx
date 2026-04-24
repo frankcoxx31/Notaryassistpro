@@ -522,6 +522,18 @@ const NewSigningModal = ({
         data.signingCompany = data.companyName;
       }
 
+      // Try to find IDs for legacy records
+      if (!data.companyId && (data.companyName || data.signingCompany)) {
+        const name = data.companyName || data.signingCompany;
+        const found = companies.find(c => c.companyName === name);
+        if (found) data.companyId = found.id;
+      }
+      if (!data.customerId && (data.customerName || data.customer)) {
+        const name = data.customerName || data.customer;
+        const found = customers.find(c => c.fullName === name);
+        if (found) data.customerId = found.id;
+      }
+
       // Check if current signing type is custom
       if (data.signingType && !defaultSigningTypes.includes(data.signingType)) {
         setIsCustomType(false); // It's already in the list because we derive allSigningTypes
@@ -1265,42 +1277,116 @@ const NewSigningModal = ({
             </motion.div>
           )}
               {activeTab === 'Contacts' && (
-                <div className="space-y-4">
+                <motion.div 
+                  key="contacts-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-8"
+                >
                   <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Phone:</label>
-                    <input 
-                      type="tel" 
-                      value={formData.phone || ""}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
+                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
+                      <Phone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Communication & Relationships</h3>
+                      <p className="text-sm text-slate-500">Manage contact information and assign responsible entities.</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Email:</label>
-                    <input 
-                      type="email" 
-                      value={formData.email || ""}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500" 
-                    />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/50 p-8 rounded-2xl border border-slate-100">
+                    <div className="space-y-6">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input 
+                            type="tel" 
+                            value={formData.phone || ""}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white" 
+                            placeholder="(555) 000-0000"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                        <div className="relative">
+                          <X className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input 
+                            type="email" 
+                            value={formData.email || ""}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white" 
+                            placeholder="customer@example.com"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Signing Company</label>
+                        <div className="relative">
+                          <select 
+                            value={formData.companyId || ""}
+                            onChange={(e) => {
+                              const company = companies.find(c => c.id === e.target.value);
+                              setFormData({ 
+                                ...formData, 
+                                companyId: e.target.value, 
+                                companyName: company?.companyName || "",
+                                signingCompany: company?.companyName || ""
+                              });
+                            }}
+                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white appearance-none cursor-pointer font-medium"
+                          >
+                            <option value="">Select a Company</option>
+                            <option value="direct">Private Direct (No Company)</option>
+                            {companies.sort((a, b) => a.companyName.localeCompare(b.companyName)).map(company => (
+                              <option key={company.id} value={company.id}>
+                                {company.companyName}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <ChevronRight className="w-4 h-4 text-slate-400 rotate-90" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Customer / Contact</label>
+                        <div className="relative">
+                          <select 
+                            value={formData.customerId || ""}
+                            onChange={(e) => {
+                              const customer = customers.find(c => c.id === e.target.value);
+                              setFormData({ 
+                                ...formData, 
+                                customerId: e.target.value, 
+                                customerName: customer?.fullName || "",
+                                customer: customer?.fullName || ""
+                              });
+                            }}
+                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white appearance-none cursor-pointer font-medium"
+                          >
+                            <option value="">Select a Customer</option>
+                            {customers.sort((a, b) => a.fullName.localeCompare(b.fullName)).map(customer => (
+                              <option key={customer.id} value={customer.id}>
+                                {customer.fullName}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <ChevronRight className="w-4 h-4 text-slate-400 rotate-90" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-slate-700 w-24 text-right">Customer:</label>
-                    <select 
-                      value={formData.customer || ""}
-                      onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-                      className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-sky-500 bg-white"
-                    >
-                      <option value="">Select a Customer</option>
-                      {customers.map(customer => (
-                        <option key={customer.id} value={customer.fullName}>
-                          {customer.fullName}
-                        </option>
-                      ))}
-                      <option value="Rocket Close">Rocket Close (Default)</option>
-                    </select>
-                  </div>
-                </div>
+                </motion.div>
               )}
               {activeTab === 'Invoice' && (
                 <div className="space-y-6">
