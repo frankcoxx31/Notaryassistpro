@@ -725,7 +725,26 @@ const NewJournalEntryModal = ({
                            const updateSigner = (updates: Partial<Signer>) => {
                              const updatedSigners = (formData.signers || []).map(s => s.id === editingSignerId ? { ...s, ...updates } : s);
                              const isFirstSigner = updatedSigners[0]?.id === editingSignerId;
-                             setFormData({ ...formData, signers: updatedSigners, customerName: updateSignerSummary(updatedSigners), ...(isFirstSigner ? { firstName: updates.firstName !== undefined ? updates.firstName : signer.firstName, lastName: updates.lastName !== undefined ? updates.lastName : signer.lastName, email: updates.email !== undefined ? updates.email : signer.email, phone: updates.phone !== undefined ? updates.phone : signer.phone, address: updates.address !== undefined ? updates.address : signer.address, city: updates.city !== undefined ? updates.city : signer.city, state: updates.state !== undefined ? updates.state : signer.state, zip: updates.zip !== undefined ? updates.zip : signer.zip, } : {}) });
+                             setFormData({ 
+                               ...formData, 
+                               signers: updatedSigners, 
+                               customerName: updateSignerSummary(updatedSigners), 
+                               ...(isFirstSigner ? { 
+                                 firstName: updates.firstName !== undefined ? updates.firstName : signer.firstName, 
+                                 lastName: updates.lastName !== undefined ? updates.lastName : signer.lastName, 
+                                 email: updates.email !== undefined ? updates.email : signer.email, 
+                                 phone: updates.phone !== undefined ? updates.phone : signer.phone, 
+                                 address: updates.address !== undefined ? updates.address : signer.address, 
+                                 city: updates.city !== undefined ? updates.city : signer.city, 
+                                 state: updates.state !== undefined ? updates.state : signer.state, 
+                                 zip: updates.zip !== undefined ? updates.zip : signer.zip,
+                                 idType: updates.idType !== undefined ? updates.idType : signer.idType,
+                                 idNumber: updates.idNumber !== undefined ? updates.idNumber : signer.idNumber,
+                                 idIssueDate: updates.idIssueDate !== undefined ? updates.idIssueDate : signer.idIssueDate,
+                                 idExpiration: updates.idExpiration !== undefined ? updates.idExpiration : signer.idExpiration,
+                                 dob: updates.dob !== undefined ? updates.dob : signer.dob,
+                               } : {}) 
+                             });
                            };
                            return (
                              <div className="space-y-4">
@@ -737,6 +756,44 @@ const NewJournalEntryModal = ({
                                  <div className="grid grid-cols-2 gap-4">
                                    <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID Type</label><select value={signer.idType || ""} onChange={(e) => updateSigner({ idType: e.target.value })} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"><option value="">Select ID Type</option><option>NC Driver's License</option><option>Out-of-State Driver's License</option><option>US Passport</option><option>Military ID</option><option>State-Issued ID Card</option><option>Personal Knowledge</option><option>Credible Witness</option><option>Other</option></select></div>
                                    <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID Number</label><input type="text" value={signer.idNumber || ""} onChange={(e) => updateSigner({ idNumber: e.target.value })} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" /></div>
+                                 </div>
+                                 <div className="grid grid-cols-3 gap-4">
+                                   <div className="space-y-1">
+                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Issue Date</label>
+                                     <input 
+                                       type="date" 
+                                       value={signer.idIssueDate ? (signer.idIssueDate.includes('/') ? formatDateForInput(signer.idIssueDate) : signer.idIssueDate) : ""} 
+                                       onChange={(e) => updateSigner({ idIssueDate: e.target.value })} 
+                                       className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                     />
+                                   </div>
+                                   <div className="space-y-1">
+                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Expire Date</label>
+                                     <input 
+                                       type="date" 
+                                       value={signer.idExpiration ? (signer.idExpiration.includes('/') ? formatDateForInput(signer.idExpiration) : signer.idExpiration) : ""} 
+                                       onChange={(e) => updateSigner({ idExpiration: e.target.value })} 
+                                       className={cn(
+                                         "w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 transition-all",
+                                         signer.idExpiration && signer.idIssueDate && signer.idExpiration < signer.idIssueDate 
+                                           ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500 bg-rose-50" 
+                                           : "border-slate-300 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
+                                       )}
+                                     />
+                                     {signer.idExpiration && signer.idIssueDate && signer.idExpiration < signer.idIssueDate && (
+                                       <p className="text-[9px] text-rose-500 font-bold mt-0.5 ml-1">Cannot be before issue date</p>
+                                     )}
+                                   </div>
+                                   <div className="space-y-1">
+                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Birthdate</label>
+                                     <input 
+                                       type="date" 
+                                       value={signer.dob ? (signer.dob.includes('/') ? formatDateForInput(signer.dob) : signer.dob) : ""} 
+                                       onChange={(e) => updateSigner({ dob: e.target.value })} 
+                                       max={new Date().toISOString().split('T')[0]}
+                                       className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" 
+                                     />
+                                   </div>
                                  </div>
                                  <div className="pt-2 space-y-2">
                                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handleScanLicense} />
