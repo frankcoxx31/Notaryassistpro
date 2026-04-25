@@ -659,47 +659,84 @@ const NewJournalEntryModal = ({
                     <div><h3 className="text-lg font-bold text-slate-900">Signer Identification</h3><p className="text-sm text-slate-500">Capture principal information and identity verification method.</p></div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Date:</label>
-                        <div className="flex-1 relative"><Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input type="date" value={formData.date || ""} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" /></div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Time:</label>
-                        <div className="flex-1 relative"><Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input type="text" value={formData.time || ""} onChange={(e) => setFormData({ ...formData, time: e.target.value })} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" placeholder="10:00 AM" /></div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Signing Type:</label>
-                        <div className="flex-1 relative"><CheckCircle2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                          <select value={formData.signingType || ""} onChange={(e) => setFormData({ ...formData, signingType: e.target.value })} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer">
-                            <option value="">Select Signing Type</option>
-                            {SIGNING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
-                        </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input 
+                          type="date" 
+                          value={formData.date || ""} 
+                          onChange={(e) => setFormData({ ...formData, date: e.target.value })} 
+                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
+                        />
                       </div>
                     </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Doc Type:</label>
-                        <div className="flex-1 relative"><FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                          <select value={formData.docType || ""} onChange={(e) => setFormData({ ...formData, docType: e.target.value })} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer">
-                            <option value="">Select Document Type</option>
-                            {DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
-                        </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Time</label>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input 
+                          type="text" 
+                          value={formData.time || ""} 
+                          onChange={(e) => setFormData({ ...formData, time: e.target.value })} 
+                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
+                          placeholder="10:00 AM" 
+                        />
                       </div>
-                      <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Notarial Act:</label>
-                        <div className="flex-1 relative"><ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                          <select value={formData.actType || "Acknowledgment"} onChange={(e) => setFormData({ ...formData, actType: e.target.value })} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer">
-                            {NOTARIAL_ACTS.map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
-                        </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Signing Type</label>
+                      <div className="relative">
+                        <CheckCircle2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <select 
+                          value={formData.signingType || ""} 
+                          onChange={(e) => setFormData({ ...formData, signingType: e.target.value })} 
+                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
+                        >
+                          <option value="">Select Signing Type</option>
+                          {SIGNING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <label className="text-xs font-bold text-slate-700 w-24 text-right">Location:</label>
-                        <div className="flex-1 relative"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input type="text" value={formData.location || ""} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" placeholder="Street Address, City, State Zip" /></div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Doc Type</label>
+                      <div className="relative">
+                        <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <select 
+                          value={formData.docType || ""} 
+                          onChange={(e) => setFormData({ ...formData, docType: e.target.value })} 
+                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
+                        >
+                          <option value="">Select Document Type</option>
+                          {DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Notarial Act</label>
+                      <div className="relative">
+                        <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <select 
+                          value={formData.actType || "Acknowledgment"} 
+                          onChange={(e) => setFormData({ ...formData, actType: e.target.value })} 
+                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
+                        >
+                          {NOTARIAL_ACTS.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Location</label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input 
+                          type="text" 
+                          value={formData.location || ""} 
+                          onChange={(e) => setFormData({ ...formData, location: e.target.value })} 
+                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
+                          placeholder="Street Address, City, State Zip" 
+                        />
                       </div>
                     </div>
                   </div>
