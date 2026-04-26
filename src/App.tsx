@@ -949,7 +949,7 @@ const ExpenseTypesModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
             </div>
           )}
 
-          {activeTab === 'Expense Types' ? (
+          {activeTab === 'Expense Types' && (
             <div className="border border-slate-200 rounded overflow-hidden">
               <table className="w-full border-collapse">
                 <thead>
@@ -981,10 +981,6 @@ const ExpenseTypesModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                   ))}
                 </tbody>
               </table>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-slate-400 italic">
-              Content for {activeTab} will be implemented soon.
             </div>
           )}
 
