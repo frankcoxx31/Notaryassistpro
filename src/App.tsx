@@ -827,6 +827,128 @@ const ExpenseTypesModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+          {activeTab === 'Mileage' && (
+            <div className="space-y-6">
+              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-4">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 shrink-0">
+                  <Car className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest">IRS Mileage Rate 2026</h4>
+                  <p className="text-[11px] text-blue-700 leading-relaxed italic">The standard mileage rate for the use of a car (also vans, pickups or panel trucks) is <span className="font-black">$0.725</span> per mile driven for business use.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Current Mileage Rate</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                    <input 
+                      type="number" 
+                      step="0.001"
+                      defaultValue={0.725}
+                      className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Default Business Base</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Home Office"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Base State</label>
+                    <input 
+                      type="text" 
+                      placeholder="NC"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-800">Automatic Round Trip Calculation</p>
+                    <p className="text-[10px] text-slate-500 italic">Always double miles driven for profit calculations.</p>
+                  </div>
+                  <button className="w-12 h-6 bg-indigo-600 rounded-full relative">
+                    <div className="absolute top-1 right-1 w-4 h-4 bg-white rounded-full"></div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'Notary Fees' && (
+            <div className="space-y-6">
+              <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-4">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-widest">Fee Guidance (North Carolina)</h4>
+                  <p className="text-[11px] text-amber-700 leading-relaxed italic">The maximum fee a notary may charge for a notarial act is <span className="font-black">$10.00 per principal signature</span> for acknowledgments and jurats.</p>
+                </div>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Notarial Act</th>
+                      <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Standard Fee</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[
+                      { act: 'Acknowledgment', fee: 10.00 },
+                      { act: 'Jurat / Oaths', fee: 10.00 },
+                      { act: 'Verifications', fee: 10.00 },
+                      { act: 'Administering Oath', fee: 10.00 },
+                    ].map(item => (
+                      <tr key={item.act}>
+                        <td className="px-4 py-3 text-sm font-bold text-slate-700">{item.act}</td>
+                        <td className="px-4 py-3">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]">$</span>
+                            <input 
+                              type="number" 
+                              defaultValue={item.fee} 
+                              className="w-full pl-5 pr-2 py-1.5 border border-slate-200 rounded text-xs font-black outline-none focus:border-indigo-500"
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">Travel Fee Surcharge</p>
+                    <p className="text-[10px] text-slate-500 italic">Separate from legislative notarial act limits.</p>
+                  </div>
+                  <div className="relative w-32">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]">$</span>
+                    <input 
+                      type="number" 
+                      defaultValue={25.00} 
+                      className="w-full pl-7 pr-3 py-2 border border-slate-200 rounded text-xs font-black outline-none focus:border-indigo-500 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'Expense Types' ? (
             <div className="border border-slate-200 rounded overflow-hidden">
               <table className="w-full border-collapse">
@@ -3685,8 +3807,11 @@ const CalendarView = ({
                   {events.map((event, eIdx) => (
                     <div 
                       key={eIdx} 
-                      onClick={() => onViewSigning(event.appointment)}
-                      className="bg-sky-600 text-white text-[10px] py-0.5 px-1.5 rounded-sm truncate cursor-pointer hover:bg-sky-700 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewSigning(event.appointment);
+                      }}
+                      className="bg-sky-600 text-white text-[10px] py-0.5 px-1.5 rounded-sm truncate cursor-pointer hover:bg-sky-700 transition-all shadow-sm active:scale-95"
                     >
                       <span className="font-bold mr-1">{event.time}</span>
                       {event.name}
@@ -3729,10 +3854,14 @@ const CalendarView = ({
                 {events.map((event, eIdx) => (
                   <div 
                     key={eIdx} 
-                    className="bg-white border-l-4 border-sky-600 p-2 rounded shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => onViewSigning(event.appointment)}
+                    className="bg-white border-l-4 border-sky-600 p-2 rounded shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5 active:scale-95"
                   >
-                    <p className="text-[10px] font-bold text-sky-600">{event.time}</p>
-                    <p className="text-xs font-medium text-slate-800 leading-tight mt-1">{event.name}</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[10px] font-black text-sky-600 uppercase tracking-tighter">{event.time}</p>
+                      <ChevronRight className="w-3 h-3 text-slate-200 group-hover:text-sky-400 transition-colors" />
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-800 leading-tight group-hover:text-sky-900 transition-colors">{event.name}</p>
                   </div>
                 ))}
               </div>
@@ -3762,20 +3891,34 @@ const CalendarView = ({
         <div className="p-6 min-h-[300px]">
           {events.length > 0 ? (
             <div className="space-y-4">
-              {events.map((event, idx) => (
-                <div key={idx} className="flex gap-4 items-start group">
-                  <div className="w-20 text-right pt-1">
-                    <span className="text-sm font-bold text-slate-400 group-hover:text-sky-600 transition-colors">{event.time}</span>
-                  </div>
-                  <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-sky-300 hover:bg-sky-50/30 transition-all cursor-pointer">
-                    <p className="font-bold text-slate-800">{event.name}</p>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
-                      <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> 1 hour</span>
-                      <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> Location Details</span>
+                {events.map((event, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => onViewSigning(event.appointment)}
+                    className="flex gap-4 items-start group cursor-pointer"
+                  >
+                    <div className="w-20 text-right pt-1 flex flex-col items-end">
+                      <span className="text-sm font-black text-slate-400 group-hover:text-sky-600 transition-colors tracking-tighter">{event.time}</span>
+                      <div className="w-6 h-0.5 bg-slate-100 rounded-full mt-1 group-hover:bg-sky-200 transition-colors"></div>
+                    </div>
+                    <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-6 hover:border-sky-300 hover:shadow-xl hover:shadow-sky-500/5 transition-all group-hover:-translate-y-1 active:scale-[0.99] relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-sky-600">
+                           <ChevronRight className="w-4 h-4" />
+                         </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest">{event.appointment.signingType}</p>
+                        <p className="text-lg font-black text-slate-900 tracking-tight">{event.name}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-6 mt-4 pt-4 border-t border-slate-50 text-[11px] text-slate-500 font-bold uppercase tracking-widest">
+                        <span className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg"><Clock className="w-3.5 h-3.5 text-sky-500" /> 1 hour</span>
+                        <span className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg"><MapPin className="w-3.5 h-3.5 text-sky-500" /> {event.appointment.city || 'Location Details'}</span>
+                        <span className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg"><DollarSign className="w-3.5 h-3.5" /> ${event.appointment.fee}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
@@ -4208,10 +4351,21 @@ const Appointments = ({
   };
 
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
+    // Avoid window.open which triggers popup blockers
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
       const title = viewMode === 'journal' ? `NC Notary Journal Ledger - ${format(new Date(), 'MMMM yyyy')}` : `Signings Report - ${format(new Date(), 'MMMM yyyy')}`;
-      printWindow.document.write(`
+      doc.open();
+      doc.write(`
         <html>
           <head>
             <title>${title}</title>
@@ -4260,18 +4414,36 @@ const Appointments = ({
           </body>
         </html>
       `);
-      printWindow.document.close();
-      printWindow.print();
+      doc.close();
+      
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1000);
+      }, 500);
     }
   };
 
   const handlePrintJob = (app: Appointment) => {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
+    // Avoid window.open which triggers popup blockers
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
       const formattedDate = format(new Date(app.date), 'EEEE, MMMM d, yyyy');
       const rescissionDate = format(subDays(new Date(app.date), 3), 'M/d/yyyy'); // Example logic
       
-      printWindow.document.write(`
+      doc.open();
+      doc.write(`
         <html>
           <head>
             <title>Signing Report - ${app.clientName}</title>
@@ -4310,28 +4482,60 @@ const Appointments = ({
               <h2>${formattedDate} : ${app.time}</h2>
               <div class="rescission">Rescission Date: ${rescissionDate}</div>
             </div>
-
+            
             <div class="details-grid">
               <div class="details-left">
-                <div>${formatDisplayName(app.customerName || app.clientName)}</div>
-                <div>${app.location || ''}</div>
+                <strong>DATE:</strong><br/>
+                ${formattedDate}<br/><br/>
+                
+                <strong>TIME:</strong><br/>
+                ${app.time}<br/><br/>
+                
+                <strong>LOCATION:</strong><br/>
+                ${app.location || 'See Notes'}<br/><br/>
+                
+                <strong>FEE:</strong><br/>
+                $${(app.fee || 0).toFixed(2)}<br/><br/>
+                
+                <strong>COMPANY:</strong><br/>
+                ${app.signingCompany || app.companyName || 'Direct'}
               </div>
               <div class="details-right">
-                <div style="margin-top: 20px;">Order No. ${app.orderNumber || 'N/A'}</div>
+                <strong>SIGNING TYPE:</strong><br/>
+                ${app.signingType || 'Not Specified'}<br/><br/>
+                
+                <strong>ORDER #:</strong><br/>
+                ${app.orderNumber || 'N/A'}<br/><br/>
+                
+                <strong>DOCUMENTS SIGNED:</strong><br/>
+                ${(app.docs || []).join(', ') || 'General Notary Work'}<br/><br/>
+                
+                <strong>ID VERIFIED:</strong><br/>
+                ${app.idType || 'Document Inspection'}
               </div>
             </div>
-
+            
             <div class="notes-section">
-              <span class="notes-label">NOTES:</span>
-              <p>${app.notes || ''}</p>
+              <span class="notes-label">NOTES / REMARKS:</span>
+              <p style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${app.notes || 'No additional notes provided for this appointment.'}</p>
             </div>
-
+            
             <hr class="bottom-line" />
+            <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #94a3b8;">
+              Professional Notary Service Report • Powered by NotaryPro
+            </div>
           </body>
         </html>
       `);
-      printWindow.document.close();
-      printWindow.print();
+      doc.close();
+      
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1000);
+      }, 500);
     }
   };
 
@@ -4744,6 +4948,12 @@ const Appointments = ({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button 
+            onClick={() => handleImport()}
+            className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-50 border border-sky-200 text-sky-700 rounded-xl text-sm font-bold hover:bg-sky-100 transition-all shadow-sm"
+          >
+            <Upload className="w-4 h-4" /> Import CSV
+          </button>
           <button 
             onClick={() => handleExport()}
             className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"

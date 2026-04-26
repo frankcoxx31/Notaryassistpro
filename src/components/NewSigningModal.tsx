@@ -85,6 +85,7 @@ const NewSigningModal = ({
     { name: 'Contacts', icon: Phone, description: 'Communication' },
     { name: 'Invoice', icon: Banknote, description: 'Fee & Billing' },
     { name: 'Notes', icon: Pencil, description: 'Final Remarks' },
+    { name: 'Status', icon: CheckCircle2, description: 'Mark as Done' },
   ];
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -1389,7 +1390,13 @@ const NewSigningModal = ({
                 </motion.div>
               )}
               {activeTab === 'Invoice' && (
-                <div className="space-y-6">
+                <motion.div 
+                  key="invoice-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-6"
+                >
                   <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
                     <div className="flex justify-between items-center mb-6">
                       <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -1704,10 +1711,16 @@ const NewSigningModal = ({
                       className="w-full h-24 border border-slate-300 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 resize-none transition-all"
                     />
                   </div>
-                </div>
+                </motion.div>
               )}
               {activeTab === 'Documents' && (
-                <div className="space-y-6">
+                <motion.div 
+                  key="documents-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-6"
+                >
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-bold text-slate-700">Documents Signed:</label>
                     {showDocError && (
@@ -1749,6 +1762,7 @@ const NewSigningModal = ({
                                   className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-sky-500"
                                 />
                                 <button 
+                                  type="button"
                                   onClick={addCustomDoc}
                                   className="p-1 bg-sky-100 text-sky-600 rounded hover:bg-sky-200 transition-colors"
                                 >
@@ -1773,6 +1787,7 @@ const NewSigningModal = ({
                           >
                             {doc}
                             <button 
+                              type="button"
                               onClick={() => toggleDoc(doc)}
                               className="hover:text-rose-500 transition-colors"
                             >
@@ -1785,10 +1800,16 @@ const NewSigningModal = ({
                       )}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
               {activeTab === 'Notes' && (
-                <div className="space-y-4">
+                <motion.div 
+                  key="notes-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-4"
+                >
                   <p className="text-sm font-bold text-slate-700 block mb-2">Additional Notes / Signing Company:</p>
                   <textarea 
                     value={formData.notes || ""}
@@ -1796,9 +1817,116 @@ const NewSigningModal = ({
                     placeholder="E.g. Rocket Closing, ServiceLink, Amrock... Also loan number, lender, etc."
                     className="w-full h-48 border border-slate-300 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none transition-all shadow-sm"
                   />
-                </div>
+                </motion.div>
               )}
-              {activeTab !== 'Signer(s)' && activeTab !== 'Notes' && activeTab !== 'Contacts' && activeTab !== 'Invoice' && (
+              {activeTab === 'Status' && (
+                <motion.div 
+                  key="status-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-8"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100 shadow-sm">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Final Step: Complete Signing</h3>
+                      <p className="text-sm text-slate-500">Update the final status and record collection of payment.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-8 rounded-3xl border border-slate-100 shadow-inner">
+                    <div className="space-y-6">
+                      <div className="space-y-3">
+                        <label className="text-xs font-bold text-slate-700 block ml-1">Current Status</label>
+                        <div className="flex flex-wrap gap-2">
+                          {['Scheduled', 'Completed', 'Cancelled', 'No Show'].map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, status: s as any })}
+                              className={cn(
+                                "px-4 py-2 rounded-xl text-xs font-bold transition-all border",
+                                formData.status === s 
+                                  ? "bg-slate-900 text-white border-slate-900 shadow-md" 
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                              )}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="pt-4 space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">Payment Collected?</p>
+                            <p className="text-[10px] text-slate-500 font-medium">Was payment received at the table?</p>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const isPaid = formData.paymentStatus !== 'Paid';
+                              setFormData({ 
+                                ...formData, 
+                                paymentStatus: isPaid ? 'Paid' : 'Not Sent',
+                                amountCollected: isPaid ? (formData.agreedFee || formData.fee || 0) : 0,
+                                paymentReceivedDate: isPaid ? new Date().toISOString().split('T')[0] : ''
+                              });
+                            }}
+                            className={cn(
+                              "w-12 h-6 rounded-full transition-all relative",
+                              formData.paymentStatus === 'Paid' ? "bg-emerald-500" : "bg-slate-300"
+                            )}
+                          >
+                            <div className={cn(
+                              "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                              formData.paymentStatus === 'Paid' ? "left-7" : "left-1"
+                            )} />
+                          </button>
+                        </div>
+
+                        {formData.paymentStatus === 'Paid' && (
+                          <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount Collected</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                              <input 
+                                type="number" 
+                                value={formData.amountCollected || 0}
+                                onChange={(e) => setFormData({ ...formData, amountCollected: parseFloat(e.target.value) })}
+                                className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white" 
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center justify-center space-y-4 text-center">
+                       <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mb-2">
+                          <HelpCircle className="w-8 h-8" />
+                       </div>
+                       <div className="space-y-1">
+                          <h4 className="font-bold text-slate-900">Ready to Finalize?</h4>
+                          <p className="text-xs text-slate-500 leading-relaxed px-4">Ensure all documents are verified and identity information is correct before marking as complete.</p>
+                       </div>
+                       <button 
+                         type="button"
+                         onClick={handleSave}
+                         className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                       >
+                         <CheckCircle2 className="w-5 h-5" />
+                         Finish & Mark Complete
+                       </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              {activeTab !== 'Signer(s)' && activeTab !== 'Notes' && activeTab !== 'Contacts' && activeTab !== 'Invoice' && activeTab !== 'Documents' && activeTab !== 'Status' && (
                 <div className="py-12 text-center text-slate-400 italic">
                   Content for {activeTab} tab will be implemented soon.
                 </div>

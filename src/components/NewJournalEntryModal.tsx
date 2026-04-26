@@ -85,6 +85,7 @@ const NewJournalEntryModal = ({
     { name: 'Contacts', icon: Phone, description: 'Communication' },
     { name: 'Invoice', icon: Banknote, description: 'Fee & Billing' },
     { name: 'Notes', icon: Pencil, description: 'Final Remarks' },
+    { name: 'Status', icon: CheckCircle2, description: 'Completion' },
   ];
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -659,7 +660,7 @@ const NewJournalEntryModal = ({
                     <div><h3 className="text-lg font-bold text-slate-900">Signer Identification</h3><p className="text-sm text-slate-500">Capture principal information and identity verification method.</p></div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-6 gap-x-8 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
                       <div className="relative">
@@ -668,7 +669,7 @@ const NewJournalEntryModal = ({
                           type="date" 
                           value={formData.date || ""} 
                           onChange={(e) => setFormData({ ...formData, date: e.target.value })} 
-                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
+                          className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white font-medium" 
                         />
                       </div>
                     </div>
@@ -680,7 +681,7 @@ const NewJournalEntryModal = ({
                           type="text" 
                           value={formData.time || ""} 
                           onChange={(e) => setFormData({ ...formData, time: e.target.value })} 
-                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
+                          className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white font-medium" 
                           placeholder="10:00 AM" 
                         />
                       </div>
@@ -692,11 +693,12 @@ const NewJournalEntryModal = ({
                         <select 
                           value={formData.signingType || ""} 
                           onChange={(e) => setFormData({ ...formData, signingType: e.target.value })} 
-                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
+                          className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer font-medium"
                         >
                           <option value="">Select Signing Type</option>
                           {SIGNING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
+                        <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 rotate-90 pointer-events-none" />
                       </div>
                     </div>
                     <div className="space-y-1.5">
@@ -706,11 +708,12 @@ const NewJournalEntryModal = ({
                         <select 
                           value={formData.docType || ""} 
                           onChange={(e) => setFormData({ ...formData, docType: e.target.value })} 
-                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
+                          className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer font-medium"
                         >
                           <option value="">Select Document Type</option>
                           {DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
+                        <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 rotate-90 pointer-events-none" />
                       </div>
                     </div>
                     <div className="space-y-1.5">
@@ -720,21 +723,22 @@ const NewJournalEntryModal = ({
                         <select 
                           value={formData.actType || "Acknowledgment"} 
                           onChange={(e) => setFormData({ ...formData, actType: e.target.value })} 
-                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer"
+                          className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer font-medium"
                         >
                           {NOTARIAL_ACTS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
+                        <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 rotate-90 pointer-events-none" />
                       </div>
                     </div>
                     <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Location</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Service Location</label>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input 
                           type="text" 
                           value={formData.location || ""} 
                           onChange={(e) => setFormData({ ...formData, location: e.target.value })} 
-                          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
+                          className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white font-medium" 
                           placeholder="Street Address, City, State Zip" 
                         />
                       </div>
@@ -974,22 +978,189 @@ const NewJournalEntryModal = ({
               )}
 
               {activeTab === 'Invoice' && (
-                <div className="space-y-6">
-                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                    <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Banknote className="w-5 h-5 text-emerald-600" />Fee Tracking & Billing</h3></div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Agreed Fee</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span><input type="number" value={formData.agreedFee || 0} onChange={(e) => updateProfitFields({ agreedFee: parseFloat(e.target.value), fee: parseFloat(e.target.value) })} className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded text-sm font-bold outline-none focus:ring-1 focus:ring-sky-500" /></div></div>
-                       <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Payment Method</label><select value={formData.paymentMethod || ""} onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-sky-500 bg-white"><option value="">Select Method</option><option>Check</option><option>Direct Deposit / ACH</option><option>Zelle</option><option>Venmo</option><option>Cash</option></select></div>
+                <motion.div 
+                  key="invoice-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-8"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+                      <Banknote className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Fee Tracking & Billing</h3>
+                      <p className="text-sm text-slate-500">Record your fees and track payment status for this journal entry.</p>
                     </div>
                   </div>
-                </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/50 p-8 rounded-2xl border border-slate-100">
+                    <div className="space-y-6">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Agreed Fee</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                          <input 
+                            type="number" 
+                            value={formData.agreedFee || 0} 
+                            onChange={(e) => updateProfitFields({ agreedFee: parseFloat(e.target.value), fee: parseFloat(e.target.value) })}
+                            className="w-full pl-8 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm font-black outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white" 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Method</label>
+                        <div className="relative">
+                          <select 
+                            value={formData.paymentMethod || ""} 
+                            onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white appearance-none cursor-pointer font-medium"
+                          >
+                            <option value="">Select Method</option>
+                            <option>Check</option>
+                            <option>Direct Deposit / ACH</option>
+                            <option>Zelle</option>
+                            <option>Venmo</option>
+                            <option>Cash</option>
+                            <option>Credit Card</option>
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <ChevronRight className="w-4 h-4 text-slate-400 rotate-90" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Status</label>
+                        <div className="relative">
+                          <select 
+                            value={formData.paymentStatus || "Not Sent"} 
+                            onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value as any })}
+                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer font-medium"
+                          >
+                            <option value="Not Sent">Not Sent</option>
+                            <option value="Sent">Invoiced</option>
+                            <option value="Paid">Paid (Closed)</option>
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <ChevronRight className="w-4 h-4 text-slate-400 rotate-90" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Paid Date</label>
+                         <input 
+                           type="date"
+                           value={formData.invoicePaidDate || ""}
+                           onChange={(e) => setFormData({ ...formData, invoicePaidDate: e.target.value, status: 'Paid', paymentStatus: 'Paid' })}
+                           className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white"
+                         />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
               )}
 
               {activeTab === 'Notes' && (
-                <div className="space-y-4">
-                  <p className="text-sm font-bold text-slate-700 block mb-2">Additional Notes / Signing Company:</p>
-                  <textarea value={formData.notes || ""} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="E.g. Rocket Closing, ServiceLink, Amrock... Also loan number, lender, etc." className="w-full h-48 border border-slate-300 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none transition-all shadow-sm" />
-                </div>
+                <motion.div 
+                  key="notes-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 border border-slate-200">
+                      <Pencil className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Final Remarks & Context</h3>
+                      <p className="text-sm text-slate-500">Record any additional details or context for this notarial act.</p>
+                    </div>
+                  </div>
+                  <textarea 
+                    value={formData.notes || ""} 
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })} 
+                    placeholder="Enter process notes, special conditions, or additional signer behavior notes..."
+                    className="w-full h-64 border border-slate-200 rounded-2xl px-5 py-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none transition-all shadow-sm font-medium leading-relaxed" 
+                  />
+                </motion.div>
+              )}
+
+              {activeTab === 'Status' && (
+                <motion.div 
+                  key="status-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-8"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Appointment Completion</h3>
+                      <p className="text-sm text-slate-500">Update the final resolution of this signing appointment.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    {[
+                      { id: 'Scheduled', label: 'Scheduled', icon: Calendar, color: 'text-sky-600', bg: 'bg-sky-50' },
+                      { id: 'Completed', label: 'Completed (Awaiting Payment)', icon: CheckCircle2, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                      { id: 'Paid', label: 'Paid & Closed', icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                      { id: 'Cancelled', label: 'Cancelled', icon: X, color: 'text-rose-600', bg: 'bg-rose-50' },
+                      { id: 'No Show', label: 'No Show', icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50' }
+                    ].map((status) => (
+                      <button
+                        key={status.id}
+                        onClick={() => {
+                          const updates: Partial<Appointment> = { status: status.id as AppointmentStatus };
+                          if (status.id === 'Paid' && !formData.invoicePaidDate) {
+                            updates.invoicePaidDate = format(new Date(), 'yyyy-MM-dd');
+                            updates.paymentStatus = 'Paid';
+                          }
+                          setFormData({ ...formData, ...updates });
+                        }}
+                        className={cn(
+                          "flex items-center justify-between p-5 rounded-2xl border-2 transition-all",
+                          formData.status === status.id 
+                            ? cn("border-slate-900 shadow-md", status.bg) 
+                            : "border-slate-50 bg-white hover:border-slate-200"
+                        )}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", status.bg, status.color)}>
+                            <status.icon className="w-5 h-5" />
+                          </div>
+                          <span className="font-bold text-slate-800">{status.label}</span>
+                        </div>
+                        {formData.status === status.id && (
+                          <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center text-white">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {formData.status === 'Paid' && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }} 
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-4"
+                    >
+                      <Banknote className="w-5 h-5 text-emerald-600" />
+                      <p className="text-xs font-bold text-emerald-800 uppercase tracking-widest">Revenue has been recognized for this signing.</p>
+                    </motion.div>
+                  )}
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
