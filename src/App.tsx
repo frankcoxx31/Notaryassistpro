@@ -5219,7 +5219,7 @@ const Appointments = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">
+              <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="px-4 py-4 w-10">
                   <input 
                     type="checkbox" 
@@ -5284,20 +5284,21 @@ const Appointments = ({
                       />
                     </td>
                     <td className="px-3 py-4">
-                      <div className="text-sm font-bold text-slate-900">{format(parseSafeDateTime(app.date), 'MMM dd, yyyy')}</div>
-                      <div className="text-[11px] font-semibold text-indigo-600 mt-0.5">{app.time}</div>
+                      <div className="text-sm font-medium text-slate-900">{format(parseSafeDateTime(app.date), 'MMM dd, yyyy')}</div>
+                      <div className="text-xs font-medium text-indigo-600 mt-0.5">{app.time}</div>
                     </td>
                     <td className="px-3 py-4">
-                      <div className="text-sm font-extrabold text-slate-900 uppercase tracking-tight truncate max-w-[170px]">
+                      <div className="text-sm font-medium text-slate-900 truncate max-w-[170px]">
                         {(app.customerName || app.clientName || 'Unnamed Principal').split(',').map(n => {
                           const s = splitName(n.trim());
-                          return s.lastName || s.firstName;
+                          const name = s.lastName || s.firstName || '';
+                          return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
                         }).join(', ')}
                       </div>
                     </td>
                     <td className="px-3 py-4">
                        <span className={cn(
-                         "px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest border",
+                         "px-2 py-0.5 rounded-lg text-xs font-black uppercase whitespace-nowrap border",
                          viewMode === 'journal' 
                            ? "bg-slate-50 text-slate-600 border-slate-200" 
                            : "bg-indigo-50 text-indigo-700 border-indigo-100"
@@ -5362,28 +5363,28 @@ const Appointments = ({
                     ) : (
                       <>
                         <td className="px-3 py-4">
-                           <div className="text-[11px] font-bold text-slate-800 truncate max-w-[140px] uppercase tracking-tight">
-                             {app.companyName || app.signingCompany || 'Private Direct'}
+                           <div className="text-sm font-medium text-slate-800 truncate max-w-[140px]">
+                             {(app.companyName || app.signingCompany || 'Private Direct').toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                            </div>
                         </td>
                         <td className="px-3 py-4">
                            <div className="flex flex-col items-start gap-1">
-                             <div className="text-xs font-semibold text-slate-600 truncate">
-                               {app.city || (app.location ? parseLocation(app.location).city : 'Charlotte, NC')}
+                             <div className="text-sm text-slate-600 truncate">
+                               {(app.city || (app.location ? parseLocation(app.location).city : 'Charlotte, NC')).toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                              </div>
                              <MapPin className="w-3 h-3 text-slate-400" />
                            </div>
                         </td>
                         <td className="px-3 py-4">
-                           <div className="text-sm font-bold text-slate-900">${(app.agreedFee || app.fee || 0).toFixed(2)}</div>
+                           <div className="text-sm font-medium text-slate-900">${(app.agreedFee || app.fee || 0).toFixed(2)}</div>
                         </td>
                         <td className="px-3 py-4">
-                           <div className="text-sm font-bold text-emerald-600">${(app.amountCollected || 0).toFixed(2)}</div>
+                           <div className="text-sm font-medium text-emerald-600">${(app.amountCollected || 0).toFixed(2)}</div>
                         </td>
                       </>
                     )}
                     <td className="px-3 py-4 text-right pr-6">
-                      <div className="text-sm font-black text-slate-900 font-mono tracking-tighter">${(app.fee || 0).toFixed(2)}</div>
+                      <div className="text-sm font-medium text-slate-900 font-mono tracking-tighter">${(app.fee || 0).toFixed(2)}</div>
                     </td>
                     <td className="px-3 py-4">
                        <div className="flex items-center gap-2">
