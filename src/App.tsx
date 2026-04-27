@@ -3717,17 +3717,41 @@ const CalendarView = ({
   onViewSigning,
   isGoogleConnected,
   isConnecting,
-  onConnectGoogle
+  onConnectGoogle,
+  googleEvents = [],
+  syncStatus = 'disconnected',
+  onRefresh
 }: { 
   appointments: Appointment[]; 
   onViewSigning: (app: Appointment) => void;
   isGoogleConnected?: boolean;
   isConnecting?: boolean;
   onConnectGoogle?: () => void;
+  googleEvents?: any[];
+  syncStatus?: 'connected' | 'disconnected' | 'error' | 'syncing';
+  onRefresh?: (start: Date, end: Date) => void;
 }) => {
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 3, 4)); // April 4, 2026 as starting point
+  const [currentDate, setCurrentDate] = useState(new Date()); 
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Effect to trigger refresh when date/view changes
+  useEffect(() => {
+    if (onRefresh && isGoogleConnected) {
+      let start, end;
+      if (viewMode === 'month') {
+        start = startOfWeek(startOfMonth(currentDate));
+        end = endOfWeek(endOfMonth(currentDate));
+      } else if (viewMode === 'week') {
+        start = startOfWeek(currentDate);
+        end = endOfWeek(currentDate);
+      } else {
+        start = startOfDay(currentDate);
+        end = addDays(start, 1);
+      }
+      onRefresh(start, end);
+    }
+  }, [currentDate, viewMode, onRefresh, isGoogleConnected]);
 
   const handlePrev = () => {
     if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
@@ -3743,7 +3767,9 @@ const CalendarView = ({
 
   const getEventsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    return appointments
+    
+    // 1. Get App Signings
+    const appEvents = appointments
       .filter(app => {
         if (!app?.date) return false;
         const appDate = parseSafeDateTime(app.date);
@@ -3754,11 +3780,44 @@ const CalendarView = ({
         const loc = app?.location || app?.address || 'Unknown Location';
         const tStr = app?.time || '12:00 AM';
         return {
+          id: app.id,
+          googleId: app.googleCalendarEventId,
           time: tStr.split(' ')[0].toLowerCase() + (tStr.includes('PM') ? 'p' : 'a'),
           name: `${formatDisplayName(cName.split(' ').pop() || cName)} (${loc.split(',')[1]?.trim() || loc})`,
-          appointment: app
+          appointment: app,
+          source: 'app' as const
         };
       });
+
+    // 2. Get Google Events (excluding those already in app)
+    const syncedGoogleIds = new Set(appEvents.map(e => e.googleId).filter(Boolean));
+    const gEvents = googleEvents
+      .filter(ge => {
+        if (syncedGoogleIds.has(ge.id)) return false;
+        const start = ge.start.dateTime || ge.start.date;
+        if (!start) return false;
+        return format(new Date(start), 'yyyy-MM-dd') === dateStr;
+      })
+      .map(ge => {
+        const start = new Date(ge.start.dateTime || ge.start.date);
+        return {
+          id: ge.id,
+          time: format(start, 'h:mma').toLowerCase(),
+          name: ge.summary || '(No Title)',
+          appointment: {
+             id: ge.id,
+             clientName: ge.summary,
+             date: format(start, 'yyyy-MM-dd'),
+             time: format(start, 'h:mm a'),
+             location: ge.location || '',
+             signingType: 'External Event',
+             status: 'Scheduled'
+          } as any,
+          source: 'google' as const
+        };
+      });
+
+    return [...appEvents, ...gEvents].sort((a, b) => a.time.localeCompare(b.time));
   };
 
   const renderMonthView = () => {
@@ -3807,7 +3866,12 @@ const CalendarView = ({
                         e.stopPropagation();
                         onViewSigning(event.appointment);
                       }}
-                      className="bg-sky-600 text-white text-[10px] py-0.5 px-1.5 rounded-sm truncate cursor-pointer hover:bg-sky-700 transition-all shadow-sm active:scale-95"
+                      className={cn(
+                        "text-white text-[10px] py-0.5 px-1.5 rounded-sm truncate cursor-pointer transition-all shadow-sm active:scale-95",
+                        event.source === 'google' 
+                          ? "bg-slate-400 hover:bg-slate-500 border border-slate-300" 
+                          : "bg-sky-600 hover:bg-sky-700"
+                      )}
                     >
                       <span className="font-bold mr-1">{event.time}</span>
                       {event.name}
@@ -3851,10 +3915,16 @@ const CalendarView = ({
                   <div 
                     key={eIdx} 
                     onClick={() => onViewSigning(event.appointment)}
-                    className="bg-white border-l-4 border-sky-600 p-2 rounded shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5 active:scale-95"
+                    className={cn(
+                      "bg-white p-2 rounded shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5 active:scale-95 border-l-4",
+                      event.source === 'google' ? "border-slate-400" : "border-sky-600"
+                    )}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] font-black text-sky-600 uppercase tracking-tighter">{event.time}</p>
+                      <p className={cn(
+                        "text-[10px] font-black uppercase tracking-tighter",
+                        event.source === 'google' ? "text-slate-500" : "text-sky-600"
+                      )}>{event.time}</p>
                       <ChevronRight className="w-3 h-3 text-slate-200 group-hover:text-sky-400 transition-colors" />
                     </div>
                     <p className="text-[11px] font-bold text-slate-800 leading-tight group-hover:text-sky-900 transition-colors">{event.name}</p>
@@ -3894,23 +3964,37 @@ const CalendarView = ({
                     className="flex gap-4 items-start group cursor-pointer"
                   >
                     <div className="w-20 text-right pt-1 flex flex-col items-end">
-                      <span className="text-sm font-black text-slate-400 group-hover:text-sky-600 transition-colors tracking-tighter">{event.time}</span>
+                      <span className={cn(
+                        "text-sm font-black transition-colors tracking-tighter",
+                        event.source === 'google' ? "text-slate-300 group-hover:text-slate-500" : "text-slate-400 group-hover:text-sky-600"
+                      )}>{event.time}</span>
                       <div className="w-6 h-0.5 bg-slate-100 rounded-full mt-1 group-hover:bg-sky-200 transition-colors"></div>
                     </div>
-                    <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-6 hover:border-sky-300 hover:shadow-xl hover:shadow-sky-500/5 transition-all group-hover:-translate-y-1 active:scale-[0.99] relative overflow-hidden">
+                    <div className={cn(
+                      "flex-1 bg-white border rounded-2xl p-6 transition-all group-hover:-translate-y-1 active:scale-[0.99] relative overflow-hidden",
+                      event.source === 'google' ? "border-slate-200 hover:border-slate-300 shadow-sm" : "border-slate-200 hover:border-sky-300 hover:shadow-xl hover:shadow-sky-500/5 shadow-sm"
+                    )}>
                       <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                          <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-sky-600">
                            <ChevronRight className="w-4 h-4" />
                          </div>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest">{event.appointment.signingType}</p>
+                        <p className={cn(
+                          "text-[10px] font-black uppercase tracking-widest",
+                          event.source === 'google' ? "text-slate-400" : "text-sky-600"
+                        )}>{event.appointment.signingType || 'External Event'}</p>
                         <p className="text-lg font-black text-slate-900 tracking-tight">{event.name}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-6 mt-4 pt-4 border-t border-slate-50 text-[11px] text-slate-500 font-bold uppercase tracking-widest">
                         <span className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg"><Clock className="w-3.5 h-3.5 text-sky-500" /> 1 hour</span>
                         <span className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg"><MapPin className="w-3.5 h-3.5 text-sky-500" /> {event.appointment.city || 'Location Details'}</span>
-                        <span className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg"><DollarSign className="w-3.5 h-3.5" /> ${event.appointment.fee}</span>
+                        {event.source !== 'google' && (
+                          <span className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg"><DollarSign className="w-3.5 h-3.5" /> ${event.appointment.fee}</span>
+                        )}
+                        {event.source === 'google' && (
+                          <span className="flex items-center gap-2 bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg italic">View in Google Calendar</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -3936,24 +4020,39 @@ const CalendarView = ({
             {viewMode === 'day' ? format(currentDate, 'MMMM d, yyyy') : format(currentDate, 'MMMM yyyy')}
           </h1>
           {onConnectGoogle && (
-            <button
-              onClick={isGoogleConnected ? undefined : onConnectGoogle}
-              disabled={isConnecting || isGoogleConnected}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all",
-                isGoogleConnected 
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
-                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+            <div className="flex items-center gap-2">
+              <button
+                onClick={syncStatus === 'disconnected' ? onConnectGoogle : undefined}
+                disabled={isConnecting || syncStatus === 'syncing'}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all border",
+                  syncStatus === 'connected' && "bg-emerald-50 text-emerald-700 border-emerald-200 cursor-default",
+                  syncStatus === 'syncing' && "bg-blue-50 text-blue-700 border-blue-200 cursor-default",
+                  syncStatus === 'error' && "bg-rose-50 text-rose-700 border-rose-200 cursor-pointer",
+                  syncStatus === 'disconnected' && "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                {syncStatus === 'connected' ? (
+                  <><CheckCircle2 className="w-3.5 h-3.5" /> Synced with Google</>
+                ) : syncStatus === 'syncing' ? (
+                  <><RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-500" /> Syncing...</>
+                ) : syncStatus === 'error' ? (
+                  <div onClick={onConnectGoogle} className="flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" /> Sync Error - Reconnect</div>
+                ) : (
+                  <><Calendar className="w-3.5 h-3.5 text-blue-500" /> Connect Google Calendar</>
+                )}
+              </button>
+              
+              {isGoogleConnected && syncStatus !== 'syncing' && (
+                <button 
+                  onClick={() => onRefresh?.(startOfMonth(currentDate), endOfMonth(currentDate))}
+                  className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 hover:text-sky-600 transition-all shadow-sm"
+                  title="Manual Sync"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               )}
-            >
-              {isGoogleConnected ? (
-                <><CheckCircle2 className="w-3.5 h-3.5" /> Synced with Google</>
-              ) : isConnecting ? (
-                <><RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-500" /> Connecting...</>
-              ) : (
-                <><Calendar className="w-3.5 h-3.5 text-blue-500" /> Connect Google Calendar</>
-              )}
-            </button>
+            </div>
           )}
         </div>
         
@@ -5786,6 +5885,8 @@ export default function App() {
   const [isDemoUser, setIsDemoUser] = useState(demoStorage.isDemoMode());
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [googleEvents, setGoogleEvents] = useState<any[]>([]);
+  const [googleSyncStatus, setGoogleSyncStatus] = useState<'connected' | 'disconnected' | 'error' | 'syncing'>('disconnected');
 
   const handleConnectGoogle = () => {
     if (!user) {
@@ -5798,11 +5899,72 @@ export default function App() {
     const top = window.screen.height / 2 - height / 2;
     
     setIsConnecting(true);
-    window.open(
+    const authWindow = window.open(
       `/api/auth/google?uid=${user.uid}`,
       "GoogleCalendarAuth",
       `width=${width},height=${height},left=${left},top=${top}`
     );
+    
+    // Fallback if window.open fails (popups blocked)
+    if (!authWindow) {
+      setIsConnecting(false);
+      alert("Popup blocked. Please allow popups and try again.");
+    }
+  };
+
+  const fetchGoogleCalendarEvents = async (timeMin?: string, timeMax?: string, explicitTokens?: any) => {
+    if (!user || isDemoUser || !businessProfile.googleCalendarConnected) return;
+    
+    setGoogleSyncStatus('syncing');
+    try {
+      const queryParams = new URLSearchParams({
+        uid: user.uid,
+        timeMin: timeMin || startOfMonth(new Date()).toISOString(),
+        timeMax: timeMax || endOfMonth(new Date()).toISOString()
+      });
+      
+      const tokens = explicitTokens || businessProfile.googleCalendarTokens;
+      if (tokens) {
+        queryParams.append('tokens', typeof tokens === 'string' ? tokens : JSON.stringify(tokens));
+      }
+
+      const response = await fetch(`/api/calendar/events?${queryParams.toString()}`);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          setGoogleSyncStatus('disconnected');
+          // Auto-clear connection state in DB if potentially revoked or invalid_grant
+          if (user?.uid) {
+            updateDoc(doc(db, 'profiles', user.uid), {
+              googleCalendarConnected: false,
+              googleSyncEnabled: false,
+              updatedAt: new Date().toISOString()
+            }).catch(e => console.error('Error clearing connection state:', e));
+          }
+          return;
+        }
+        throw new Error('Failed to fetch Google Calendar events');
+      }
+
+      const result = await response.json();
+      setGoogleEvents(result.events || []);
+      setGoogleSyncStatus('connected');
+      
+      // Update tokens if they were refreshed
+      if (result.tokens && JSON.stringify(result.tokens) !== JSON.stringify(businessProfile.googleCalendarTokens)) {
+        await updateDoc(doc(db, 'profiles', user.uid), {
+          googleCalendarTokens: result.tokens,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } catch (error: any) {
+      console.error('Error fetching Google Calendar events:', error);
+      setGoogleSyncStatus('error');
+      // Show more informative toast if it's a permission denied error
+      if (error.message?.includes('7') || error.message?.includes('PERMISSION_DENIED')) {
+        // toast.error('Google Calendar sync failed: Server permission error. Please contact support.');
+      }
+    }
   };
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -5841,6 +6003,8 @@ export default function App() {
               googleCalendarConnected: true,
               updatedAt: new Date().toISOString()
            }).catch(console.error);
+           // After connecting, fetch events immediately
+           fetchGoogleCalendarEvents(undefined, undefined, event.data.tokens);
         }
       }
     };
@@ -5903,6 +6067,16 @@ export default function App() {
       unsubProfile();
     };
   }, [isAuthReady, user, isDemoUser]);
+
+  // Initial fetch of Google Calendar events
+  useEffect(() => {
+    // Only fetch if we have a real user, a connected profile, and we've verified it's the real profile doc
+    if (user && !isDemoUser && businessProfile.googleCalendarConnected && businessProfile.userId === user.uid) {
+      if (businessProfile.googleCalendarTokens) {
+        fetchGoogleCalendarEvents();
+      }
+    }
+  }, [user, isDemoUser, businessProfile.googleCalendarConnected, businessProfile.userId, businessProfile.googleCalendarTokens]);
 
   const handleSignIn = useCallback(async () => {
     try {
@@ -6541,6 +6715,9 @@ export default function App() {
                 isGoogleConnected={businessProfile?.googleCalendarConnected}
                 isConnecting={isConnecting}
                 onConnectGoogle={handleConnectGoogle}
+                googleEvents={googleEvents}
+                syncStatus={googleSyncStatus}
+                onRefresh={(start, end) => fetchGoogleCalendarEvents(start.toISOString(), end.toISOString())}
               />
             } />
             <Route 

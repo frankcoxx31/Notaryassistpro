@@ -330,5 +330,6 @@ export const MOCK_PROFILE: BusinessProfile = {
   address: 'mint hill, nc',
   commissionNumber: '2024123456',
   commissionExpiration: '2028-04-30',
-  googleCalendarConnected: true
+  userId: 'mock-user',
+  googleCalendarConnected: false
 };

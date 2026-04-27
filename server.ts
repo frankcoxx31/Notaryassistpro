@@ -4,8 +4,6 @@ import { fileURLToPath } from "url";
 import compression from "compression";
 import fs from "fs";
 import { google } from "googleapis";
-import admin from "firebase-admin";
-import { getFirestore } from "firebase-admin/firestore";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 
@@ -28,8 +26,7 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
   const rootDir = process.cwd();
 
-  // Initialize Firebase and Google OAuth inside startServer to avoid top-level crashes
-  let firestore: any;
+  // Initialize variables inside startServer to avoid top-level crashes
   let oauth2Client: any;
 
   // Setup Service Account Auth globally if available
@@ -48,26 +45,6 @@ async function startServer() {
       console.error("Failed to initialize Service Account Auth:", e);
     }
   }
-
-    try {
-      const configPath = path.join(rootDir, "firebase-applet-config.json");
-      if (fs.existsSync(configPath)) {
-        console.log("Loading Firebase config from:", configPath);
-        const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-        if (!admin.apps.length) {
-          admin.initializeApp({
-            credential: admin.credential.applicationDefault(),
-            projectId: firebaseConfig.projectId,
-          });
-          console.log("Firebase Admin initialized for project:", firebaseConfig.projectId);
-        }
-        firestore = getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
-      } else {
-        console.warn("firebase-applet-config.json not found");
-      }
-    } catch (error) {
-      console.error("Firebase initialization error:", error);
-    }
 
     try {
       console.log("Setting up Google OAuth client...");
@@ -94,7 +71,6 @@ async function startServer() {
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
-      firebaseInit: !!firestore,
       googleInit: !!oauth2Client,
       serviceAccountInit: !!serviceAccountAuth,
       serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null
@@ -137,7 +113,8 @@ async function startServer() {
     try {
       const { tokens } = await oauth2Client.getToken(code as string);
       
-      // Pass tokens directly to frontend - frontend will save it
+      // Pass tokens directly to frontend - frontend will save it via Client SDK
+      // removing Firebase Admin save to avoid PERMISSION_DENIED issues on this platform
       res.send(`
         <html>
           <body>
@@ -152,6 +129,105 @@ async function startServer() {
     } catch (error) {
       console.error("Error exchanging code for tokens:", error);
       res.status(500).send("Authentication failed");
+    }
+  });
+
+  // Helper to get authorized client with refresh logic
+  async function getAuthorizedClient(uid: string, clientTokens: any) {
+    const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } = process.env;
+    if (!GOOGLE_CLIENT_ID) throw new Error("Google OAuth credentials missing on server");
+
+    const oauth2 = new google.auth.OAuth2(
+      GOOGLE_CLIENT_ID,
+      GOOGLE_CLIENT_SECRET,
+      GOOGLE_REDIRECT_URI
+    );
+
+    let tokens = clientTokens;
+    if (tokens && typeof tokens === 'string') {
+      try {
+        tokens = JSON.parse(tokens);
+      } catch (e) {}
+    }
+
+    if (!tokens || !tokens.access_token) {
+      throw new Error("No Google tokens available. Please reconnect in settings.");
+    }
+
+    oauth2.setCredentials(tokens);
+
+    // Check if token is expired or about to expire (within 1 minute)
+    const expiryDate = tokens.expiry_date || 0;
+    const isExpired = Date.now() >= (expiryDate - 60000);
+
+    if (isExpired && tokens.refresh_token) {
+      console.log(`Refreshing token for user ${uid}...`);
+      try {
+        const { tokens: refreshedTokens } = await (oauth2 as any).refreshAccessToken();
+        const updatedTokens = { ...tokens, ...refreshedTokens };
+        
+        // Note: Admin SDK write disabled due to permission issues. 
+        // Tokens will be returned to client to save.
+        
+        oauth2.setCredentials(updatedTokens);
+        return { oauth2, tokens: updatedTokens };
+      } catch (e: any) {
+        const errorMsg = e.message || "Failed to refresh token";
+        console.error("Failed to refresh token:", errorMsg);
+        
+        if (errorMsg.includes('invalid_grant')) {
+          const authErr = new Error("Google Calendar access revoked or expired. Please reconnect.");
+          (authErr as any).code = 401;
+          throw authErr;
+        }
+        throw e;
+      }
+    }
+
+    return { oauth2, tokens: null };
+  }
+
+  app.get("/api/calendar/events", async (req, res) => {
+    const { uid, timeMin, timeMax, tokens: clientTokensStr } = req.query;
+    if (!uid) return res.status(400).json({ error: "UID required" });
+
+    try {
+      let clientTokens = null;
+      if (clientTokensStr) {
+        try {
+          clientTokens = JSON.parse(clientTokensStr as string);
+        } catch (e) {}
+      }
+
+      const { oauth2, tokens } = await getAuthorizedClient(uid as string, clientTokens);
+      const calendar = google.calendar({ version: "v3", auth: oauth2 });
+
+      const response = await calendar.events.list({
+        calendarId: "primary",
+        timeMin: (timeMin as string) || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        timeMax: (timeMax as string) || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        singleEvents: true,
+        orderBy: "startTime",
+      });
+
+      res.json({ 
+        events: response.data.items, 
+        tokens // Return potentially updated tokens
+      });
+    } catch (error: any) {
+      console.error("Error fetching Google Calendar events:", error);
+      // Map gRPC codes (like 7) or other custom error codes to HTTP status codes
+      let statusCode = 500;
+      if (typeof error.code === 'number' && error.code >= 100 && error.code < 600) {
+        statusCode = error.code;
+      } else if (error.code === 7 || error.message?.includes('PERMISSION_DENIED')) {
+        statusCode = 403;
+      } else if (error.code === 'PERMISSION_DENIED' || error.message?.includes('Missing or insufficient permissions')) {
+        statusCode = 403;
+      }
+      
+      console.log(`[Events API] Returning error ${statusCode}: ${error.message}`);
+      res.status(statusCode).json({ error: error.message });
     }
   });
 
@@ -213,31 +289,19 @@ async function startServer() {
 
       console.log(`[Calendar Sync] Action: ${action}, ID: ${appointmentId}, Calendar: ${calendarId}`);
 
-      // Priority: 1. OAuth2 provided by user, 2. Service Account
-      if (googleCalendarTokens && googleCalendarTokens.access_token) {
-        console.log("Using OAuth2 tokens (user-connected) for sync...");
-        const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } = process.env;
-        if (!GOOGLE_CLIENT_ID) {
-          return res.status(503).json({ error: "Google OAuth credentials missing on server" });
-        }
-        
-        const oauth2 = new google.auth.OAuth2(
-          GOOGLE_CLIENT_ID,
-          GOOGLE_CLIENT_SECRET,
-          GOOGLE_REDIRECT_URI
-        );
-        oauth2.setCredentials(googleCalendarTokens);
-
-        // Handle token refresh
-        oauth2.on("tokens", (newTokens) => {
-          refreshedTokens = { ...googleCalendarTokens, ...newTokens };
-        });
+      // Try user OAuth first
+      try {
+        const { oauth2, tokens } = await getAuthorizedClient(uid, googleCalendarTokens);
         auth = oauth2;
-      } else if (serviceAccountAuth) {
-        console.log("Using Service Account auth for sync...");
-        auth = serviceAccountAuth;
-      } else {
-        return res.status(503).json({ error: "No Google Calendar authentication method available" });
+        refreshedTokens = tokens;
+      } catch (e) {
+        // Fallback to service account if configured
+        if (serviceAccountAuth) {
+          console.log("Using Service Account auth as fallback...");
+          auth = serviceAccountAuth;
+        } else {
+          throw e; // No auth available
+        }
       }
 
       const appointment = appointmentData;

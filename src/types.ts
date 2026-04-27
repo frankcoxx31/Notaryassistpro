@@ -178,6 +178,7 @@ export interface Mileage {
 }
 
 export interface BusinessProfile {
+  userId?: string;
   name: string;
   companyName: string;
   email: string;
