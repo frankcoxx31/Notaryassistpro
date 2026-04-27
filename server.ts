@@ -211,8 +211,10 @@ async function startServer() {
       let calendarId = bodyCalendarId || process.env.GOOGLE_CALENDAR_ID || "primary";
       let refreshedTokens: any = null;
 
+      console.log(`[Calendar Sync] Action: ${action}, ID: ${appointmentId}, Calendar: ${calendarId}`);
+
       // Priority: 1. OAuth2 provided by user, 2. Service Account
-      if (googleCalendarTokens) {
+      if (googleCalendarTokens && googleCalendarTokens.access_token) {
         console.log("Using OAuth2 tokens (user-connected) for sync...");
         const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } = process.env;
         if (!GOOGLE_CLIENT_ID) {
@@ -363,21 +365,25 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
   function convertTo24(time12h: string = '10:00 AM') {
     if (!time12h) return "10:00";
     
-    // Normalize string: ensure space before AM/PM
-    const normalized = time12h.replace(/([0-9])([AP]M)/i, '$1 $2').trim();
-    const [time, modifier] = normalized.split(' ');
+    // Normalize string: ensure space before AM/PM and handle case-insensitivity
+    const normalized = time12h.replace(/([0-9])\s*([AP]M)/i, '$1 $2').trim();
+    const parts = normalized.split(' ');
+    const time = parts[0];
+    const modifier = parts[1] ? parts[1].toUpperCase() : null;
     
     let [hours, minutes] = time.split(':');
     if (!hours) hours = '10';
     if (!minutes) minutes = '00';
     
-    if (hours === '12') {
-      hours = (modifier === 'AM' || !modifier) ? '00' : '12';
+    let h = parseInt(hours, 10);
+    
+    if (h === 12) {
+      h = modifier === 'AM' ? 0 : 12;
     } else if (modifier === 'PM') {
-      hours = String(parseInt(hours, 10) + 12);
+      h = h + 12;
     }
     
-    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    return `${String(h).padStart(2, '0')}:${minutes.padStart(2, '0')}`;
   }
 
   function parseSafeDate(dateStr: string = '', timeStr: string = ''): Date {
