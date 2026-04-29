@@ -1344,7 +1344,8 @@ const Reports = ({
   const location = useLocation();
   const currentPath = location.pathname;
   const [dateRange, setDateRange] = useState('This Year');
-  const [selectedCustomer, setSelectedCustomer] = useState('All Customers');
+  const [selectedCompany, setSelectedCompany] = useState('All Companies');
+  const [selectedClient, setSelectedClient] = useState('All Clients');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
 
   const reports = [
@@ -1358,7 +1359,11 @@ const Reports = ({
     { id: 'tax-summary', title: 'Tax Summary', description: 'High-level overview of tax liabilities and estimated payments.' },
   ];
 
-  const activeReport = reports.find(r => currentPath.includes(r.id)) || reports[0];
+  const activeReport = reports.find(r => {
+    const segments = currentPath.split('/');
+    const lastSegment = segments[segments.length - 1];
+    return lastSegment === r.id;
+  }) || reports[0];
 
   // Filter logic
   const getFilteredData = () => {
@@ -1379,14 +1384,44 @@ const Reports = ({
       return true;
     };
 
-    const filteredAppointments = appointments.filter(app => {
-      const dateMatch = filterByDate(app.date);
-      const customerMatch = selectedCustomer === 'All Customers' || app.customer === selectedCustomer;
-      const statusMatch = selectedStatus === 'All Statuses' || 
-                         (selectedStatus === 'Paid' && app.status === 'Paid') ||
-                         (selectedStatus === 'Unpaid' && (app.status === 'Scheduled' || app.status === 'Completed'));
-      return dateMatch && customerMatch && statusMatch;
-    });
+    // Data normalization adapter to handle inconsistent field names and missing data
+    const normalizeApp = (app: any) => {
+      const fullClientName = app.clientName || 
+                    (app.firstName && app.lastName ? `${app.firstName} ${app.lastName}` : null) || 
+                    (app as any).signerName || 
+                    (app as any).borrowerName || 
+                    'Unknown Client';
+      
+      const displayClient = fullClientName === 'Unknown Client' ? fullClientName : (fullClientName.split(' ').pop() || fullClientName);
+      
+      const customer = app.companyName || 
+                      app.customerName || 
+                      app.customer || 
+                      app.signingCompany || 
+                      'Direct Client';
+      
+      return {
+        ...app,
+        displayClient,
+        displayCompany: customer,
+        normalizedFee: Number(app.fee || app.agreedFee || 0)
+      };
+    };
+
+    const filteredAppointments = appointments
+      .filter(app => {
+        const dateMatch = filterByDate(app.date);
+        const normalized = normalizeApp(app);
+        const companyMatch = selectedCompany === 'All Companies' || 
+                             normalized.displayCompany === selectedCompany;
+        const clientMatch = selectedClient === 'All Clients' || 
+                           normalized.displayClient === selectedClient;
+        const statusMatch = selectedStatus === 'All Statuses' || 
+                           (selectedStatus === 'Paid' && app.status === 'Paid') ||
+                           (selectedStatus === 'Unpaid' && (app.status === 'Scheduled' || app.status === 'Completed'));
+        return dateMatch && companyMatch && clientMatch && statusMatch;
+      })
+      .map(normalizeApp);
 
     const filteredExpenses = expenses.filter(exp => filterByDate(exp.date));
     const filteredMileage = mileage.filter(mil => filterByDate(mil.date));
@@ -1396,7 +1431,58 @@ const Reports = ({
 
   const { filteredAppointments, filteredExpenses, filteredMileage } = getFilteredData();
 
-  const customers = Array.from(new Set(appointments.map(app => app.customer).filter(Boolean)));
+  const handleExportCSV = () => {
+    let headers: string[] = [];
+    let rows: any[][] = [];
+
+    if (activeReport.id === 'income' || activeReport.id === 'unpaid' || activeReport.id === 'signing-type') {
+      const data = activeReport.id === 'unpaid' ? filteredAppointments.filter(a => a.status !== 'Paid') : filteredAppointments;
+      headers = ['Date', 'Client', 'Type', 'Signing Company', 'Fee', 'Status'];
+      rows = data.map(app => [
+        `"${format(parseSafeDateTime(app.date), 'MM/dd/yyyy')}"`,
+        `"${app.displayClient}"`,
+        `"${app.signingType}"`,
+        `"${app.displayCompany}"`,
+        app.normalizedFee.toFixed(2),
+        `"${app.status}"`
+      ]);
+    } else if (activeReport.id === 'expenses') {
+       headers = ['Date', 'Category', 'Description', 'Amount'];
+       rows = filteredExpenses.map(exp => [
+         `"${format(parseSafeDateTime(exp.date), 'MM/dd/yyyy')}"`,
+         `"${exp.category}"`,
+         `"${exp.description}"`,
+         Number(exp.amount).toFixed(2)
+       ]);
+    } else if (activeReport.id === 'mileage') {
+      headers = ['Date', 'Description', 'Miles', 'Deduction'];
+      rows = filteredMileage.map(mil => [
+        `"${format(parseSafeDateTime(mil.date), 'MM/dd/yyyy')}"`,
+        `"${mil.description}"`,
+        mil.miles,
+        (mil.miles * DEFAULT_MILEAGE_RATE).toFixed(2)
+      ]);
+    }
+    
+    if (headers.length === 0) {
+      alert("Export not available for this report type yet.");
+      return;
+    }
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${activeReport.title.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Get unique companies and clients for filter dropdowns using normalized names
+  const companies = Array.from(new Set(filteredAppointments.map(app => app.displayCompany).filter(Boolean)));
+  const clients = Array.from(new Set(filteredAppointments.map(app => app.displayClient).filter(Boolean)));
 
   const renderReportContent = () => {
     if (activeReport.id === 'income') {
@@ -1408,7 +1494,7 @@ const Reports = ({
                 <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Date</th>
                 <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Client</th>
                 <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Type</th>
-                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Customer</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Signing Company</th>
                 <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-right">Fee</th>
                 <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Status</th>
               </tr>
@@ -1417,10 +1503,10 @@ const Reports = ({
               {filteredAppointments.map(app => (
                 <tr key={app.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 text-sm text-slate-600">{format(parseSafeDateTime(app.date), 'MM/dd/yyyy')}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{app.clientName}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{app.displayClient}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{app.signingType}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{app.customer}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-slate-900 text-right">${Number(app.fee).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{app.displayCompany}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900 text-right">${app.normalizedFee.toFixed(2)}</td>
                   <td className="px-6 py-4">
                     <span className={cn("text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider", getStatusBadgeClass(app.status))}>
                       {getStatusLabel(app.status)}
@@ -1439,7 +1525,7 @@ const Reports = ({
                 <tr className="bg-slate-50 font-bold">
                   <td colSpan={4} className="px-6 py-4 text-sm text-slate-900 text-right">Total Income:</td>
                   <td className="px-6 py-4 text-sm text-slate-900 text-right">
-                    ${filteredAppointments.reduce((sum, app) => sum + Number(app.fee), 0).toFixed(2)}
+                    ${filteredAppointments.reduce((sum, app) => sum + app.normalizedFee, 0).toFixed(2)}
                   </td>
                   <td></td>
                 </tr>
@@ -1459,7 +1545,7 @@ const Reports = ({
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Date</th>
                 <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Client</th>
-                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Customer</th>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Signing Company</th>
                 <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-right">Amount</th>
                 <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Status</th>
               </tr>
@@ -1468,9 +1554,9 @@ const Reports = ({
               {unpaidApps.map(app => (
                 <tr key={app.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 text-sm text-slate-600">{format(parseSafeDateTime(app.date), 'MM/dd/yyyy')}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{app.clientName}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{app.customer}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-amber-600 text-right">${Number(app.fee).toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{app.displayClient}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{app.displayCompany}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-amber-600 text-right">${app.normalizedFee.toFixed(2)}</td>
                   <td className="px-6 py-4">
                     <span className={cn("text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider", getStatusBadgeClass(app.status))}>
                       {getStatusLabel(app.status)}
@@ -1489,7 +1575,7 @@ const Reports = ({
                 <tr className="bg-slate-50 font-bold">
                   <td colSpan={3} className="px-6 py-4 text-sm text-slate-900 text-right">Total Outstanding:</td>
                   <td className="px-6 py-4 text-sm text-amber-600 text-right">
-                    ${unpaidApps.reduce((sum, app) => sum + Number(app.fee), 0).toFixed(2)}
+                    ${unpaidApps.reduce((sum, app) => sum + app.normalizedFee, 0).toFixed(2)}
                   </td>
                   <td></td>
                 </tr>
@@ -1505,11 +1591,12 @@ const Reports = ({
         const type = app.signingType || 'Other';
         if (!acc[type]) acc[type] = { count: 0, revenue: 0 };
         acc[type].count += 1;
-        acc[type].revenue += Number(app.fee);
+        acc[type].revenue += app.normalizedFee;
         return acc;
       }, {} as Record<string, { count: number, revenue: number }>);
 
-      const sortedTypes = Object.entries(typeStats).sort((a, b) => b[1].revenue - a[1].revenue);
+      const sortedTypes = (Object.entries(typeStats) as [string, { count: number; revenue: number }][])
+        .sort((a, b) => b[1].revenue - a[1].revenue);
 
       return (
         <div className="p-6">
@@ -1566,7 +1653,7 @@ const Reports = ({
     }
 
     if (activeReport.id === 'profit-loss') {
-      const totalIncome = filteredAppointments.reduce((sum, app) => sum + Number(app.fee), 0);
+      const totalIncome = filteredAppointments.reduce((sum, app) => sum + app.normalizedFee, 0);
       const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
       const netProfit = totalIncome - totalExpenses;
 
@@ -1709,54 +1796,129 @@ const Reports = ({
       );
     }
 
-    if (activeReport.id === 'tax' || activeReport.id === 'tax-summary') {
-      const totalIncome = filteredAppointments.reduce((sum, app) => sum + Number(app.fee), 0);
+    if (activeReport.id === 'tax') {
+      const totalIncome = filteredAppointments.reduce((sum, app) => sum + app.normalizedFee, 0);
       const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
       const totalMileageDeduction = filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0) * DEFAULT_MILEAGE_RATE;
       const totalDeductions = totalExpenses + totalMileageDeduction;
       const taxableIncome = Math.max(0, totalIncome - totalDeductions);
-      const estimatedTax = taxableIncome * 0.153; // Self-employment tax rate approx
 
       return (
         <div className="p-8 max-w-4xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
-              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Gross Income</p>
+          <div className="mb-8">
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Tax Basis Report</h3>
+            <p className="text-sm text-slate-500 font-medium">Detailed breakdown of income and deductible items for tax preparation.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+              <h4 className="text-sm font-bold text-slate-500 uppercase mb-4 tracking-wider">Income Sources</h4>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm py-1">
+                  <span className="text-slate-600">Signing Fees</span>
+                  <span className="font-bold text-slate-900">${totalIncome.toFixed(2)}</span>
+                </div>
+                <div className="pt-2 border-t border-slate-100 flex justify-between font-bold text-slate-900">
+                  <span>Gross Total</span>
+                  <span>${totalIncome.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+              <h4 className="text-sm font-bold text-slate-500 uppercase mb-4 tracking-wider">Deductions</h4>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm py-1">
+                  <span className="text-slate-600">Business Expenses</span>
+                  <span className="font-bold text-slate-900">${totalExpenses.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm py-1">
+                  <span className="text-slate-600">Mileage Allowance</span>
+                  <span className="font-bold text-slate-900">${totalMileageDeduction.toFixed(2)}</span>
+                </div>
+                <div className="pt-2 border-t border-slate-100 flex justify-between font-bold text-rose-600">
+                  <span>Total Deductions</span>
+                  <span>(${totalDeductions.toFixed(2)})</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-emerald-50 rounded-2xl p-8 border border-emerald-100 text-center">
+            <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest mb-1">Estimated Taxable Net Income</p>
+            <p className="text-4xl font-black text-emerald-700">${taxableIncome.toFixed(2)}</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeReport.id === 'tax-summary') {
+      const totalIncome = filteredAppointments.reduce((sum, app) => sum + app.normalizedFee, 0);
+      const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+      const totalMileageDeduction = filteredMileage.reduce((sum, mil) => sum + Number(mil.miles), 0) * DEFAULT_MILEAGE_RATE;
+      const totalDeductions = totalExpenses + totalMileageDeduction;
+      const taxableIncome = Math.max(0, totalIncome - totalDeductions);
+      const estimatedTax = taxableIncome * 0.153; // Estimated self-employment tax rate
+
+      return (
+        <div className="p-8 max-w-4xl mx-auto">
+          <div className="mb-8 text-center">
+            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-2">Quarterly Tax Summary</h3>
+            <p className="text-slate-500 font-medium">Estimated tax liability overview based on net business income.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 text-center">
+            <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+              <Calculator className="w-6 h-6 text-indigo-400 mx-auto mb-3" />
+              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Gross</p>
               <p className="text-2xl font-black text-indigo-600">${totalIncome.toFixed(2)}</p>
             </div>
-            <div className="bg-rose-50 p-6 rounded-2xl border border-rose-100">
-              <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Total Deductions</p>
+            <div className="bg-rose-50 p-6 rounded-3xl border border-rose-100">
+              <TrendingDown className="w-6 h-6 text-rose-400 mx-auto mb-3" />
+              <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Expenses</p>
               <p className="text-2xl font-black text-rose-600">${totalDeductions.toFixed(2)}</p>
             </div>
-            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
-              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Taxable Income</p>
+            <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
+              <TrendingUp className="w-6 h-6 text-emerald-400 mx-auto mb-3" />
+              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Net</p>
               <p className="text-2xl font-black text-emerald-600">${taxableIncome.toFixed(2)}</p>
             </div>
           </div>
 
-          <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-900 mb-6">Tax Summary Details</h3>
-            <div className="space-y-4">
-              <div className="flex justify-between py-2 border-b border-slate-200">
-                <span className="text-slate-600">Business Expenses</span>
-                <span className="font-bold text-slate-900">${totalExpenses.toFixed(2)}</span>
+          <div className="bg-slate-900 rounded-3xl p-10 text-white shadow-2xl overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-8 opacity-10">
+              <ShieldCheck className="w-48 h-48" />
+            </div>
+            <div className="relative z-10">
+              <h4 className="text-indigo-400 text-xs font-bold uppercase tracking-widest mb-2">Estimated Liability</h4>
+              <div className="flex items-end gap-3 mb-8">
+                <span className="text-5xl font-black">${estimatedTax.toFixed(2)}</span>
+                <span className="text-indigo-400 text-sm font-bold mb-2">SE Tax (15.3%)</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-slate-200">
-                <span className="text-slate-600">Mileage Deduction (Standard Rate)</span>
-                <span className="font-bold text-slate-900">${totalMileageDeduction.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-200">
-                <span className="text-slate-600">Net Business Income</span>
-                <span className="font-bold text-slate-900">${taxableIncome.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between py-4 mt-4 bg-white px-4 rounded-xl border border-slate-200">
-                <span className="font-bold text-slate-900">Estimated Self-Employment Tax (15.3%)</span>
-                <span className="font-black text-indigo-600">${estimatedTax.toFixed(2)}</span>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-8 border-t border-white/10 uppercase tracking-tighter">
+                <div>
+                  <p className="text-white/40 text-[10px] font-bold mb-1">Income After Deductions</p>
+                  <p className="text-lg font-bold">${taxableIncome.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-white/40 text-[10px] font-bold mb-1">Filing Status</p>
+                  <p className="text-lg font-bold">Self-Employed</p>
+                </div>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 mt-6 italic">
-              * This is an estimate for informational purposes only. Please consult with a tax professional for actual filing.
-            </p>
+          </div>
+          
+          <div className="mt-8 bg-amber-50 rounded-2xl p-6 border border-amber-100 flex gap-4">
+            <AlertCircle className="w-6 h-6 text-amber-500 shrink-0" />
+            <div className="text-sm text-amber-800">
+              <p className="font-bold mb-1">Important Tax Notice</p>
+              <p className="leading-relaxed opacity-80">
+                This summary uses a flat 15.3% rate for estimated self-employment taxes (Social Security and Medicare). 
+                It does not account for income tax brackets, credits, or state-specific tax laws. 
+                Always verify your figures with a certified tax professional or CPA.
+              </p>
+            </div>
           </div>
         </div>
       );
@@ -1777,8 +1939,8 @@ const Reports = ({
 
   const renderReportSummary = () => {
     if (activeReport.id === 'income') {
-      const total = filteredAppointments.reduce((sum, app) => sum + Number(app.fee), 0);
-      const paid = filteredAppointments.filter(app => app.status === 'Paid').reduce((sum, app) => sum + Number(app.fee), 0);
+      const total = filteredAppointments.reduce((sum, app) => sum + app.normalizedFee, 0);
+      const paid = filteredAppointments.filter(app => app.status === 'Paid').reduce((sum, app) => sum + app.normalizedFee, 0);
       const pending = total - paid;
       return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -1827,7 +1989,10 @@ const Reports = ({
           <button className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm">
             <Printer className="w-4 h-4" /> Print
           </button>
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm">
+          <button 
+            onClick={handleExportCSV}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
+          >
             <Download className="w-4 h-4" /> Export CSV
           </button>
         </div>
@@ -1852,14 +2017,25 @@ const Reports = ({
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer</label>
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Signing Company</label>
           <select 
-            value={selectedCustomer}
-            onChange={(e) => setSelectedCustomer(e.target.value)}
+            value={selectedCompany}
+            onChange={(e) => setSelectedCompany(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48"
           >
-            <option>All Customers</option>
-            {customers.map(c => <option key={c}>{c}</option>)}
+            <option>All Companies</option>
+            {companies.map(c => <option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer</label>
+          <select 
+            value={selectedClient}
+            onChange={(e) => setSelectedClient(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48"
+          >
+            <option>All Clients</option>
+            {clients.map(c => <option key={c}>{c}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1">
@@ -5724,8 +5900,8 @@ const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer 
 const Accounting = ({ appointments, expenses, onNewExpense, onDeleteExpense }: { appointments: Appointment[]; expenses: Expense[]; onNewExpense: () => void; onDeleteExpense: (id: string) => void }) => {
   const totalIncome = appointments
     .filter(a => a.status === 'Completed' || a.status === 'Paid')
-    .reduce((sum, a) => sum + a.fee, 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    .reduce((sum, a) => sum + Number(a.fee || (a as any).agreedFee || 0), 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const netProfit = totalIncome - totalExpenses;
 
   return (
@@ -5887,6 +6063,11 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [googleEvents, setGoogleEvents] = useState<any[]>([]);
   const [googleSyncStatus, setGoogleSyncStatus] = useState<'connected' | 'disconnected' | 'error' | 'syncing'>('disconnected');
+  const lastGoogleFetchRef = useRef<string | null>(null);
+  const lastGoogleFetchTimeRef = useRef<number>(0);
+  const lastAnyCalendarRequestTimeRef = useRef<number>(0);
+  const lastTokensRef = useRef<any>(null);
+  const isFetchingGoogleRef = useRef(false);
 
   const handleConnectGoogle = () => {
     if (!user) {
@@ -5912,28 +6093,121 @@ export default function App() {
     }
   };
 
-  const fetchGoogleCalendarEvents = async (timeMin?: string, timeMax?: string, explicitTokens?: any) => {
+  const reliableFetch = async (url: string, options: RequestInit = {}, retries = 2, backoff = 1000): Promise<Response> => {
+    try {
+      const response = await fetch(url, options);
+      
+      // If it's a quota error, we don't retry immediately, we bubble it up to trigger backoff
+      if (response.status === 429) {
+        return response;
+      }
+      
+      // Retry for server errors (5xx) or specific transient errors
+      if (!response.ok && response.status >= 500 && retries > 0) {
+        console.warn(`[Network] Fetch failed with ${response.status}. Retrying in ${backoff}ms... (${retries} attempts left)`);
+        await new Promise(resolve => setTimeout(resolve, backoff));
+        return reliableFetch(url, options, retries - 1, backoff * 2);
+      }
+      
+      return response;
+    } catch (error) {
+      if (retries > 0) {
+        console.warn(`[Network] Fetch error: ${error instanceof Error ? error.message : 'Unknown'}. Retrying...`);
+        await new Promise(resolve => setTimeout(resolve, backoff));
+        return reliableFetch(url, options, retries - 1, backoff * 2);
+      }
+      throw error;
+    }
+  };
+
+  const fetchGoogleCalendarEvents = async (timeMin?: string, timeMax?: string, explicitTokens?: any, force?: boolean) => {
     if (!user || isDemoUser || !businessProfile.googleCalendarConnected) return;
     
+    // Check global backoff (now 5 minutes for quota issues)
+    const QUOTA_BACKOFF_MS = 300000;
+    if (lastGoogleFetchRef.current === 'QUOTA_BACKOFF') {
+      const remaining = QUOTA_BACKOFF_MS - (Date.now() - lastGoogleFetchTimeRef.current);
+      if (remaining > 0) {
+        console.log(`[Calendar Sync] Skipping fetch due to active quota backoff (${Math.ceil(remaining/1000)}s left)`);
+        return;
+      } else {
+        lastGoogleFetchRef.current = null;
+      }
+    }
+
+    // Gap check: Ensure at least 3 seconds between any calendar API requests
+    const GAP_MS = 3000;
+    const timeSinceLastRequest = Date.now() - lastAnyCalendarRequestTimeRef.current;
+    if (timeSinceLastRequest < GAP_MS) {
+      console.log(`[Calendar Sync] Throttling request to maintain gap (${GAP_MS - timeSinceLastRequest}ms wait)`);
+      if (!force) return; // Only wait and continue if forced, otherwise skip
+      await new Promise(resolve => setTimeout(resolve, GAP_MS - timeSinceLastRequest));
+    }
+
+    const tMin = timeMin || startOfMonth(new Date()).toISOString();
+    const tMax = timeMax || endOfMonth(new Date()).toISOString();
+    
+    // Use the latest known tokens to avoid redundant refreshes
+    const tokens = explicitTokens || lastTokensRef.current || businessProfile.googleCalendarTokens;
+    lastTokensRef.current = tokens;
+    
+    // Create a unique key for this request to detect redundant calls (Time range based)
+    const fetchKey = `${tMin}|${tMax}`;
+    const now = Date.now();
+    
+    // Throttle: don't fetch if same range was fetched in the last 30 seconds, unless forced
+    // Even if forced, don't allow more than once every 5 seconds to prevent hammer
+    const MIN_FETCH_INTERVAL = force ? 5000 : 30000;
+    if (isFetchingGoogleRef.current || (lastGoogleFetchRef.current === fetchKey && now - lastGoogleFetchTimeRef.current < MIN_FETCH_INTERVAL)) {
+      console.log('[Calendar Sync] Skipping redundant or excessive fetch request');
+      return;
+    }
+
+    isFetchingGoogleRef.current = true;
+    lastAnyCalendarRequestTimeRef.current = Date.now();
     setGoogleSyncStatus('syncing');
+    
     try {
       const queryParams = new URLSearchParams({
         uid: user.uid,
-        timeMin: timeMin || startOfMonth(new Date()).toISOString(),
-        timeMax: timeMax || endOfMonth(new Date()).toISOString()
+        timeMin: tMin,
+        timeMax: tMax
       });
       
-      const tokens = explicitTokens || businessProfile.googleCalendarTokens;
       if (tokens) {
         queryParams.append('tokens', typeof tokens === 'string' ? tokens : JSON.stringify(tokens));
       }
 
-      const response = await fetch(`/api/calendar/events?${queryParams.toString()}`);
+      const response = await reliableFetch(`/api/calendar/events?${queryParams.toString()}`);
+      
+      const text = await response.text();
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        if (!response.ok) {
+          throw new Error(`Server returned error ${response.status}: ${text.substring(0, 100)}`);
+        }
+        throw new Error(`Invalid JSON response from server: ${text.substring(0, 100)}`);
+      }
       
       if (!response.ok) {
+        const isQuotaError = response.status === 429 || 
+                            (response.status === 403 && (
+                              (result.error && typeof result.error === 'string' && result.error.toLowerCase().includes('quota')) || 
+                              (result.details && typeof result.details === 'string' && result.details.toLowerCase().includes('quota')) ||
+                              (JSON.stringify(result).toLowerCase().includes('quota'))
+                            ));
+        
+        if (isQuotaError) {
+          setGoogleSyncStatus('error');
+          console.error('Google Calendar Quota Exceeded. Entering 5m backoff.');
+          lastGoogleFetchRef.current = 'QUOTA_BACKOFF';
+          lastGoogleFetchTimeRef.current = Date.now();
+          return;
+        }
         if (response.status === 401) {
           setGoogleSyncStatus('disconnected');
-          // Auto-clear connection state in DB if potentially revoked or invalid_grant
           if (user?.uid) {
             updateDoc(doc(db, 'profiles', user.uid), {
               googleCalendarConnected: false,
@@ -5943,27 +6217,30 @@ export default function App() {
           }
           return;
         }
-        throw new Error('Failed to fetch Google Calendar events');
+        throw new Error(result.error || result.details || 'Failed to fetch Google Calendar events');
       }
 
-      const result = await response.json();
       setGoogleEvents(result.events || []);
       setGoogleSyncStatus('connected');
+      lastGoogleFetchRef.current = fetchKey;
+      lastGoogleFetchTimeRef.current = Date.now();
       
       // Update tokens if they were refreshed
-      if (result.tokens && JSON.stringify(result.tokens) !== JSON.stringify(businessProfile.googleCalendarTokens)) {
-        await updateDoc(doc(db, 'profiles', user.uid), {
-          googleCalendarTokens: result.tokens,
-          updatedAt: new Date().toISOString()
-        });
+      if (result.tokens) {
+        lastTokensRef.current = result.tokens;
+        if (JSON.stringify(result.tokens) !== JSON.stringify(businessProfile.googleCalendarTokens)) {
+          console.log('[Calendar Sync] Saving refreshed tokens from fetch...');
+          await updateDoc(doc(db, 'profiles', user.uid), {
+            googleCalendarTokens: result.tokens,
+            updatedAt: new Date().toISOString()
+          });
+        }
       }
     } catch (error: any) {
       console.error('Error fetching Google Calendar events:', error);
       setGoogleSyncStatus('error');
-      // Show more informative toast if it's a permission denied error
-      if (error.message?.includes('7') || error.message?.includes('PERMISSION_DENIED')) {
-        // toast.error('Google Calendar sync failed: Server permission error. Please contact support.');
-      }
+    } finally {
+      isFetchingGoogleRef.current = false;
     }
   };
 
@@ -6072,11 +6349,10 @@ export default function App() {
   useEffect(() => {
     // Only fetch if we have a real user, a connected profile, and we've verified it's the real profile doc
     if (user && !isDemoUser && businessProfile.googleCalendarConnected && businessProfile.userId === user.uid) {
-      if (businessProfile.googleCalendarTokens) {
-        fetchGoogleCalendarEvents();
-      }
+      // Don't depend on tokens here to avoid infinite loops from token refresh
+      fetchGoogleCalendarEvents();
     }
-  }, [user, isDemoUser, businessProfile.googleCalendarConnected, businessProfile.userId, businessProfile.googleCalendarTokens]);
+  }, [user, isDemoUser, businessProfile.googleCalendarConnected, businessProfile.userId]);
 
   const handleSignIn = useCallback(async () => {
     try {
@@ -6298,9 +6574,31 @@ export default function App() {
   const syncToGoogleCalendar = async (appointmentId: string, action: 'create' | 'update' | 'delete', eventId?: string, appData?: any) => {
     if (!user || isDemoUser) return;
     
+    // Check global backoff (5 minutes)
+    const QUOTA_BACKOFF_MS = 300000;
+    if (lastGoogleFetchRef.current === 'QUOTA_BACKOFF') {
+      const remaining = QUOTA_BACKOFF_MS - (Date.now() - lastGoogleFetchTimeRef.current);
+      if (remaining > 0) {
+        console.log(`[Calendar Sync] Skipping sync due to active quota backoff (${Math.ceil(remaining/1000)}s left)`);
+        return;
+      } else {
+        lastGoogleFetchRef.current = null;
+      }
+    }
+
+    // Gap check: Ensure at least 3 seconds between any calendar API requests
+    const GAP_MS = 3000;
+    const timeSinceLastRequest = Date.now() - lastAnyCalendarRequestTimeRef.current;
+    if (timeSinceLastRequest < GAP_MS) {
+      console.log(`[Calendar Sync] Throttling sync request to maintain gap (${GAP_MS - timeSinceLastRequest}ms wait)`);
+      await new Promise(resolve => setTimeout(resolve, GAP_MS - timeSinceLastRequest));
+    }
+
+    lastAnyCalendarRequestTimeRef.current = Date.now();
     console.log(`[Calendar Sync] Requesting ${action} for ID: ${appointmentId}`);
     try {
-      const response = await fetch('/api/calendar/sync', {
+      const tokens = lastTokensRef.current || businessProfile.googleCalendarTokens;
+      const response = await reliableFetch('/api/calendar/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -6310,19 +6608,40 @@ export default function App() {
           eventId,
           appointmentData: appData,
           googleCalendarId: businessProfile.googleCalendarId,
-          googleCalendarTokens: businessProfile.googleCalendarTokens
+          googleCalendarTokens: tokens
         })
       });
       
-      const result = await response.json();
-      if (!response.ok) {
-        console.error('[Calendar Sync] Failed:', result.details || result.error || 'Unknown error');
-        if (result.code === 403 || result.code === 404) {
-          console.warn('[Calendar Sync] Hint: Check if the calendar is shared with the Service Account email and if the Calendar ID is correct.');
+      const text = await response.text();
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        if (!response.ok) {
+          throw new Error(`Calendar sync server error ${response.status}: ${text.substring(0, 100)}`);
         }
+        throw new Error(`Invalid JSON response from sync API: ${text.substring(0, 100)}`);
+      }
+
+      if (!response.ok) {
+        const isQuotaError = response.status === 429 || 
+                            (response.status === 403 && (
+                               JSON.stringify(result).toLowerCase().includes('quota')
+                            ));
+        
+        if (isQuotaError) {
+          setGoogleSyncStatus('error');
+          console.error('Google Calendar Quota Exceeded during sync. Entering 5m backoff.');
+          lastGoogleFetchRef.current = 'QUOTA_BACKOFF';
+          lastGoogleFetchTimeRef.current = Date.now();
+          return;
+        }
+
+        console.error('[Calendar Sync] Failed:', result.details || result.error || 'Unknown error');
       } else {
         console.log('[Calendar Sync] Success:', result.status);
         if (result.newTokensData) {
+            lastTokensRef.current = result.newTokensData;
             updateDoc(doc(db, 'profiles', user.uid), {
               googleCalendarTokens: result.newTokensData,
               updatedAt: new Date().toISOString()
@@ -6717,7 +7036,7 @@ export default function App() {
                 onConnectGoogle={handleConnectGoogle}
                 googleEvents={googleEvents}
                 syncStatus={googleSyncStatus}
-                onRefresh={(start, end) => fetchGoogleCalendarEvents(start.toISOString(), end.toISOString())}
+                onRefresh={(start, end) => fetchGoogleCalendarEvents(start.toISOString(), end.toISOString(), undefined, true)}
               />
             } />
             <Route 

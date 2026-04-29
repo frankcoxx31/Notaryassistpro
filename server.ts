@@ -216,18 +216,30 @@ async function startServer() {
       });
     } catch (error: any) {
       console.error("Error fetching Google Calendar events:", error);
-      // Map gRPC codes (like 7) or other custom error codes to HTTP status codes
+      
       let statusCode = 500;
-      if (typeof error.code === 'number' && error.code >= 100 && error.code < 600) {
+      const errorMessage = error.message || "Unknown error occurred";
+      const errorDetails = error.response?.data?.error || null;
+      
+      // Google API error detection
+      if (errorMessage.toLowerCase().includes('quota') || 
+          JSON.stringify(errorDetails).toLowerCase().includes('quota') ||
+          error.code === 429) {
+        statusCode = 429;
+      } else if (error.code === 401 || errorMessage.includes('invalid_grant')) {
+        statusCode = 401;
+      } else if (error.code === 403 || error.code === 7 || errorMessage.includes('PERMISSION_DENIED')) {
+        statusCode = 403;
+      } else if (typeof error.code === 'number' && error.code >= 400 && error.code < 600) {
         statusCode = error.code;
-      } else if (error.code === 7 || error.message?.includes('PERMISSION_DENIED')) {
-        statusCode = 403;
-      } else if (error.code === 'PERMISSION_DENIED' || error.message?.includes('Missing or insufficient permissions')) {
-        statusCode = 403;
       }
       
-      console.log(`[Events API] Returning error ${statusCode}: ${error.message}`);
-      res.status(statusCode).json({ error: error.message });
+      console.log(`[Events API] Returning error ${statusCode}: ${errorMessage}`);
+      res.status(statusCode).json({ 
+        error: errorMessage,
+        details: errorDetails,
+        code: statusCode
+      });
     }
   });
 
@@ -417,11 +429,28 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
 
     } catch (error: any) {
       console.error("Calendar Sync Error:", error);
-      const errorMessage = error.response?.data?.error?.message || error.message || "Unknown calendar error";
-      res.status(500).json({ 
+      
+      let statusCode = 500;
+      const errorMessage = error.message || "Unknown error occurred";
+      const errorDetails = error.response?.data?.error || null;
+      const detailMessage = errorDetails?.message || errorMessage;
+      
+      if (detailMessage.toLowerCase().includes('quota') || 
+          JSON.stringify(errorDetails).toLowerCase().includes('quota') ||
+          error.code === 429) {
+        statusCode = 429;
+      } else if (error.code === 401 || detailMessage.includes('invalid_grant')) {
+        statusCode = 401;
+      } else if (error.code === 403 || error.code === 7 || detailMessage.includes('PERMISSION_DENIED')) {
+        statusCode = 403;
+      } else if (typeof error.code === 'number' && error.code >= 400 && error.code < 600) {
+        statusCode = error.code;
+      }
+
+      res.status(statusCode).json({ 
         error: "Failed to sync calendar", 
-        details: errorMessage,
-        code: error.code || error.response?.status
+        details: detailMessage,
+        code: statusCode
       });
     }
   });
