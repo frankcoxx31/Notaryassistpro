@@ -4333,7 +4333,7 @@ const Appointments = ({
   setModalInitialTab: (tab: string) => void;
   setModalAutoScan: (scan: boolean) => void;
 }) => {
-  const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
+  const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState<string | boolean>(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [searchParams] = useSearchParams();
@@ -5081,43 +5081,35 @@ const Appointments = ({
 
   const stats = useMemo(() => {
     const activeApps = filteredAppointments.filter(a => a.status !== 'Cancelled' && a.status !== 'No Show');
-    const totalSignings = activeApps.length;
-    const paidIncome = activeApps
-      .reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0), 0);
-    const unpaidIncome = activeApps
-      .reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0), 0);
-    const totalFees = activeApps.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
-    const totalExpenses = activeApps.reduce((sum, a) => sum + (Number(a.totalJobCost) || 0), 0);
-    const totalProfit = activeApps.reduce((sum, a) => sum + (Number(a.estimatedProfit) || 0), 0);
-    const avgProfit = totalSignings > 0 ? totalProfit / totalSignings : 0;
-    
     const now = new Date();
-    const monthlyProfit = activeApps
-      .filter(a => isSameMonth(parseSafeDateTime(a.date, a.time), now))
-      .reduce((sum, a) => sum + (Number(a.estimatedProfit) || 0), 0);
-      
-    const highestProfit = activeApps.length > 0 
-      ? Math.max(...activeApps.map(a => Number(a.estimatedProfit) || 0)) 
-      : 0;
-
-    const lowProfitCount = activeApps.filter(a => (a.profitMarginPercent || 0) < 40).length;
+    const startOfToday = startOfDay(now);
     
-    const percentCollected = totalFees > 0 ? Math.round((paidIncome / totalFees) * 100) : 0;
+    const todaysSignings = activeApps.filter(a => isSameDay(parseSafeDateTime(a.date, a.time), startOfToday)).length;
+    const upcomingSignings = activeApps.filter(a => isAfter(parseSafeDateTime(a.date, a.time), startOfToday)).length;
+    const awaitingInvoice = activeApps.filter(a => (a.status === 'Completed' || a.status === 'Paid') && !a.invoiceSent).length;
+    const outstandingBalance = activeApps.reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0), 0);
+    const collectedThisWeek = activeApps
+      .filter(a => isAfter(parseSafeDateTime(a.date, a.time), subDays(now, 7)) && (a.status === 'Paid' || a.paymentStatus === 'Paid'))
+      .reduce((sum, a) => sum + (Number(a.amountCollected) || Number(a.fee) || 0), 0);
 
     return {
-      totalSignings,
-      paidIncome,
-      unpaidIncome,
-      totalFees,
-      totalExpenses,
-      totalProfit,
-      avgProfit,
-      monthlyProfit,
-      highestProfit,
-      lowProfitCount,
-      percentCollected
+      todaysSignings,
+      upcomingSignings,
+      awaitingInvoice,
+      outstandingBalance,
+      collectedThisWeek
     };
   }, [filteredAppointments]);
+
+  const groupedByDay = useMemo(() => {
+    const groups: Record<string, Appointment[]> = {};
+    paginatedAppointments.forEach(app => {
+      const day = format(parseSafeDateTime(app.date), 'EEEE, MMMM d, yyyy');
+      if (!groups[day]) groups[day] = [];
+      groups[day].push(app);
+    });
+    return Object.entries(groups);
+  }, [paginatedAppointments]);
 
   const companyStats = useMemo(() => {
     if (companyFilter === 'All Companies') return null;
@@ -5283,31 +5275,33 @@ const Appointments = ({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Signings</p>
-            <p className="text-2xl font-black text-slate-900">{stats.totalSignings}</p>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Today's Signings</p>
+            <p className="text-xl font-black text-slate-900">{stats.todaysSignings}</p>
           </div>
           
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Collected</p>
-            <p className="text-2xl font-black text-emerald-600">${stats.paidIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-            <p className="text-[10px] font-medium text-slate-500 mt-1">{stats.percentCollected}% collected</p>
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Upcoming</p>
+            <p className="text-xl font-black text-indigo-600">{stats.upcomingSignings}</p>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border-2 border-amber-100 shadow-sm relative overflow-hidden">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Outstanding</p>
-              <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">Follow Up</span>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Awaiting Invoice</p>
+              {stats.awaitingInvoice > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
             </div>
-            <p className="text-2xl font-black text-amber-600">${stats.unpaidIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-            <p className="text-[10px] font-medium text-slate-500 mt-1">Unpaid invoices</p>
+            <p className="text-xl font-black text-amber-600">{stats.awaitingInvoice}</p>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Profit</p>
-            <p className="text-2xl font-black text-indigo-600">${stats.totalProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-            <p className="text-[10px] font-medium text-slate-500 mt-1">${stats.monthlyProfit.toLocaleString()} this month</p>
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Outstanding Balance</p>
+            <p className="text-xl font-black text-rose-600">${stats.outstandingBalance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Collected This Week</p>
+            <p className="text-xl font-black text-emerald-600">${stats.collectedThisWeek.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
           </div>
         </div>
       )}
@@ -5489,274 +5483,229 @@ const Appointments = ({
         </motion.div>
       )}
 
-      {/* Table Section */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-4 w-10">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedIds.length === paginatedAppointments.length && paginatedAppointments.length > 0}
-                    onChange={toggleSelectAll}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                  />
-                </th>
-                <th className="px-3 py-4 cursor-pointer hover:bg-slate-100 transition-colors w-32" onClick={() => handleSort('date')}>
-                  <div className="flex items-center gap-1.5">
-                    Date & Time 
-                    {sortField === 'date' ? (
-                      sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 text-indigo-600" /> : <ChevronDown className="w-3 h-3 text-indigo-600" />
-                    ) : <ChevronDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
-                  </div>
-                </th>
-                <th className="px-3 py-4 w-48">Principal / Signer</th>
-                <th className="px-3 py-4 w-40">{viewMode === 'journal' ? 'Notarial Act' : 'Type'}</th>
-                {viewMode === 'journal' ? (
-                  <>
-                    <th className="px-3 py-4 min-w-[200px]">Documents & Details</th>
-                    <th className="px-3 py-4 w-44">Identification</th>
-                  </>
-                ) : (
-                  <>
-                     <th className="px-3 py-4 w-40">Company</th>
-                     <th className="px-3 py-4">City</th>
-                     <th className="px-3 py-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('agreedFee')}>Agreed</th>
-                     <th className="px-3 py-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('amountCollected')}>Collected</th>
-                  </>
-                )}
-                <th className="px-3 py-4 w-28 cursor-pointer hover:bg-slate-100 text-right pr-6" onClick={() => handleSort('agreedFee')}>
-                   Fee
-                </th>
-                <th className="px-3 py-4 w-32">Status</th>
-                <th className="px-4 py-4 w-20 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginatedAppointments.length > 0 ? (
-                paginatedAppointments.map((app) => (
-                  <tr 
-                    key={app.id} 
-                    onClick={(e) => {
-                      if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return;
-                      onViewSigning(app);
-                    }}
+      {/* Redesigned List Section */}
+      <div className="space-y-6">
+        {groupedByDay.length > 0 ? (
+          groupedByDay.map(([day, dayApps]) => (
+            <div key={day} className="space-y-3">
+              <div className="flex items-center justify-between px-2">
+                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/50" />
+                  {day}
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                  {dayApps.length} {dayApps.length === 1 ? 'Signing' : 'Signings'}
+                </span>
+              </div>
+              
+              <div className="space-y-3">
+                {dayApps.map((app) => (
+                  <motion.div
+                    key={app.id}
+                    layoutId={app.id}
+                    onClick={() => onViewSigning(app)}
                     className={cn(
-                      "transition-colors group cursor-pointer",
-                      selectedIds.includes(app.id) ? "bg-indigo-50/50" : "hover:bg-slate-50/30"
+                      "bg-white group relative border rounded-2xl transition-all cursor-pointer hover:shadow-md",
+                      selectedIds.includes(app.id) 
+                        ? "border-indigo-400 ring-1 ring-indigo-400/20 shadow-indigo-100/20" 
+                        : "border-slate-200 shadow-sm hover:border-slate-300"
                     )}
                   >
-                    <td className="px-4 py-4">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedIds.includes(app.id)}
-                        onChange={(e) => {
+                    {/* Bulk Select Overlay Toggle */}
+                    {isSelectMode && (
+                      <div 
+                        className="absolute left-4 top-1/2 -translate-y-1/2 z-10"
+                        onClick={(e) => {
                           e.stopPropagation();
                           toggleSelect(app.id);
                         }}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                      />
-                    </td>
-                    <td className="px-3 py-4">
-                      <div className="text-sm font-medium text-slate-900">{format(parseSafeDateTime(app.date), 'MMM dd, yyyy')}</div>
-                      <div className="text-xs font-medium text-indigo-600 mt-0.5">{app.time}</div>
-                    </td>
-                    <td className="px-3 py-4">
-                      <div className="text-sm font-medium text-slate-900 truncate max-w-[170px]">
-                        {(app.customerName || app.clientName || 'Unnamed Principal').split(',').map(n => {
-                          const s = splitName(n.trim());
-                          const name = s.lastName || s.firstName || '';
-                          return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                        }).join(', ')}
+                      >
+                        <input 
+                          type="checkbox" 
+                          checked={selectedIds.includes(app.id)}
+                          readOnly
+                          className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 shadow-sm"
+                        />
                       </div>
-                    </td>
-                    <td className="px-3 py-4">
-                       <span className={cn(
-                         "px-2 py-0.5 rounded-lg text-xs font-black uppercase whitespace-nowrap border",
-                         viewMode === 'journal' 
-                           ? "bg-slate-50 text-slate-600 border-slate-200" 
-                           : "bg-indigo-50 text-indigo-700 border-indigo-100"
-                       )}>
-                         {viewMode === 'journal' ? (app.actType || 'Acknowledgment') : (app.signingType || 'General Notary')}
-                       </span>
-                    </td>
-                    {viewMode === 'journal' ? (
-                      <>
-                        <td className="px-3 py-4">
-                          <div className="flex flex-col gap-1.5 max-w-[280px]">
-                            {/* Structured Signing Details */}
-                            {(app.signingType || app.docType) && (
-                              <div className="flex flex-wrap gap-1 mb-1">
-                                {app.signingType && (
-                                  <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase border border-indigo-100 shadow-sm">
-                                    {app.signingType}
-                                  </span>
-                                )}
-                                {app.docType && (
-                                  <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-black uppercase border border-slate-200 shadow-sm">
-                                    {app.docType}
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                    )}
 
-                            {/* Tagged Documents */}
-                            <div className="flex flex-wrap gap-1">
-                              {(app.docs || []).length > 0 ? (
-                                (app.docs || []).slice(0, 3).map(doc => (
-                                  <span key={doc} className="px-1.5 py-0.5 bg-white text-slate-500 rounded text-[9px] font-bold border border-slate-100 truncate shadow-sm">
-                                    {doc}
-                                  </span>
-                                ))
-                              ) : (
-                                !app.docType && <span className="text-[11px] text-slate-400 italic">No docs logged</span>
-                              )}
-                              {(app.docs || []).length > 3 && (
-                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100">
-                                  +{(app.docs || []).length - 3}
-                                </span>
-                              )}
+                    <div className={cn(
+                      "flex flex-col md:flex-row items-stretch",
+                      isSelectMode && "pl-14"
+                    )}>
+                      {/* ZONE 1: Date/Time Block */}
+                      <div className="md:w-32 p-4 flex md:flex-col items-center justify-center md:border-r border-slate-100 bg-slate-50/30">
+                        <div className="text-center">
+                          <div className="text-3xl font-black text-slate-900 tabular-nums leading-none mb-1">
+                            {format(parseSafeDateTime(app.date), 'dd')}
+                          </div>
+                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            {format(parseSafeDateTime(app.date), 'MMM')}
+                          </div>
+                        </div>
+                        <div className="mx-4 md:mx-0 md:mt-3 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-[11px] font-black tracking-tight whitespace-nowrap">
+                          {app.time}
+                        </div>
+                      </div>
+
+                      {/* ZONE 2: Signing Details Block */}
+                      <div className="flex-1 p-5 border-t md:border-t-0 md:border-r border-slate-100 min-w-0">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="text-lg font-bold text-slate-900 truncate pr-4">
+                            {(app.customerName || app.clientName || 'Unnamed Principal').split(',').map(n => {
+                              const s = splitName(n.trim());
+                              const name = s.lastName || s.firstName || '';
+                              return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                            }).join(', ')}
+                          </h4>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap border self-start",
+                            viewMode === 'journal' 
+                              ? "bg-slate-50 text-slate-600 border-slate-200" 
+                              : "bg-indigo-50 text-indigo-700 border-indigo-100"
+                          )}>
+                            {viewMode === 'journal' ? (app.actType || 'Acknowledgment') : (app.signingType || 'General Notary')}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="truncate max-w-[200px]">
+                              {(app.companyName || app.signingCompany || 'Private Direct').toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                            </span>
+                          </div>
+                          {app.orderNumber && (
+                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 px-2 py-0.5 bg-slate-50 rounded-md border border-slate-100">
+                              #{app.orderNumber}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ZONE 3: Location Block */}
+                      <div className="hidden lg:flex flex-col justify-center w-48 p-5 border-r border-slate-100">
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-slate-300 mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold text-slate-700 truncate capitalize">
+                              {(app.city || (app.location ? parseLocation(app.location).city : 'Charlotte')).toLowerCase()}
+                            </div>
+                            <div className="text-[10px] font-medium text-slate-400 truncate">
+                              {(app.address || 'Verified Location').toLowerCase()}
                             </div>
                           </div>
-                          {app.notes && (
-                            <div className="text-[10px] text-slate-400 italic mt-1.5 truncate max-w-[250px] font-medium">— {app.notes}</div>
-                          )}
-                        </td>
-                        <td className="px-3 py-4">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[11px] font-bold text-slate-800">{app.idType || 'Document Inspection'}</span>
-                            {app.idNumber && (
-                              <span className="text-[10px] font-mono text-slate-400">ID: {app.idNumber.slice(0, 4)}••••</span>
-                            )}
-                            {app.idExpiration && (
-                              <span className="text-[9px] font-bold text-rose-500/80">Expires {app.idExpiration}</span>
+                        </div>
+                      </div>
+
+                      {/* ZONE 4: Money Block */}
+                      <div className="flex flex-row md:flex-col items-center md:items-start justify-between md:justify-center w-full md:w-44 p-5 border-t md:border-t-0 md:border-r border-slate-100 bg-slate-50/10">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Fee / Balance Due</span>
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-xl font-black text-slate-900 tracking-tight">
+                              ${(app.agreedFee || app.fee || 0).toFixed(0)}
+                            </span>
+                            {(Number(app.amountOutstanding) > 0 || (app.status !== 'Paid' && !app.invoicePaidDate)) && (
+                              <span className="text-xs font-bold text-rose-500">
+                                Due
+                              </span>
                             )}
                           </div>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-3 py-4">
-                           <div className="text-sm font-medium text-slate-800 truncate max-w-[140px]">
-                             {(app.companyName || app.signingCompany || 'Private Direct').toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                           </div>
-                        </td>
-                        <td className="px-3 py-4">
-                           <div className="flex flex-col items-start gap-1">
-                             <div className="text-sm text-slate-600 truncate">
-                               {(app.city || (app.location ? parseLocation(app.location).city : 'Charlotte, NC')).toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                             </div>
-                             <MapPin className="w-3 h-3 text-slate-400" />
-                           </div>
-                        </td>
-                        <td className="px-3 py-4">
-                           <div className="text-sm font-medium text-slate-900">${(app.agreedFee || app.fee || 0).toFixed(2)}</div>
-                        </td>
-                        <td className="px-3 py-4">
-                           <div className="text-sm font-medium text-emerald-600">${(app.amountCollected || 0).toFixed(2)}</div>
-                        </td>
-                      </>
-                    )}
-                    <td className="px-3 py-4 text-right pr-6">
-                      <div className="text-sm font-medium text-slate-900 font-mono tracking-tighter">${(app.fee || 0).toFixed(2)}</div>
-                    </td>
-                    <td className="px-3 py-4">
-                       <div className="flex items-center gap-2">
-                        {getStatusBadge(app.status, app)}
-                        {app.invoiceSent && <Printer className="w-3 h-3 text-sky-500" />}
-                       </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onViewSigning(app); }}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                          title="Open Details"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onDelete([app.id]); }}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                          title="Delete Permanently"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        </div>
+                        <div className="md:mt-2">
+                          {app.status === 'Paid' ? (
+                            <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> Collected
+                            </span>
+                          ) : (
+                            <div className="text-[10px] font-bold text-slate-400">
+                              ${(app.amountCollected || 0).toFixed(0)} rec.
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2 text-slate-400">
-                      <Calendar className="w-8 h-8 opacity-20" />
-                      <p className="text-sm font-medium">No signings found for this period</p>
+
+                      {/* ZONE 5: Status/Actions Block */}
+                      <div className="p-5 flex items-center justify-between md:justify-end gap-3 min-w-[160px]">
+                        <div className="flex items-center gap-3">
+                          {getStatusBadge(app.status, app)}
+                          
+                          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {(!app.invoiceSent && app.status !== 'Paid') && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setModalInitialTab('Billing');
+                                  onViewSigning(app);
+                                }}
+                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm"
+                              >
+                                Send Invoice
+                              </button>
+                            )}
+                            <div className="flex items-center gap-0.5">
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); onViewSigning(app); }}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setIsBatchDropdownOpen(isBatchDropdownOpen === app.id ? false : app.id); 
+                                }}
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Section */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-            <p className="text-xs font-medium text-slate-500">
-              Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filteredAppointments.length)}</span> of <span className="text-slate-900">{filteredAppointments.length}</span> signings
-            </p>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={cn(
-                        "w-8 h-8 rounded text-xs font-bold transition-all",
-                        currentPage === pageNum 
-                          ? "bg-sky-600 text-white shadow-sm" 
-                          : "bg-white border border-slate-300 text-slate-600 hover:bg-slate-50"
-                      )}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                  </motion.div>
+                ))}
               </div>
-
-              <button 
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="p-1.5 rounded border border-slate-300 bg-white text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
             </div>
+          ))
+        ) : (
+          <div className="py-24 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calendar className="w-8 h-8 text-slate-200" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">No matching signings</h3>
+            <p className="text-slate-500 max-w-xs mx-auto text-sm mt-1">
+              Try adjusting your filters or search terms to find what you're looking for.
+            </p>
           </div>
         )}
       </div>
+
+      {/* Modern Pagination Section */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between py-6 border-t border-slate-100">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            Page {currentPage} of {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <BulkMarkPaidModal 
         isOpen={isBulkMarkPaidModalOpen}
