@@ -81,6 +81,7 @@ export interface IdentityVerificationRecord {
   id: string;
   signerId: string;
   appointmentId: string;
+  userId: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

@@ -126,7 +126,16 @@ service cloud.firestore {
 
     function isValidSigningCompany(data) {
       return hasRequiredFields(['id', 'userId', 'companyName', 'status', 'createdAt', 'updatedAt']) &&
-             data.status in ['Active', 'Watch', 'Do Not Work With', 'Inactive'];
+             (data.status in ['Active', 'Watch', 'Do Not Work With', 'Inactive']);
+    }
+
+    function isValidIdvRecord(data) {
+      return hasRequiredFields(['id', 'signerId', 'appointmentId', 'status', 'createdAt', 'updatedAt', 'userId']) &&
+             data.userId == request.auth.uid &&
+             data.id is string && data.id.size() < 100 &&
+             data.signerId is string &&
+             data.appointmentId is string &&
+             data.status is string;
     }
 
     // ===============================================================
@@ -193,6 +202,14 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isValidRecentSearch(request.resource.data) && request.resource.data.userId == request.auth.uid;
       allow update: if isDocOwner() && isValidRecentSearch(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();
+    }
+
+    match /idv_records/{recordId} {
+      allow get: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+      allow delete: if isDocOwner();
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidIdvRecord(request.resource.data);
+      allow update: if isDocOwner() && isValidIdvRecord(request.resource.data) && uidNotModified();
     }
   }
 }

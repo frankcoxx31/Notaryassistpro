@@ -7,7 +7,8 @@ import {
   IDVSettings
 } from '../types/idv';
 import { db } from '../firebase';
-import { doc, setDoc, getDoc, updateDoc, collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 
 export const IDV_SETTINGS_COLLECTION = 'idv_settings';
 export const IDV_RECORDS_COLLECTION = 'idv_records';
@@ -30,12 +31,13 @@ export class IDVService {
    * Initializes a new verification record
    */
   static async startVerification(signerId: string, appointmentId: string, userId: string): Promise<string> {
-    const recordId = `iv_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const recordId = `idv_${signerId}_${appointmentId}`;
     
     const newRecord: Partial<IdentityVerificationRecord> = {
       id: recordId,
       signerId,
       appointmentId,
+      userId,
       createdBy: userId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -54,16 +56,26 @@ export class IDVService {
       documentType: DocumentType.DRIVERS_LICENSE
     };
 
-    await setDoc(doc(db, IDV_RECORDS_COLLECTION, recordId), newRecord);
-    return recordId;
+    try {
+      await setDoc(doc(db, IDV_RECORDS_COLLECTION, recordId), newRecord);
+      return recordId;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `${IDV_RECORDS_COLLECTION}/${recordId}`);
+      throw error;
+    }
   }
 
   /**
    * Fetches a verification record
    */
   static async getRecord(recordId: string): Promise<IdentityVerificationRecord | null> {
-    const snap = await getDoc(doc(db, IDV_RECORDS_COLLECTION, recordId));
-    return snap.exists() ? snap.data() as IdentityVerificationRecord : null;
+    try {
+      const snap = await getDoc(doc(db, IDV_RECORDS_COLLECTION, recordId));
+      return snap.exists() ? snap.data() as IdentityVerificationRecord : null;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, `${IDV_RECORDS_COLLECTION}/${recordId}`);
+      throw error;
+    }
   }
 
   /**
@@ -166,9 +178,14 @@ export class IDVService {
         actorName: userName
     };
 
-    await updateDoc(doc(db, IDV_RECORDS_COLLECTION, recordId), {
-      ...updates,
-      auditLog: [...record.auditLog, auditEvent]
-    });
+    try {
+      await updateDoc(doc(db, IDV_RECORDS_COLLECTION, recordId), {
+        ...updates,
+        auditLog: [...record.auditLog, auditEvent]
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${IDV_RECORDS_COLLECTION}/${recordId}`);
+      throw error;
+    }
   }
 }

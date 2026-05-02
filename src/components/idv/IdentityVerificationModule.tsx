@@ -25,8 +25,9 @@ import {
   XCircle,
   MessageSquare
 } from 'lucide-react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
 
 interface IdentityVerificationModuleProps {
   signerId: string;
@@ -53,13 +54,15 @@ export const IdentityVerificationModule: React.FC<IdentityVerificationModuleProp
 
   // Poll or subscribe to existing record
   useEffect(() => {
-    // In a real app, we search for the latest record for this signer+appointment
-    // For now, assume it's passed or we start fresh if not found
-    // (Simulating the search logic)
+    if (!userId) return;
+
     setIsLoading(true);
-    // Subscription logic would go here
-    const q = doc(db, 'idv_records', `iv_${signerId}_${appointmentId}`); // Simplified ID
-    const unsub = onSnapshot(q, (snapshot) => {
+    
+    // Direct document reference with predictable ID
+    const docId = `idv_${signerId}_${appointmentId}`;
+    const docRef = doc(db, 'idv_records', docId);
+
+    const unsub = onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
         setRecord(snapshot.data() as IdentityVerificationRecord);
         setIsLoading(false);
@@ -67,10 +70,14 @@ export const IdentityVerificationModule: React.FC<IdentityVerificationModuleProp
         setRecord(null);
         setIsLoading(false);
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `idv_records/${docId}`);
+      setError('Identity service connection lost. Please check permissions.');
+      setIsLoading(false);
     });
 
     return () => unsub();
-  }, [signerId, appointmentId]);
+  }, [signerId, appointmentId, userId]);
 
   const handleStartVerification = async () => {
     setIsLoading(true);
@@ -157,6 +164,32 @@ export const IdentityVerificationModule: React.FC<IdentityVerificationModuleProp
       </div>
     </div>
   );
+
+  if (error) {
+    return (
+      <div className="p-12 text-center bg-rose-50 rounded-3xl border border-rose-200">
+        <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
+        <h3 className="text-lg font-bold text-rose-900">Connection Error</h3>
+        <p className="text-sm text-rose-600 mb-6">{error}</p>
+        <div className="flex justify-center gap-3">
+          <button 
+            onClick={() => { setError(null); setIsLoading(true); }}
+            className="px-6 py-2 bg-rose-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-700 transition-all"
+          >
+            Retry Connection
+          </button>
+          {onClose && (
+            <button 
+              onClick={onClose}
+              className="px-6 py-2 bg-white text-slate-600 border border-slate-200 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
