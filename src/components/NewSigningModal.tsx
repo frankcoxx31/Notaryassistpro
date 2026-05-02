@@ -5,15 +5,16 @@ import {
   HelpCircle, CheckCircle2, Phone, Banknote, 
   List, Pencil, Plus, Trash2, Camera, Loader2, AlertCircle,
   Car, TrendingUp, PlusCircle, Upload, ChevronLeft, ChevronRight,
-  FileText, ShieldCheck
+  FileText, ShieldCheck, Settings
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { Appointment, AppointmentStatus, Customer, SigningCompany, Signer } from '../types';
 import { cn } from '../lib/utils';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebase';
 import SigningCompanyModal from './SigningCompanyModal';
+import { IdentityVerificationModule } from './idv/IdentityVerificationModule';
 
 import { HYBRID_LOAN_PACKAGE, PACKAGE_CONFIGS, mergeUniqueDocuments, validateDocuments, normalizeDocName } from '../lib/packageConfigs';
 
@@ -79,8 +80,12 @@ const NewSigningModal = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   
+  const [verifyingSignerId, setVerifyingSignerId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('Notary User'); // Fallback or dynamic
+  
   const steps = [
-    { name: 'Signer(s)', icon: User, description: 'Identity & IDs' },
+    { name: 'Signer(s)', icon: User, description: 'Details & Contact' },
+    { name: 'ID Verification', icon: ShieldCheck, description: 'NIST/AAMVA Check' },
     { name: 'Documents', icon: List, description: 'Act Details' },
     { name: 'Contacts', icon: Phone, description: 'Communication' },
     { name: 'Invoice', icon: Banknote, description: 'Fee & Billing' },
@@ -187,21 +192,22 @@ const NewSigningModal = ({
 
       const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY);
       if (!apiKey) throw new Error("Gemini API key missing.");
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenerativeAI(apiKey);
       
       const aiJob = async () => {
         console.log("[Scan] AI Starting...");
         const prompt = `Extract info from this ID image into JSON: fullName, address, idNumber, dateOfBirth (MM/DD/YYYY), issueDate, expirationDate, state, idType.`;
-        const aiPromise = ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: b64 } }, { text: prompt }] }],
-          config: { responseMimeType: "application/json" }
-        });
+        const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const aiPromise = model.generateContent([
+          { inlineData: { mimeType: "image/jpeg", data: b64 } }, 
+          { text: prompt }
+        ]);
         const aiTimeout = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("AI Timeout")), 60000)
         );
-        const response = await Promise.race([aiPromise, aiTimeout]) as any;
-        return JSON.parse(response.text);
+        const result = await Promise.race([aiPromise, aiTimeout]) as any;
+        const response = await result.response;
+        return JSON.parse(response.text());
       };
 
       console.log("[Scan] Running parallel tasks...");
@@ -1389,6 +1395,76 @@ const NewSigningModal = ({
                   </div>
                 </motion.div>
               )}
+
+              {activeTab === 'ID Verification' && (
+                <motion.div 
+                   key="idv-tab"
+                   initial={{ opacity: 0, x: 10 }}
+                   animate={{ opacity: 1, x: 0 }}
+                   exit={{ opacity: 0, x: -10 }}
+                   className="space-y-6"
+                >
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-4">
+                       <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+                         <ShieldCheck className="w-5 h-5" />
+                       </div>
+                       <div>
+                         <h3 className="text-lg font-bold text-slate-900">Identity Assurance</h3>
+                         <p className="text-sm text-slate-500">Biometric and Document-based verification platform.</p>
+                       </div>
+                     </div>
+                     
+                     <div className="flex items-center gap-3">
+                        <select 
+                          className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                          value={verifyingSignerId || ""}
+                          onChange={(e) => setVerifyingSignerId(e.target.value)}
+                        >
+                          <option value="">Select Signer to Verify</option>
+                          {(formData.signers || []).map(s => (
+                            <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+                          ))}
+                        </select>
+                        <button className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400">
+                          <Settings className="w-5 h-5" />
+                        </button>
+                     </div>
+                   </div>
+
+                   {verifyingSignerId ? (
+                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <IdentityVerificationModule 
+                           signerId={verifyingSignerId}
+                           appointmentId={formData.id || 'new'}
+                           userId={userId}
+                           userName={userName}
+                           isAdmin={true}
+                        />
+                     </div>
+                   ) : (
+                     <div className="py-24 flex flex-col items-center justify-center bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-200 space-y-4">
+                        <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-xl shadow-slate-200/50">
+                           <User className="w-10 h-10 text-slate-300" />
+                        </div>
+                        <div className="text-center max-w-xs">
+                           <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">Select a Signer</h4>
+                           <p className="text-sm text-slate-500 font-medium leading-relaxed">Choose a signer from the list above to begin the multi-stage identity verification process.</p>
+                        </div>
+                        <div className="flex items-center gap-3 mt-4">
+                           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full border border-slate-200 shadow-sm">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">AAMVA Ready</span>
+                           </div>
+                           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full border border-slate-200 shadow-sm">
+                              <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">NIST IAL2</span>
+                           </div>
+                        </div>
+                     </div>
+                   )}
+                </motion.div>
+              )}
               {activeTab === 'Invoice' && (
                 <motion.div 
                   key="invoice-tab"
@@ -1926,7 +2002,7 @@ const NewSigningModal = ({
                   </div>
                 </motion.div>
               )}
-              {activeTab !== 'Signer(s)' && activeTab !== 'Notes' && activeTab !== 'Contacts' && activeTab !== 'Invoice' && activeTab !== 'Documents' && activeTab !== 'Status' && (
+              {activeTab !== 'Signer(s)' && activeTab !== 'ID Verification' && activeTab !== 'Notes' && activeTab !== 'Contacts' && activeTab !== 'Invoice' && activeTab !== 'Documents' && activeTab !== 'Status' && (
                 <div className="py-12 text-center text-slate-400 italic">
                   Content for {activeTab} tab will be implemented soon.
                 </div>

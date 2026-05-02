@@ -191,6 +191,28 @@
         "favorite": { "type": "boolean" }
       },
       "required": ["id", "userId", "companyName", "status", "createdAt", "updatedAt"]
+    },
+    "IdentityVerificationRecord": {
+      "title": "IdentityVerificationRecord",
+      "description": "Official identity verification record for a signer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "signerId": { "type": "string" },
+        "appointmentId": { "type": "string" },
+        "status": { "type": "string" },
+        "stage": { "type": "string" },
+        "documentType": { "type": "string" },
+        "extractedData": { "type": "object" },
+        "checks": { "type": "array" },
+        "frontImageUrl": { "type": "string" },
+        "backImageUrl": { "type": "string" },
+        "selfieImageUrl": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "signerId", "appointmentId", "status", "createdAt", "updatedAt", "userId"]
     }
   },
   "firestore": {
@@ -229,6 +251,10 @@
     "/signingCompanies/{companyId}": {
       "schema": "SigningCompany",
       "description": "User's signing companies database"
+    },
+    "/idv_records/{recordId}": {
+      "schema": "IdentityVerificationRecord",
+      "description": "Identity verification records"
     }
   }
 }
