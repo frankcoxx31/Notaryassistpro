@@ -26,7 +26,8 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { doc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../firebase';
 import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
 
 interface IdentityVerificationModuleProps {
@@ -91,16 +92,26 @@ export const IdentityVerificationModule: React.FC<IdentityVerificationModuleProp
     }
   };
 
-  const handleCaptureComplete = async (data: any) => {
+  const handleCaptureComplete = async (data: { front?: File, back?: File, selfie?: File, type: DocumentType }) => {
     setIsProcessing(true);
+    setError(null);
     try {
-      // 1. Upload files (MOCK for now - assuming URLs are generated or handled by component)
-      const frontUrl = "https://example.com/id-front.jpg";
-      const backUrl = data.type !== DocumentType.PASSPORT ? "https://example.com/id-back.jpg" : undefined;
-      const selfieUrl = "https://example.com/selfie.jpg";
+      // 1. Upload files to Firebase Storage
+      const uploadFile = async (file: File, suffix: string) => {
+        const path = `idv/${userId}/${signerId}_${appointmentId}_${suffix}_${Date.now()}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, file);
+        return await getDownloadURL(storageRef);
+      };
+
+      const frontUrl = data.front ? await uploadFile(data.front, 'front') : "";
+      const backUrl = (data.back && data.type !== DocumentType.PASSPORT) ? await uploadFile(data.back, 'back') : undefined;
+      const selfieUrl = data.selfie ? await uploadFile(data.selfie, 'selfie') : "";
+
+      if (!frontUrl) throw new Error("ID front image is required");
 
       // 2. Process Document (AI Extraction & Authenticity)
-      const recordId = record?.id || `iv_${signerId}_${appointmentId}`; // fallback for simulation
+      const recordId = record?.id || `idv_${signerId}_${appointmentId}`;
       await IDVService.processDocument(recordId, frontUrl, backUrl);
       
       // 3. Face Match
@@ -112,8 +123,9 @@ export const IdentityVerificationModule: React.FC<IdentityVerificationModuleProp
       }
 
       setActiveTab(VerificationStage.VALIDATION);
-    } catch (err) {
-      setError('Verification processing failed. Please try again.');
+    } catch (err: any) {
+      console.error("[IDV] Processing error:", err);
+      setError(err.message || 'Verification processing failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }

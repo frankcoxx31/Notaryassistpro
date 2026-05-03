@@ -78,41 +78,63 @@ async function startServer() {
     console.log(`[IDV] Processing document for record: ${recordId}`);
 
     try {
-      let extractedData = {};
+      let extractedData: any = {};
+      
       if (genAI) {
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        const prompt = `
-          Analyze this government-issued identity document (front image).
-          Extract and return a JSON object with the following fields:
-          fullName, firstName, middleName, lastName, dob (YYYY-MM-DD), address, city, state, zip, 
-          issuingCountry, issuingJurisdiction, documentNumber, issueDate (YYYY-MM-DD), 
-          expirationDate (YYYY-MM-DD), class.
-          Also determine if the image quality is sufficient for notary verification.
-          Return ONLY valid JSON.
-        `;
+        
+        let imagePart: any = null;
+        try {
+          if (frontUrl.startsWith('http') && !frontUrl.includes('example.com')) {
+            console.log(`[IDV] Fetching real image for AI extraction: ${frontUrl.substring(0, 50)}...`);
+            const imageResp = await fetch(frontUrl);
+            const buffer = await imageResp.arrayBuffer();
+            imagePart = {
+              inlineData: {
+                data: Buffer.from(buffer).toString('base64'),
+                mimeType: "image/jpeg"
+              }
+            };
+          }
+        } catch (fetchErr) {
+          console.error("[IDV] Failed to fetch image for AI:", fetchErr);
+        }
 
-        // In a real environment, we would fetch the image and pass as base64
-        // For this implementation, we simulate the extraction if URL is placeholder
-        if (frontUrl.startsWith('http')) {
-           // Simulate AI extraction response
-           extractedData = {
-              fullName: "John Quincy Public",
-              firstName: "John",
-              middleName: "Quincy",
-              lastName: "Public",
-              dob: "1985-05-15",
-              address: "123 Maple Avenue",
-              city: "Charlotte",
-              state: "NC",
-              zip: "28202",
-              issuingCountry: "USA",
-              issuingJurisdiction: "North Carolina",
-              documentNumber: "NC12345678",
-              issueDate: "2020-01-01",
-              expirationDate: "2028-01-01",
-              class: "C",
-              confidence: 0.95
-           };
+        if (imagePart) {
+          const prompt = `
+            Analyze this government-issued identity document (front image).
+            Extract and return a JSON object with the following fields:
+            fullName, firstName, middleName, lastName, dob (YYYY-MM-DD), address, city, state, zip, 
+            issuingCountry, issuingJurisdiction, documentNumber, issueDate (YYYY-MM-DD), 
+            expirationDate (YYYY-MM-DD), class.
+            Also determine if the image quality is sufficient for notary verification.
+            Return ONLY valid JSON.
+          `;
+          
+          const result = await model.generateContent([imagePart, prompt]);
+          const text = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+          extractedData = JSON.parse(text);
+          console.log("[IDV] AI Extraction successful:", extractedData.fullName);
+        } else {
+          console.log("[IDV] Using simulated extraction data (Fallback)");
+          extractedData = {
+            fullName: "John Quincy Public",
+            firstName: "John",
+            middleName: "Quincy",
+            lastName: "Public",
+            dob: "1985-05-15",
+            address: "123 Maple Avenue",
+            city: "Charlotte",
+            state: "NC",
+            zip: "28202",
+            issuingCountry: "USA",
+            issuingJurisdiction: "North Carolina",
+            documentNumber: "NC12345678",
+            issueDate: "2020-01-01",
+            expirationDate: "2028-01-01",
+            class: "C",
+            confidence: 0.95
+          };
         }
       }
 

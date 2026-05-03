@@ -147,90 +147,39 @@ const NewSigningModal = ({
     setScanSuccess(false);
 
     try {
-      // Helper to compress image
-      const compressImage = async (imgFile: File): Promise<Blob> => {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.src = URL.createObjectURL(imgFile);
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            const MAX_SIZE = 1200;
-            let w = img.width, h = img.height;
-            if (w > h) { if (w > MAX_SIZE) { h *= MAX_SIZE / w; w = MAX_SIZE; } } 
-            else { if (h > MAX_SIZE) { w *= MAX_SIZE / h; h = MAX_SIZE; } }
-            canvas.width = w; canvas.height = h;
-            const ctx = canvas.getContext("2d");
-            ctx?.drawImage(img, 0, 0, w, h);
-            canvas.toBlob(b => b ? resolve(b) : reject("Blob fail"), "image/jpeg", 0.7);
-          };
-          img.onerror = () => reject("Img fail");
-        });
-      };
-
-      console.log("[Scan] Preparing image...");
-      const [compBlob, b64] = await Promise.all([
-        compressImage(file).catch(() => file),
-        new Promise<string>((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res((r.result as string).split(",")[1]);
-          r.onerror = rej;
-          r.readAsDataURL(file);
-        })
-      ]);
-
-      console.log("[Scan] Image prepared. Size:", (compBlob as Blob).size);
-
+      // 1. Upload file to Firebase Storage
       const tks = Date.now();
       const path = `scan-images/${userId}/${tks}-${file.name.replace(/[^a-z0-9.]/gi, "_")}`;
       const sRef = ref(storage, path);
-
-      const uploadJob = async () => {
-        console.log("[Scan] Uploading...");
-        await Promise.race([uploadBytes(sRef, compBlob as Blob), new Promise((_, r) => setTimeout(() => r("Upload Timeout"), 60000))]);
-        return await getDownloadURL(sRef);
-      };
-
-      const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY);
-      if (!apiKey) throw new Error("Gemini API key missing.");
-      const ai = new GoogleGenerativeAI(apiKey);
       
-      const aiJob = async () => {
-        console.log("[Scan] AI Starting...");
-        const prompt = `Extract info from this ID image into JSON: fullName, address, idNumber, dateOfBirth (MM/DD/YYYY), issueDate, expirationDate, state, idType.`;
-        const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const aiPromise = model.generateContent([
-          { inlineData: { mimeType: "image/jpeg", data: b64 } }, 
-          { text: prompt }
-        ]);
-        const aiTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("AI Timeout")), 60000)
-        );
-        const result = await Promise.race([aiPromise, aiTimeout]) as any;
-        const response = await result.response;
-        return JSON.parse(response.text());
-      };
+      console.log("[Scan] Uploading to storage...");
+      await uploadBytes(sRef, file);
+      const downloadURL = await getDownloadURL(sRef);
+      console.log("[Scan] Upload complete. URL:", downloadURL);
 
-      console.log("[Scan] Running parallel tasks...");
-      const [aiRes, upRes] = await Promise.allSettled([aiJob(), uploadJob()]);
+      // 2. Call backend for extraction
+      console.log("[Scan] Requesting server-side extraction...");
+      const response = await fetch('/api/idv/process-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recordId: `scan_${tks}`, frontUrl: downloadURL })
+      });
 
-      if (aiRes.status === "rejected") throw new Error(`AI Extraction failed: ${aiRes.reason}`);
-      const result = aiRes.value;
-      const downloadURL = upRes.status === "fulfilled" ? upRes.value : undefined;
-
-      if (!downloadURL) {
-        console.warn("[Scan] Extraction worked but storage failed.");
+      if (!response.ok) {
+        throw new Error("Server extraction failed.");
       }
 
-      console.log("[Scan] AI Parsed Result:", result);
+      const { extractedData: result } = await response.json();
+      console.log("[Scan] Server Extraction successful:", result);
       
-      if (result.fullName) {
+      if (result && result.fullName) {
         // Parse address to extract city, state, zip
         const addrParts = (result.address || "").split(',').map((p: string) => p.trim());
-        let city = "";
+        let city = result.city || "";
         let state = result.state || "";
-        let zip = "";
+        let zip = result.zip || "";
         
-        if (addrParts.length > 1) {
+        if (!city && addrParts.length > 1) {
           city = addrParts[1];
           const zipMatch = city.match(/\d{5}(-\d{4})?$/);
           if (zipMatch) {
@@ -239,8 +188,8 @@ const NewSigningModal = ({
           }
         }
 
-        const firstName = result.fullName.split(' ')[0] || "";
-        const lastName = result.fullName.split(' ').slice(1).join(' ') || "";
+        const firstName = result.firstName || result.fullName.split(' ')[0] || "";
+        const lastName = result.lastName || result.fullName.split(' ').slice(1).join(' ') || "";
 
         setFormData(prev => {
           const updatedSigners = [...(prev.signers || [])];
@@ -249,13 +198,13 @@ const NewSigningModal = ({
           const signerData = {
             firstName,
             lastName,
-            address: addrParts[0] || "",
+            address: result.address || addrParts[0] || "",
             city: city,
             state: state,
             zip: zip,
             idType: result.idType || updatedSigners[signerIndex]?.idType || "NC Driver's License",
-            idNumber: result.idNumber,
-            dob: formatDateForInput(result.dateOfBirth),
+            idNumber: result.idNumber || result.documentNumber,
+            dob: formatDateForInput(result.dateOfBirth || result.dob),
             idIssueDate: formatDateForInput(result.issueDate),
             idExpiration: formatDateForInput(result.expirationDate),
             idImageUrl: downloadURL || undefined
@@ -275,15 +224,15 @@ const NewSigningModal = ({
               clientName: result.fullName,
               firstName,
               lastName,
-              address: addrParts[0] || "",
+              address: result.address || addrParts[0] || "",
               city,
               state,
               zip,
               idType: result.idType || "NC Driver's License",
               idImageUrl: downloadURL || undefined,
               location: result.address,
-              idNumber: result.idNumber,
-              dob: formatDateForInput(result.dateOfBirth),
+              idNumber: result.idNumber || result.documentNumber,
+              dob: formatDateForInput(result.dateOfBirth || result.dob),
               idIssueDate: formatDateForInput(result.issueDate),
               idExpiration: formatDateForInput(result.expirationDate)
             } : {})
@@ -293,17 +242,11 @@ const NewSigningModal = ({
         setScanSuccess(true);
         console.log("[Scan] Success: Data extracted and image saved.");
       } else {
-        throw new Error("AI could not extract enough information from the image. Please try again or enter manually.");
+        throw new Error("AI could not extract enough information from the image.");
       }
     } catch (error: any) {
       console.error("[Scan] Error:", error);
-      let errorMessage = "An error occurred while scanning the license.";
-      if (error.message && error.message.includes('permission')) {
-        errorMessage = "Permission denied. Please check Firebase Storage rules.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      setScanError(errorMessage);
+      setScanError(error.message || "An error occurred while scanning the license.");
     } finally {
       setIsScanning(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
