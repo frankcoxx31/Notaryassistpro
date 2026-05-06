@@ -144,9 +144,53 @@ service cloud.firestore {
              data.status is string;
     }
 
+    function isMarketingOwner() {
+      return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == resource.data.ownerId;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
+    match /subscribers/{id} {
+      allow read, delete: if isMarketingOwner();
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+    }
+
+    match /marketingSegments/{id} {
+      allow read, delete: if isMarketingOwner();
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+    }
+
+    match /marketingCampaigns/{id} {
+      allow read, delete: if isMarketingOwner();
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+    }
+
+    match /marketingTemplates/{id} {
+      allow read, delete: if isMarketingOwner();
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+    }
+
+    match /marketingAutomations/{id} {
+      allow read, delete: if isMarketingOwner();
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+    }
+
+    match /emailEvents/{id} {
+      allow read: if isMarketingOwner();
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    match /outboundEmailQueue/{id} {
+      allow read, delete: if isMarketingOwner();
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+    }
+
     match /appointments/{appointmentId} {
       allow get: if isDocOwner();
       allow list: if isDocOwner();

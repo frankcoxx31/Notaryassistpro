@@ -213,6 +213,54 @@
         "userId": { "type": "string" }
       },
       "required": ["id", "signerId", "appointmentId", "status", "createdAt", "updatedAt", "userId"]
+    },
+    "Subscriber": {
+      "title": "Subscriber",
+      "description": "An email marketing subscriber",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "email": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "companyName": { "type": "string" },
+        "contactType": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "serviceInterests": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["active", "unsubscribed", "bounced", "suppressed"] },
+        "source": { "type": "string" },
+        "preferredFrequency": { "type": "string" },
+        "emailOptIn": { "type": "boolean" },
+        "smsOptIn": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "lastBookedAt": { "type": "string" },
+        "lastEmailedAt": { "type": "string" },
+        "lastOpenedAt": { "type": "string" },
+        "lastClickedAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "ownerId", "email", "firstName", "lastName", "fullName", "status", "createdAt", "updatedAt"]
+    },
+    "MarketingCampaign": {
+      "title": "MarketingCampaign",
+      "description": "An email marketing campaign",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "subject": { "type": "string" },
+        "templateId": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "scheduled", "sending", "sent", "canceled"] },
+        "metrics": { "type": "object" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "ownerId", "name", "subject", "status", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -255,6 +303,14 @@
     "/idv_records/{recordId}": {
       "schema": "IdentityVerificationRecord",
       "description": "Identity verification records"
+    },
+    "/subscribers/{subscriberId}": {
+      "schema": "Subscriber",
+      "description": "Marketing subscribers"
+    },
+    "/marketingCampaigns/{campaignId}": {
+      "schema": "MarketingCampaign",
+      "description": "Marketing email campaigns"
     }
   }
 }

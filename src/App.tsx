@@ -134,6 +134,7 @@ import NewCustomerModal from './components/NewCustomerModal';
 import SigningCompanyModal from './components/SigningCompanyModal';
 import SigningCompaniesPage from './components/SigningCompaniesPage';
 import LawsLookup from './components/LawsLookup';
+import MarketingView from './components/marketing/MarketingView';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -3104,8 +3105,7 @@ const Sidebar = ({
         { name: 'New Signing', icon: PlusCircle, path: '#', onClick: onNewSigning },
       ]
     },
-    { 
-      name: 'NC Journal', 
+    { name: 'NC Journal', 
       icon: PenLine, 
       path: '/journal',
       isOpen: isJournalOpen,
@@ -3115,6 +3115,7 @@ const Sidebar = ({
         { name: 'New Entry', icon: PlusCircle, path: '#', onClick: onNewJournalEntry },
       ]
     },
+    { name: 'Marketing', icon: Mail, path: '/marketing' },
     { name: 'Calendar', icon: Calendar, path: '/calendar' },
     { name: 'Customers', icon: Users, path: '/customers' },
     { name: 'Signing Companies', icon: Building2, path: '/companies' },
@@ -7099,6 +7100,7 @@ export default function App() {
                 />
               } 
             />
+            <Route path="/marketing" element={<MarketingView />} />
             <Route 
               path="/mileage" 
               element={

@@ -1,9 +1,59 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 export interface AiResearchResult {
   answer: string;
   citations: { title: string; url: string }[];
   officialStateLink?: string;
+}
+
+/**
+ * Generates an email template based on a user's prompt.
+ */
+export async function generateEmailTemplate(prompt: string): Promise<{ name: string; htmlContent: string; category: string }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("AI Designer is not configured. Please add GEMINI_API_KEY to your environment variables.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  const result = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Generate a professional email template for a Notary Signing Agent business. 
+    User Request: "${prompt}"
+    
+    The template should be responsive, modern, and high-quality HTML.
+    Use placeholders like {{firstName}} for the recipient's first name.
+    
+    Return a JSON object with:
+    1. name: A short, descriptive name for the template.
+    2. htmlContent: The full HTML string for the email.
+    3. category: One of "Marketing", "Transactional", "Follow-up", or "Custom".`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          htmlContent: { type: Type.STRING },
+          category: { type: Type.STRING }
+        },
+        required: ["name", "htmlContent", "category"]
+      }
+    }
+  });
+
+  try {
+    const text = result.text || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    throw new Error("Could not parse AI response");
+  } catch (error) {
+    console.error("AI Template Generation Error:", error);
+    throw new Error("Failed to generate template structure");
+  }
 }
 
 /**
