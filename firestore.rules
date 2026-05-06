@@ -33,15 +33,15 @@ service cloud.firestore {
     // Helper Functions
     // ===============================================================
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email_verified == true;
     }
 
     function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+      return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == userId;
     }
 
     function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.userId;
+      return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == resource.data.userId;
     }
 
     function uidUnchanged() {
@@ -67,6 +67,12 @@ service cloud.firestore {
     // ===============================================================
     function isValidAppointment(data) {
       return hasRequiredFields(['id', 'date', 'time', 'signingType', 'location', 'status', 'userId']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.date is string && data.date.size() > 0 &&
+             data.time is string && data.time.size() > 0 &&
+             data.signingType is string && data.signingType.size() > 0 &&
+             data.location is string && data.location.size() > 0 &&
+             data.userId == request.auth.uid &&
              (data.clientName is string || data.customerName is string) &&
              data.status in ['Scheduled', 'Completed', 'Paid', 'Cancelled', 'No Show'] &&
              (!('fee' in data) || data.fee is number) &&
@@ -142,42 +148,48 @@ service cloud.firestore {
     // Rules
     // ===============================================================
     match /appointments/{appointmentId} {
-      allow read: if isDocOwner();
-      allow create: if isAuthenticated() && isValidAppointment(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow get: if isDocOwner();
+      allow list: if isDocOwner();
+      allow create: if isAuthenticated() && isValidAppointment(request.resource.data);
       allow update: if isDocOwner() && isValidAppointment(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();
     }
 
     match /signingCompanies/{companyId} {
-      allow read: if isDocOwner();
+      allow get: if isDocOwner();
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated() && isValidSigningCompany(request.resource.data) && request.resource.data.userId == request.auth.uid;
       allow update: if isDocOwner() && isValidSigningCompany(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();
     }
 
     match /clients/{clientId} {
-      allow read: if isDocOwner();
+      allow get: if isDocOwner();
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated() && isValidClient(request.resource.data) && request.resource.data.userId == request.auth.uid;
       allow update: if isDocOwner() && isValidClient(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();
     }
 
     match /customers/{customerId} {
-      allow read: if isDocOwner();
+      allow get: if isDocOwner();
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated() && isValidCustomer(request.resource.data) && request.resource.data.userId == request.auth.uid;
       allow update: if isDocOwner() && isValidCustomer(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();
     }
 
     match /expenses/{expenseId} {
-      allow read: if isDocOwner();
+      allow get: if isDocOwner();
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated() && isValidExpense(request.resource.data) && request.resource.data.userId == request.auth.uid;
       allow update: if isDocOwner() && isValidExpense(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();
     }
 
     match /mileage/{mileageId} {
-      allow read: if isDocOwner();
+      allow get: if isDocOwner();
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated() && isValidMileage(request.resource.data) && request.resource.data.userId == request.auth.uid;
       allow update: if isDocOwner() && isValidMileage(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner();

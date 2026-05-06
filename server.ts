@@ -107,14 +107,26 @@ async function startServer() {
             fullName, firstName, middleName, lastName, dob (YYYY-MM-DD), address, city, state, zip, 
             issuingCountry, issuingJurisdiction, documentNumber, issueDate (YYYY-MM-DD), 
             expirationDate (YYYY-MM-DD), class.
-            Also determine if the image quality is sufficient for notary verification.
-            Return ONLY valid JSON.
+            
+            Strictly follow these rules:
+            1. Return ONLY valid JSON.
+            2. If a field is not found, use null or empty string.
+            3. Do not include markdown formatting or extra text.
+            4. Verify the document is not expired.
           `;
           
-          const result = await model.generateContent([imagePart, prompt]);
-          const text = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-          extractedData = JSON.parse(text);
-          console.log("[IDV] AI Extraction successful:", extractedData.fullName);
+          const result = await model.generateContent({
+             contents: [{ role: "user", parts: [imagePart, { text: prompt }] }],
+             generationConfig: {
+               responseMimeType: "application/json"
+             }
+          });
+          
+          const text = result.response.text().trim();
+          // Clean common markdown issues
+          const cleanedText = text.replace(/^```json/i, '').replace(/```$/i, '').trim();
+          extractedData = JSON.parse(cleanedText);
+          console.log("[IDV] AI Extraction successful:", extractedData.fullName || extractedData.firstName || "Unnamed Document");
         } else {
           console.log("[IDV] Using simulated extraction data (Fallback)");
           extractedData = {

@@ -172,7 +172,11 @@ const NewSigningModal = ({
       const { extractedData: result } = await response.json();
       console.log("[Scan] Server Extraction successful:", result);
       
-      if (result && result.fullName) {
+      if (result && (result.fullName || result.firstName || result.lastName)) {
+        const fullName = result.fullName || `${result.firstName || ""} ${result.lastName || ""}`.trim();
+        const firstName = result.firstName || fullName.split(' ')[0] || "";
+        const lastName = result.lastName || fullName.split(' ').slice(1).join(' ') || "";
+
         // Parse address to extract city, state, zip
         const addrParts = (result.address || "").split(',').map((p: string) => p.trim());
         let city = result.city || "";
@@ -188,9 +192,6 @@ const NewSigningModal = ({
           }
         }
 
-        const firstName = result.firstName || result.fullName.split(' ')[0] || "";
-        const lastName = result.lastName || result.fullName.split(' ').slice(1).join(' ') || "";
-
         setFormData(prev => {
           const updatedSigners = [...(prev.signers || [])];
           const signerIndex = updatedSigners.findIndex(s => s.id === editingSignerId);
@@ -199,14 +200,14 @@ const NewSigningModal = ({
             firstName,
             lastName,
             address: result.address || addrParts[0] || "",
-            city: city,
-            state: state,
-            zip: zip,
-            idType: result.idType || updatedSigners[signerIndex]?.idType || "NC Driver's License",
-            idNumber: result.idNumber || result.documentNumber,
-            dob: formatDateForInput(result.dateOfBirth || result.dob),
-            idIssueDate: formatDateForInput(result.issueDate),
-            idExpiration: formatDateForInput(result.expirationDate),
+            city: result.city || city,
+            state: result.state || state,
+            zip: result.zip || zip,
+            idType: result.idType || (signerIndex !== -1 ? updatedSigners[signerIndex]?.idType : undefined) || "NC Driver's License",
+            idNumber: result.idNumber || result.documentNumber || "",
+            dob: formatDateForInput(result.dateOfBirth || result.dob || ""),
+            idIssueDate: formatDateForInput(result.issueDate || ""),
+            idExpiration: formatDateForInput(result.expirationDate || ""),
             idImageUrl: downloadURL || undefined
           };
 
@@ -221,32 +222,25 @@ const NewSigningModal = ({
             signers: updatedSigners,
             customerName: updateSignerSummary(updatedSigners),
             ...(isFirstSigner ? {
-              clientName: result.fullName,
+              clientName: fullName,
               firstName,
               lastName,
               address: result.address || addrParts[0] || "",
-              city,
-              state,
-              zip,
-              idType: result.idType || "NC Driver's License",
-              idImageUrl: downloadURL || undefined,
-              location: result.address,
-              idNumber: result.idNumber || result.documentNumber,
-              dob: formatDateForInput(result.dateOfBirth || result.dob),
-              idIssueDate: formatDateForInput(result.issueDate),
-              idExpiration: formatDateForInput(result.expirationDate)
+              city: result.city || city,
+              state: result.state || state,
+              zip: result.zip || zip
             } : {})
           };
         });
 
         setScanSuccess(true);
-        console.log("[Scan] Success: Data extracted and image saved.");
+        setTimeout(() => setScanSuccess(false), 3000);
       } else {
-        throw new Error("AI could not extract enough information from the image.");
+        throw new Error("AI could not extract enough information. Please ensure the image is clear and try again.");
       }
-    } catch (error: any) {
-      console.error("[Scan] Error:", error);
-      setScanError(error.message || "An error occurred while scanning the license.");
+    } catch (err: any) {
+      console.error("[Scan] Full error details:", err);
+      setScanError(err.message || "An unexpected error occurred while scanning.");
     } finally {
       setIsScanning(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

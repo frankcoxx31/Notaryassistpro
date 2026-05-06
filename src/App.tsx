@@ -182,11 +182,15 @@ const parseSafeDateTime = (dateStr: string, timeStr: string = ''): Date => {
   try {
     if (!dateStr) return new Date();
     
+    // Trim and normalize
+    const dStr = dateStr.trim();
+    const tStr = timeStr.trim();
+
     let year = 0, month = 0, day = 0;
     
     // Handle YYYY-MM-DD
-    if (dateStr.includes('-')) {
-      const parts = dateStr.split('-');
+    if (dStr.includes('-')) {
+      const parts = dStr.split('-');
       if (parts.length === 3) {
         year = parseInt(parts[0], 10);
         month = parseInt(parts[1], 10) - 1;
@@ -194,8 +198,8 @@ const parseSafeDateTime = (dateStr: string, timeStr: string = ''): Date => {
       }
     } 
     // Handle M/D/YYYY or MM/DD/YYYY
-    else if (dateStr.includes('/')) {
-      const parts = dateStr.split('/');
+    else if (dStr.includes('/')) {
+      const parts = dStr.split('/');
       if (parts.length === 3) {
         month = parseInt(parts[0], 10) - 1;
         day = parseInt(parts[1], 10);
@@ -205,21 +209,21 @@ const parseSafeDateTime = (dateStr: string, timeStr: string = ''): Date => {
     }
     // Handle "April 6, 2026" or "April 06, 2026 1:30 PM"
     else {
-      const dateMatch = dateStr.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/);
+      const dateMatch = dStr.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/);
       if (dateMatch) {
         const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
         month = monthNames.findIndex(m => dateMatch[1].toLowerCase().startsWith(m));
         day = parseInt(dateMatch[2], 10);
         year = parseInt(dateMatch[3], 10);
       } else {
-        const d = new Date(dateStr);
+        const d = new Date(dStr);
         if (!isNaN(d.getTime())) return d;
       }
     }
 
     let hours = 0, minutes = 0;
-    if (timeStr) {
-      const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (tStr) {
+      const timeMatch = tStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
       if (timeMatch) {
         hours = parseInt(timeMatch[1], 10);
         minutes = parseInt(timeMatch[2], 10);
@@ -228,8 +232,8 @@ const parseSafeDateTime = (dateStr: string, timeStr: string = ''): Date => {
         if (ampm === 'AM' && hours === 12) hours = 0;
       }
     } else {
-      // Check if time is in dateStr
-      const timeMatch = dateStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      // Check if time is in dStr
+      const timeMatch = dStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
       if (timeMatch) {
         hours = parseInt(timeMatch[1], 10);
         minutes = parseInt(timeMatch[2], 10);
@@ -239,10 +243,15 @@ const parseSafeDateTime = (dateStr: string, timeStr: string = ''): Date => {
       }
     }
 
-    if (year === 0) return new Date(dateStr);
+    if (year === 0 || isNaN(year)) {
+      const fallback = new Date(dateStr);
+      return isNaN(fallback.getTime()) ? new Date() : fallback;
+    }
+    
     return new Date(year, month, day, hours, minutes);
   } catch (e) {
-    return new Date(dateStr);
+    console.error(`[Parse] Failed to parse date/time: "${dateStr}" / "${timeStr}":`, e);
+    return new Date();
   }
 };
 
@@ -263,7 +272,7 @@ const sanitizeData = (data: any): any => {
   const sanitized: any = {};
   Object.keys(data).forEach((key) => {
     const value = data[key];
-    if (value !== undefined) {
+    if (value !== undefined && value !== null) {
       sanitized[key] = sanitizeData(value);
     }
   });
@@ -486,15 +495,48 @@ const parsePDFWithAI = async (file: File, userId: string): Promise<Appointment[]
         const now = new Date();
         const dateStr = format(now, 'yyyyMMdd');
         const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase();
-        const appointment = {
+        
+        // Coerce types for Firestore safety
+        const feeNum = typeof item.fee === 'string' 
+          ? parseFloat(item.fee.replace(/[^0-9.]/g, '')) 
+          : (typeof item.fee === 'number' ? item.fee : 0);
+          
+        const appointment: any = {
           ...item,
           id: Math.random().toString(36).substr(2, 9),
           userId: userId,
+          date: item.date || format(now, 'yyyy-MM-dd'),
+          time: item.time || '12:00 PM',
+          signingType: item.signingType || 'Loan Signing',
+          location: item.location || 'TBD',
+          clientName: item.clientName || item.customerName || 'Unknown Client',
           status: item.status || 'Scheduled',
-          sortableDateTime: parseSafeDateTime(item.date, item.time).toISOString(),
-          invoiceNumber: item.invoiceNumber || `INV-${dateStr}-${randomStr}`,
+          fee: isNaN(feeNum) ? 0 : feeNum,
+          agreedFee: isNaN(feeNum) ? 0 : feeNum,
           docs: item.docs || []
         };
+
+        // Ensure status is valid for Firestore rules
+        const validStatuses = ['Scheduled', 'Completed', 'Paid', 'Cancelled', 'No Show'];
+        if (!validStatuses.includes(appointment.status)) {
+          appointment.status = 'Scheduled';
+        }
+
+        // Clean up any nulls that might have come from item spread
+        ['date', 'time', 'signingType', 'location', 'clientName', 'status'].forEach(field => {
+          if (appointment[field] === null || appointment[field] === undefined) {
+            if (field === 'clientName') appointment[field] = 'Unknown Client';
+            else if (field === 'status') appointment[field] = 'Scheduled';
+            else if (field === 'signingType') appointment[field] = 'Loan Signing';
+            else if (field === 'location') appointment[field] = 'TBD';
+            else if (field === 'date') appointment[field] = format(now, 'yyyy-MM-dd');
+            else if (field === 'time') appointment[field] = '12:00 PM';
+          }
+        });
+
+        // Generate sortableDateTime AFTER merging item and defaults
+        appointment.sortableDateTime = parseSafeDateTime(appointment.date, appointment.time).toISOString();
+        appointment.invoiceNumber = item.invoiceNumber || appointment.invoiceNumber || `INV-${dateStr}-${randomStr}`;
 
         // Normalize docs if package type is recognized
         if (appointment.docs) {
@@ -608,8 +650,12 @@ function handleFirestoreError(error: any, operationType: OperationType, path: st
     operationType,
     path
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.error('[Firestore Error Details]:', JSON.stringify(errInfo, null, 2));
+  
+  // Don't throw for LIST operations to avoid crashing the listening cycle
+  if (operationType !== OperationType.LIST) {
+     throw new Error(JSON.stringify(errInfo));
+  }
 }
 
 // --- Components ---
@@ -2372,7 +2418,7 @@ const SettingsView = ({
           try {
             const newAppointments = await parsePDFWithAI(file, userId);
             if (newAppointments.length > 0) {
-              onImport(newAppointments);
+              await onImport(newAppointments);
               alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
             } else {
               alert('Could not find any valid signing records in the PDF file.');
@@ -4397,7 +4443,7 @@ const Appointments = ({
   ];
 
   // Filter state
-  const [dateFilter, setDateFilter] = useState(searchParams.get('date') || 'This year');
+  const [dateFilter, setDateFilter] = useState(searchParams.get('date') || 'All');
   const [companyFilter, setCompanyFilter] = useState(searchParams.get('company') || searchParams.get('customer') || 'All Companies');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'All');
   const [workTypeFilter, setWorkTypeFilter] = useState(searchParams.get('type') || 'All Types of work');
@@ -4935,7 +4981,7 @@ const Appointments = ({
           try {
             const newAppointments = await parsePDFWithAI(file, userId);
             if (newAppointments.length > 0) {
-              onImport(newAppointments);
+              await onImport(newAppointments);
               alert(`Successfully imported ${newAppointments.length} signings from ${file.name}.`);
             } else {
               alert('Could not find any valid signing records in the PDF file.');
@@ -6255,28 +6301,52 @@ export default function App() {
     console.log('Starting Firestore listeners for:', user.uid);
     const qAppointments = query(collection(db, 'appointments'), where('userId', '==', user.uid));
     const unsubAppointments = onSnapshot(qAppointments, (snapshot: any) => {
-      setAppointments(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Appointment)));
-    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'appointments'));
+      console.log(`[Snap] Appointments update received: ${snapshot.size} docs. IDs: ${snapshot.docs.map((d: any) => d.id).join(', ')}`);
+      const apps = snapshot.docs.map((doc: any) => {
+         const data = doc.data();
+         return { ...data, id: doc.id } as Appointment;
+      });
+      setAppointments(apps);
+    }, (error: any) => {
+      console.error('[Snap Error] appointments:', error.code, error.message);
+      handleFirestoreError(error, OperationType.LIST, 'appointments');
+    });
 
     const qCustomers = query(collection(db, 'customers'), where('userId', '==', user.uid));
     const unsubCustomers = onSnapshot(qCustomers, (snapshot: any) => {
+      console.log(`[Snap] Customers update received: ${snapshot.size} docs`);
       setCustomers(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Customer)));
-    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'customers'));
+    }, (error: any) => {
+      console.error('[Snap Error] customers:', error.code, error.message);
+      handleFirestoreError(error, OperationType.LIST, 'customers');
+    });
 
     const qCompanies = query(collection(db, 'signingCompanies'), where('userId', '==', user.uid));
     const unsubCompanies = onSnapshot(qCompanies, (snapshot: any) => {
+      console.log(`[Snap] Companies update received: ${snapshot.size} docs`);
       setCompanies(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as SigningCompany)));
-    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'signingCompanies'));
+    }, (error: any) => {
+      console.error('[Snap Error] signingCompanies:', error.code, error.message);
+      handleFirestoreError(error, OperationType.LIST, 'signingCompanies');
+    });
 
     const qExpenses = query(collection(db, 'expenses'), where('userId', '==', user.uid));
     const unsubExpenses = onSnapshot(qExpenses, (snapshot: any) => {
+      console.log(`[Snap] Expenses update received: ${snapshot.size} docs`);
       setExpenses(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Expense)));
-    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'expenses'));
+    }, (error: any) => {
+      console.error('[Snap Error] expenses:', error.code, error.message);
+      handleFirestoreError(error, OperationType.LIST, 'expenses');
+    });
 
     const qMileage = query(collection(db, 'mileage'), where('userId', '==', user.uid));
     const unsubMileage = onSnapshot(qMileage, (snapshot: any) => {
+      console.log(`[Snap] Mileage update received: ${snapshot.size} docs`);
       setMileage(snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Mileage)));
-    }, (error: any) => handleFirestoreError(error, OperationType.LIST, 'mileage'));
+    }, (error: any) => {
+      console.error('[Snap Error] mileage:', error.code, error.message);
+      handleFirestoreError(error, OperationType.LIST, 'mileage');
+    });
 
     const unsubProfile = onSnapshot(doc(db, 'profiles', user.uid), (doc: any) => {
       if (doc.exists()) {
@@ -6800,6 +6870,7 @@ export default function App() {
 
   const handleImport = async (newApps: Appointment[]) => {
     if (isDemoUser || !user) {
+      console.log('[Import] Demo user detected, saving to demo storage');
       const current = demoStorage.getAppointments();
       const updated = [...current, ...newApps];
       demoStorage.saveAppointments(updated);
@@ -6808,13 +6879,25 @@ export default function App() {
     }
 
     try {
+      console.log(`[Import] Attempting to import ${newApps.length} signings to Firestore for user: ${user.uid}`);
       const batch = writeBatch(db);
       newApps.forEach(app => {
-        const appData = { ...app, userId: user.uid };
-        batch.set(doc(db, 'appointments', app.id), appData);
+        // Ensure every app has a userId and is sanitized
+        const appData = sanitizeData({ 
+          ...app, 
+          userId: user.uid,
+          sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
+        });
+        
+        const docRef = doc(db, 'appointments', app.id);
+        console.log(`[Import] Adding to batch: ${app.id} (${app.clientName || app.customerName})`);
+        batch.set(docRef, appData);
       });
+      
       await batch.commit();
+      console.log('[Import] Batch commit successful');
     } catch (error) {
+      console.error('[Import Error]:', error);
       handleFirestoreError(error, OperationType.WRITE, 'appointments-import');
     }
   };
