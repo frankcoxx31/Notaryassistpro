@@ -31,9 +31,6 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
   const rootDir = process.cwd();
 
-  // Initialize variables inside startServer to avoid top-level crashes
-  let oauth2Client: any;
-
   // Setup Service Account Auth globally if available
   let serviceAccountAuth: any;
   if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
@@ -51,20 +48,37 @@ async function startServer() {
     }
   }
 
-    try {
-      console.log("Setting up Google OAuth client...");
-      if (process.env.GOOGLE_CLIENT_ID) {
-        oauth2Client = new google.auth.OAuth2(
-          process.env.GOOGLE_CLIENT_ID,
-          process.env.GOOGLE_CLIENT_SECRET,
-          process.env.GOOGLE_REDIRECT_URI
-        );
-      } else {
-        console.warn("GOOGLE_CLIENT_ID is missing from environment variables.");
-      }
-    } catch (error) {
-      console.error("Google OAuth initialization error:", error);
+  // Setup Google OAuth client
+  function getOAuth2Client(req?: express.Request) {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    
+    if (!clientId || !clientSecret) {
+      return null;
     }
+
+    // Construct redirect URI dynamically
+    // Priority: 1. GOOGLE_REDIRECT_URI env, 2. APP_URL env, 3. origin header
+    let redirectUri = process.env.GOOGLE_REDIRECT_URI;
+    
+    if (!redirectUri && process.env.APP_URL) {
+      redirectUri = `${process.env.APP_URL.replace(/\/$/, '')}/api/auth/google/callback`;
+    }
+    
+    if (!redirectUri && req) {
+      const origin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
+      redirectUri = `${origin}/api/auth/google/callback`;
+    }
+
+    if (!redirectUri) {
+      // Last resort fallback for local dev if APP_URL is missing
+      redirectUri = "http://localhost:3000/api/auth/google/callback";
+    }
+
+    console.log(`[OAuth] Using redirect URI: ${redirectUri}`);
+
+    return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  }
 
   app.use(compression());
   app.use(express.json());
@@ -218,10 +232,11 @@ async function startServer() {
   // Health check should be very robust
   app.get("/api/health", (req, res) => {
     console.log("Health check request received");
+    const testOauth = getOAuth2Client(req);
     res.json({ 
       status: "ok", 
       time: new Date().toISOString(),
-      googleInit: !!oauth2Client,
+      googleInit: !!testOauth,
       serviceAccountInit: !!serviceAccountAuth,
       serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null
     });
@@ -230,11 +245,12 @@ async function startServer() {
   // --- Google Calendar OAuth ---
   app.get("/api/auth/google", (req, res) => {
     const { uid } = req.query;
-    if (!uid) return res.status(400).send("UID required");
+    if (!uid) return res.status(400).json({ error: "UID required" });
 
-    if (!oauth2Client) {
+    const client = getOAuth2Client(req);
+    if (!client) {
       console.error("Google OAuth client not initialized. Check your environment variables.");
-      return res.status(503).send("Google Calendar integration is not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to environment variables.");
+      return res.status(503).json({ error: "Google Calendar integration is not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to environment variables." });
     }
 
     const scopes = [
@@ -242,26 +258,27 @@ async function startServer() {
       "https://www.googleapis.com/auth/calendar.events"
     ];
 
-    const url = oauth2Client.generateAuthUrl({
+    const url = client.generateAuthUrl({
       access_type: "offline",
       scope: scopes,
       prompt: "consent",
       state: uid as string,
     });
 
-    res.redirect(url);
+    res.json({ url });
   });
 
   app.get("/api/auth/google/callback", async (req, res) => {
     const { code, state: uid } = req.query;
     if (!code || !uid) return res.status(400).send("Code and UID required");
 
-    if (!oauth2Client) {
+    const client = getOAuth2Client(req);
+    if (!client) {
       return res.status(503).send("Google OAuth client not initialized");
     }
 
     try {
-      const { tokens } = await oauth2Client.getToken(code as string);
+      const { tokens } = await client.getToken(code as string);
       
       // Pass tokens directly to frontend - frontend will save it via Client SDK
       // removing Firebase Admin save to avoid PERMISSION_DENIED issues on this platform
@@ -670,7 +687,10 @@ Link: ${process.env.APP_URL || ''}/appointments?id=${appointmentId}
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === 'true' ? false : true,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

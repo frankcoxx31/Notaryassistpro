@@ -6065,27 +6065,42 @@ export default function App() {
   const lastTokensRef = useRef<any>(null);
   const isFetchingGoogleRef = useRef(false);
 
-  const handleConnectGoogle = () => {
+  const handleConnectGoogle = async () => {
     if (!user) {
       alert("Please sign in first");
       return;
     }
-    const width = 600;
-    const height = 700;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
     
     setIsConnecting(true);
-    const authWindow = window.open(
-      `/api/auth/google?uid=${user.uid}`,
-      "GoogleCalendarAuth",
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-    
-    // Fallback if window.open fails (popups blocked)
-    if (!authWindow) {
+    try {
+      const response = await fetch(`/api/auth/google?uid=${user.uid}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to get authentication URL");
+      }
+      
+      const { url } = await response.json();
+      
+      const width = 600;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      
+      const authWindow = window.open(
+        url,
+        "GoogleCalendarAuth",
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+      
+      // Fallback if window.open fails (popups blocked)
+      if (!authWindow) {
+        setIsConnecting(false);
+        alert("Popup blocked. Please allow popups and try again.");
+      }
+    } catch (error) {
+      console.error("Connection error:", error);
+      alert(error instanceof Error ? error.message : "Failed to connect to Google Calendar");
       setIsConnecting(false);
-      alert("Popup blocked. Please allow popups and try again.");
     }
   };
 
