@@ -8,12 +8,19 @@ import CreateSegmentModal from './CreateSegmentModal';
 
 interface SegmentsViewProps {
   user: User;
+  autoOpen?: boolean;
 }
 
-const SegmentsView: React.FC<SegmentsViewProps> = ({ user }) => {
+const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
   const [segments, setSegments] = useState<MarketingSegment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setIsModalOpen(true);
+    }
+  }, [autoOpen]);
 
   const fetchSegments = async () => {
     try {

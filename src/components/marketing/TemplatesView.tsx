@@ -23,12 +23,19 @@ import EditTemplateModal from './EditTemplateModal';
 
 interface TemplatesViewProps {
   user: User;
+  autoOpen?: boolean;
 }
 
-const TemplatesView: React.FC<TemplatesViewProps> = ({ user }) => {
+const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
   const [templates, setTemplates] = useState<MarketingTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setIsModalOpen(true);
+    }
+  }, [autoOpen]);
   const [isAiDesignerOpen, setIsAiDesignerOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);

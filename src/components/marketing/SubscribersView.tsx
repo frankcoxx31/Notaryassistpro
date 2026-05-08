@@ -22,14 +22,21 @@ import AddSubscriberModal from './AddSubscriberModal';
 
 interface SubscribersViewProps {
   user: User;
+  autoOpen?: boolean;
 }
 
-const SubscribersView: React.FC<SubscribersViewProps> = ({ user }) => {
+const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setIsModalOpen(true);
+    }
+  }, [autoOpen]);
 
   const fetchSubscribers = async () => {
     try {

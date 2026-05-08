@@ -20,12 +20,19 @@ import CreateAutomationModal from './CreateAutomationModal';
 
 interface AutomationsViewProps {
   user: User;
+  autoOpen?: boolean;
 }
 
-const AutomationsView: React.FC<AutomationsViewProps> = ({ user }) => {
+const AutomationsView: React.FC<AutomationsViewProps> = ({ user, autoOpen }) => {
   const [automations, setAutomations] = useState<MarketingAutomation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setIsModalOpen(true);
+    }
+  }, [autoOpen]);
 
   const fetchData = async () => {
     try {

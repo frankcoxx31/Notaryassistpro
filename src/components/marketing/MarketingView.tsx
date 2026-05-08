@@ -37,6 +37,16 @@ type MarketingTab = 'subscribers' | 'segments' | 'campaigns' | 'automations' | '
 
 const MarketingView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<MarketingTab>('campaigns');
+  const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
+  const [autoOpenState, setAutoOpenState] = useState<Record<MarketingTab, boolean>>({
+    subscribers: false,
+    segments: false,
+    campaigns: false,
+    automations: false,
+    templates: false,
+    reports: false,
+    preferences: false
+  });
   const [user] = useAuthState(auth);
 
   const tabs = [
@@ -49,18 +59,34 @@ const MarketingView: React.FC = () => {
     { id: 'preferences', name: 'Preferences', icon: Settings2 },
   ];
 
+  const handleCreateAction = (tabId: MarketingTab) => {
+    setActiveTab(tabId);
+    setIsCreateMenuOpen(false);
+    
+    // Set autoOpen for that tab and reset it for others
+    setAutoOpenState(prev => ({
+      ...Object.keys(prev).reduce((acc, key) => ({ ...acc, [key]: false }), {} as any),
+      [tabId]: true
+    }));
+    
+    // Reset autoOpen state after a short delay so it doesn't stay stuck on true
+    setTimeout(() => {
+      setAutoOpenState(prev => ({ ...prev, [tabId]: false }));
+    }, 100);
+  };
+
   const renderContent = () => {
     if (!user) return <div className="flex items-center justify-center h-64 text-slate-500">Please sign in to access marketing features.</div>;
 
     switch (activeTab) {
-      case 'subscribers': return <SubscribersView user={user} />;
-      case 'segments': return <SegmentsView user={user} />;
-      case 'campaigns': return <CampaignsView user={user} />;
-      case 'automations': return <AutomationsView user={user} />;
-      case 'templates': return <TemplatesView user={user} />;
+      case 'subscribers': return <SubscribersView user={user} autoOpen={autoOpenState.subscribers} />;
+      case 'segments': return <SegmentsView user={user} autoOpen={autoOpenState.segments} />;
+      case 'campaigns': return <CampaignsView user={user} autoOpen={autoOpenState.campaigns} />;
+      case 'automations': return <AutomationsView user={user} autoOpen={autoOpenState.automations} />;
+      case 'templates': return <TemplatesView user={user} autoOpen={autoOpenState.templates} />;
       case 'reports': return <ReportsView user={user} />;
       case 'preferences': return <PreferencesView user={user} />;
-      default: return <CampaignsView user={user} />;
+      default: return <CampaignsView user={user} autoOpen={autoOpenState.campaigns} />;
     }
   };
 
@@ -71,13 +97,71 @@ const MarketingView: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Marketing Center</h1>
-            <p className="text-slate-500 text-sm">Manage your subscribers, campaigns, and automations</p>
+            <p className="text-slate-500 text-sm font-medium">Manage your subscribers, campaigns, and automations</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+          <div className="flex items-center gap-3 relative">
+            <button 
+              onClick={() => setIsCreateMenuOpen(!isCreateMenuOpen)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-bold text-sm"
+            >
               <Plus className="w-4 h-4" />
               <span>Create New</span>
             </button>
+
+            <AnimatePresence>
+              {isCreateMenuOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsCreateMenuOpen(false)} 
+                  />
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden"
+                  >
+                    <div className="p-2 space-y-1">
+                      <button 
+                        onClick={() => handleCreateAction('campaigns')}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+                      >
+                        <Send className="w-4 h-4" />
+                        Email Campaign
+                      </button>
+                      <button 
+                        onClick={() => handleCreateAction('automations')}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+                      >
+                        <Zap className="w-4 h-4" />
+                        Automation Flow
+                      </button>
+                      <button 
+                        onClick={() => handleCreateAction('subscribers')}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+                      >
+                        <Users className="w-4 h-4" />
+                        Add Subscriber
+                      </button>
+                      <button 
+                        onClick={() => handleCreateAction('templates')}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+                      >
+                        <FileText className="w-4 h-4" />
+                        New Template
+                      </button>
+                      <button 
+                        onClick={() => handleCreateAction('segments')}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+                      >
+                        <Layers className="w-4 h-4" />
+                        Target Segment
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 

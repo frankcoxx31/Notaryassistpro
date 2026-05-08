@@ -20,14 +20,21 @@ import CreateCampaignModal from './CreateCampaignModal';
 
 interface CampaignsViewProps {
   user: User;
+  autoOpen?: boolean;
 }
 
-const CampaignsView: React.FC<CampaignsViewProps> = ({ user }) => {
+const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
   const [segments, setSegments] = useState<MarketingSegment[]>([]);
   const [templates, setTemplates] = useState<MarketingTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setIsModalOpen(true);
+    }
+  }, [autoOpen]);
 
   const fetchData = async () => {
     try {
