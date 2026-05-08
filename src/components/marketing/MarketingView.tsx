@@ -69,10 +69,10 @@ const MarketingView: React.FC = () => {
       [tabId]: true
     }));
     
-    // Reset autoOpen state after a short delay so it doesn't stay stuck on true
+    // Reset autoOpen state after a shortly longer delay so sub-views definitely catch it
     setTimeout(() => {
       setAutoOpenState(prev => ({ ...prev, [tabId]: false }));
-    }, 100);
+    }, 500);
   };
 
   const renderContent = () => {
@@ -102,7 +102,7 @@ const MarketingView: React.FC = () => {
           <div className="flex items-center gap-3 relative">
             <button 
               onClick={() => setIsCreateMenuOpen(!isCreateMenuOpen)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-bold text-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-bold text-sm relative z-50"
             >
               <Plus className="w-4 h-4" />
               <span>Create New</span>

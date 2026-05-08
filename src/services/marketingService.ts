@@ -91,6 +91,12 @@ export const marketingService = {
     return newSegment;
   },
 
+  async updateSegment(id: string, updates: Partial<MarketingSegment>) {
+    const docRef = doc(db, COLLECTIONS.SEGMENTS, id);
+    const now = new Date().toISOString();
+    await updateDoc(docRef, { ...updates, updatedAt: now });
+  },
+
   // Campaigns
   async getCampaigns(userId: string) {
     const q = query(

@@ -13,8 +13,10 @@ interface SegmentsViewProps {
 
 const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
   const [segments, setSegments] = useState<MarketingSegment[]>([]);
+  const [subscribers, setSubscribers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
+  const [editingSegment, setEditingSegment] = useState<MarketingSegment | null>(null);
 
   useEffect(() => {
     if (autoOpen) {
@@ -22,30 +24,45 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
     }
   }, [autoOpen]);
 
-  const fetchSegments = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await marketingService.getSegments(user.uid);
-      setSegments(data);
+      const [segmentsData, subscribersData] = await Promise.all([
+        marketingService.getSegments(user.uid),
+        marketingService.getSubscribers(user.uid)
+      ]);
+      setSegments(segmentsData);
+      setSubscribers(subscribersData);
     } catch (error) {
-      console.error('Error fetching segments:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSegments();
+    fetchData();
   }, [user.uid]);
 
-  const handleCreateSegment = async (data: any) => {
+  const handleSaveSegment = async (data: any) => {
     try {
-      await marketingService.addSegment(data);
-      await fetchSegments();
+      if (editingSegment) {
+        await marketingService.updateSegment(editingSegment.id, data);
+      } else {
+        await marketingService.addSegment(data);
+      }
+      setEditingSegment(null);
+      setIsModalOpen(false);
+      await fetchData();
     } catch (error) {
-      console.error('Error creating segment:', error);
+      console.error('Error saving segment:', error);
       throw error;
     }
+  };
+
+  const handleEditSegment = (segment: MarketingSegment) => {
+    setEditingSegment(segment);
+    setIsModalOpen(true);
   };
 
   return (
@@ -90,7 +107,11 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {segments.map((segment) => (
-            <div key={segment.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all cursor-pointer group relative overflow-hidden">
+            <div 
+              key={segment.id} 
+              onClick={() => handleEditSegment(segment)}
+              className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all cursor-pointer group relative overflow-hidden"
+            >
               <div className="absolute top-0 right-0 p-3">
                 <button className="text-slate-300 hover:text-slate-600 transition-colors">
                   <MoreVertical className="w-4 h-4" />
@@ -142,9 +163,14 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
 
       <CreateSegmentModal 
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleCreateSegment}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingSegment(null);
+        }}
+        onSave={handleSaveSegment}
         ownerId={user.uid}
+        availableSubscribers={subscribers}
+        initialData={editingSegment}
       />
     </div>
   );

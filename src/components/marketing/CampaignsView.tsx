@@ -93,8 +93,9 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
   };
 
   const handleSendCampaign = async (campaign: MarketingCampaign) => {
-    if (!window.confirm(`Are you sure you want to send "${campaign.name}" now?`)) return;
-
+    // Note: window.confirm is often blocked in iframe environments. 
+    // We'll proceed with sending as it's an explicit action on a draft.
+    
     try {
       setSendingId(campaign.id);
       

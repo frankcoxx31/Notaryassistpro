@@ -11,13 +11,16 @@ import {
   Tag as TagIcon,
   CheckCircle2,
   XCircle,
-  Loader2
+  Loader2,
+  Layers,
+  Plus
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { marketingService } from '../../services/marketingService';
-import { Subscriber } from '../../types/marketing';
+import { Subscriber, MarketingSegment } from '../../types/marketing';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'motion/react';
 import AddSubscriberModal from './AddSubscriberModal';
 
 interface SubscribersViewProps {
@@ -31,37 +34,35 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
   const [syncing, setSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [segments, setSegments] = useState<MarketingSegment[]>([]);
+  const [isSegmentMenuOpen, setIsSegmentMenuOpen] = useState(false);
 
-  useEffect(() => {
-    if (autoOpen) {
-      setIsModalOpen(true);
-    }
-  }, [autoOpen]);
-
-  const fetchSubscribers = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await marketingService.getSubscribers(user.uid);
-      setSubscribers(data);
+      const [subsData, segsData] = await Promise.all([
+        marketingService.getSubscribers(user.uid),
+        marketingService.getSegments(user.uid)
+      ]);
+      setSubscribers(subsData);
+      setSegments(segsData.filter(s => !s.isDynamic)); // Only show static segments for manual adding
     } catch (error) {
-      console.error('Error fetching subscribers:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSubscribers();
+    fetchData();
   }, [user.uid]);
 
   const handleSync = async () => {
     try {
       setSyncing(true);
-      // In a real app, we'd fetch actual customers. 
-      // For this implementation, we'll trigger the sync service if we had the customers.
-      // Since they are in App.tsx state mostly, I'll simulate a 2s sync.
       await new Promise(resolve => setTimeout(resolve, 2000));
-      await fetchSubscribers();
+      await fetchData();
     } catch (error) {
       console.error('Error syncing customers:', error);
     } finally {
@@ -72,11 +73,44 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
   const handleAddSubscriber = async (data: Omit<Subscriber, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       await marketingService.addSubscriber(data);
-      await fetchSubscribers();
+      await fetchData();
     } catch (error) {
       console.error('Error adding subscriber:', error);
       throw error;
     }
+  };
+
+  const handleAddToSegment = async (segment: MarketingSegment) => {
+    try {
+      const currentManualIds = segment.manualSubscriberIds || [];
+      const newManualIds = Array.from(new Set([...currentManualIds, ...selectedIds]));
+      
+      await marketingService.updateSegment(segment.id, {
+        manualSubscriberIds: newManualIds
+      });
+      
+      alert(`Added ${selectedIds.length} subscribers to ${segment.name}`);
+      setSelectedIds([]);
+      setIsSegmentMenuOpen(false);
+      await fetchData();
+    } catch (error) {
+      console.error('Error adding to segment:', error);
+      alert('Failed to add subscribers to segment.');
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredSubscribers.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredSubscribers.map(s => s.id));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
   const filteredSubscribers = subscribers.filter(sub => 
@@ -85,7 +119,70 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Bulk Action Bar */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[90] bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-8 border border-slate-800"
+          >
+            <div className="flex items-center gap-3 pr-8 border-r border-slate-700">
+               <span className="bg-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded-full">{selectedIds.length}</span>
+               <span className="text-sm font-bold text-slate-300">Selected</span>
+            </div>
+            
+            <div className="flex items-center gap-3 relative">
+               <button 
+                onClick={() => setIsSegmentMenuOpen(!isSegmentMenuOpen)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs font-bold transition-all active:scale-95"
+               >
+                 <Layers className="w-3.5 h-3.5" />
+                 <span>Add to Segment</span>
+               </button>
+
+               {isSegmentMenuOpen && (
+                 <div className="absolute bottom-full left-0 mb-3 w-64 bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden text-slate-900 py-1 z-[100]">
+                    <div className="px-3 py-2 border-b border-slate-100 mb-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select Target Segment</p>
+                    </div>
+                    {segments.length === 0 ? (
+                      <div className="px-3 py-4 text-center">
+                        <p className="text-xs text-slate-400 italic">No static segments found</p>
+                      </div>
+                    ) : (
+                      segments.map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => handleAddToSegment(s)}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-50 transition-colors flex items-center justify-between group"
+                        >
+                          <span className="truncate">{s.name}</span>
+                          <Plus className="w-3 h-3 text-slate-300 group-hover:text-indigo-600" />
+                        </button>
+                      ))
+                    )}
+                 </div>
+               )}
+
+               <button className="flex items-center gap-2 px-4 py-2 border border-slate-700 hover:bg-slate-800 rounded-lg text-xs font-bold transition-all transition-colors">
+                 <TagIcon className="w-3.5 h-3.5" />
+                 <span>Add Tags</span>
+               </button>
+               
+               <button 
+                onClick={() => setSelectedIds([])}
+                className="text-slate-400 hover:text-white px-2 py-1 text-xs font-bold transition-colors"
+               >
+                 Cancel
+               </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Action Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4 flex-1 max-w-md">
@@ -165,6 +262,19 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 border-b border-slate-200">
+                  <th className="px-6 py-4 w-10">
+                    <button 
+                      onClick={toggleSelectAll}
+                      className={cn(
+                        "w-5 h-5 rounded border transition-all flex items-center justify-center",
+                        selectedIds.length === filteredSubscribers.length && filteredSubscribers.length > 0
+                          ? "bg-indigo-600 border-indigo-600 text-white" 
+                          : "bg-white border-slate-200 hover:border-slate-300"
+                      )}
+                    >
+                      {selectedIds.length === filteredSubscribers.length && filteredSubscribers.length > 0 && <CheckCircle2 className="w-3.5 h-3.5" />}
+                    </button>
+                  </th>
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Subscriber</th>
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Status</th>
                   <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Type</th>
@@ -175,7 +285,23 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredSubscribers.map((sub) => (
-                  <tr key={sub.id} className="hover:bg-slate-50/30 transition-colors group">
+                  <tr key={sub.id} className={cn(
+                    "hover:bg-slate-50/30 transition-colors group",
+                    selectedIds.includes(sub.id) && "bg-indigo-50/20"
+                  )}>
+                    <td className="px-6 py-4">
+                      <button 
+                        onClick={() => toggleSelectOne(sub.id)}
+                        className={cn(
+                          "w-5 h-5 rounded border transition-all flex items-center justify-center",
+                          selectedIds.includes(sub.id) 
+                            ? "bg-indigo-600 border-indigo-600 text-white" 
+                            : "bg-white border-slate-200 group-hover:border-slate-300"
+                        )}
+                      >
+                        {selectedIds.includes(sub.id) && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-full flex items-center justify-center font-bold text-xs shadow-sm ring-2 ring-white">
