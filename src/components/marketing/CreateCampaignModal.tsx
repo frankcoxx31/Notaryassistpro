@@ -19,7 +19,7 @@ import { MarketingSegment, MarketingTemplate } from '../../types/marketing';
 interface CreateCampaignModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: any, sendNow?: boolean) => Promise<void>;
   segments: MarketingSegment[];
   templates: MarketingTemplate[];
 }
@@ -56,10 +56,10 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     else if (step === 'confirm') setStep('template');
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (sendNow: boolean = false) => {
     try {
       setLoading(true);
-      await onSave(formData);
+      await onSave(formData, sendNow);
       onClose();
     } catch (error) {
       console.error('Error saving campaign:', error);
@@ -376,14 +376,23 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                 Cancel
              </button>
              {step === 'confirm' ? (
-                <button 
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-50"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  Save as Draft
-                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => handleSubmit(false)}
+                    disabled={loading}
+                    className="px-4 py-2 text-slate-500 text-sm font-bold hover:text-slate-700 transition-colors"
+                  >
+                    Save as Draft
+                  </button>
+                  <button 
+                    onClick={() => handleSubmit(true)}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Send Now
+                  </button>
+                </div>
              ) : (
                 <button 
                   onClick={handleNext}

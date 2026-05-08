@@ -124,6 +124,62 @@ export const marketingService = {
   },
 
   // Queue sending
+  async getSubscribersForSegments(userId: string, segmentIds: string[]) {
+    if (!segmentIds || segmentIds.length === 0) return [];
+
+    try {
+      // 1. Get all segments for this user to filter for the ones we need
+      const segmentsQ = query(
+        collection(db, COLLECTIONS.SEGMENTS),
+        where('ownerId', '==', userId)
+      );
+      const segmentsSnapshot = await getDocs(segmentsQ);
+      const targetSegments = segmentsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as MarketingSegment))
+        .filter(s => segmentIds.includes(s.id));
+
+      if (targetSegments.length === 0) return [];
+
+      // 2. Get all active subscribers for this user
+      const subscribersQ = query(
+        collection(db, COLLECTIONS.SUBSCRIBERS),
+        where('ownerId', '==', userId),
+        where('status', '==', 'active')
+      );
+      const subscribersSnapshot = await getDocs(subscribersQ);
+      const allSubscribers = subscribersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subscriber));
+
+      const finalSubscriberIds = new Set<string>();
+
+      targetSegments.forEach(segment => {
+        if (segment.isDynamic) {
+          // Dynamic segments use rules
+          const rule = (segment.rules && segment.rules[0]) || {};
+          const { tags = [], contactTypes = [] } = rule;
+
+          allSubscribers.forEach(sub => {
+            const matchesTags = tags.length === 0 || (sub.tags && tags.some((t: string) => sub.tags.includes(t)));
+            const matchesTypes = contactTypes.length === 0 || contactTypes.includes(sub.contactType);
+
+            if (matchesTags && matchesTypes) {
+              finalSubscriberIds.add(sub.id);
+            }
+          });
+        } else {
+          // Static segments use manual IDs
+          if (segment.manualSubscriberIds) {
+            segment.manualSubscriberIds.forEach(id => finalSubscriberIds.add(id));
+          }
+        }
+      });
+
+      return Array.from(finalSubscriberIds);
+    } catch (error) {
+      console.error('Error resolving subscribers for segments:', error);
+      return [];
+    }
+  },
+
   async queueCampaignSend(campaignId: string, subscriberIds: string[], userId: string) {
     const batch = writeBatch(db);
     const now = new Date().toISOString();

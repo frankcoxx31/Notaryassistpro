@@ -29,6 +29,7 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
   const [templates, setTemplates] = useState<MarketingTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (autoOpen) {
@@ -58,9 +59,9 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
     fetchData();
   }, [user.uid]);
 
-  const handleCreateCampaign = async (data: any) => {
+  const handleCreateCampaign = async (data: any, sendNow?: boolean) => {
     try {
-      await marketingService.addCampaign({
+      const newCampaign = await marketingService.addCampaign({
         ownerId: user.uid,
         name: data.name,
         subject: data.subject,
@@ -68,13 +69,55 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
         segmentIds: data.selectedSegmentIds,
         status: 'draft',
         contentType: 'newsletter',
-        fromName: '', // These will be filled by the service or should be taken from form
-        replyTo: ''
+        fromName: user.displayName || user.email?.split('@')[0] || 'NotaryPro Agent', 
+        replyTo: user.email || ''
       });
+
+      if (sendNow) {
+        // Resolve subscriber IDs based on segments
+        const subscriberIds = await marketingService.getSubscribersForSegments(user.uid, data.selectedSegmentIds);
+        
+        if (subscriberIds.length > 0) {
+          await marketingService.queueCampaignSend(newCampaign.id, subscriberIds, user.uid);
+          alert(`Successfully created and queued "${data.name}" for ${subscriberIds.length} recipients!`);
+        } else {
+          alert(`Campaign created as draft, but no active subscribers were found in the selected segments to send.`);
+        }
+      }
+
       await fetchData();
     } catch (error) {
       console.error('Error creating campaign:', error);
       throw error;
+    }
+  };
+
+  const handleSendCampaign = async (campaign: MarketingCampaign) => {
+    if (!window.confirm(`Are you sure you want to send "${campaign.name}" now?`)) return;
+
+    try {
+      setSendingId(campaign.id);
+      
+      // 1. Resolve subscriber IDs based on segments
+      const subscriberIds = await marketingService.getSubscribersForSegments(user.uid, campaign.segmentIds);
+      
+      if (subscriberIds.length === 0) {
+        alert('No active subscribers found in the selected segments. Please update your segments or subscribers first.');
+        return;
+      }
+
+      // 2. Queue the send
+      await marketingService.queueCampaignSend(campaign.id, subscriberIds, user.uid);
+      
+      // 3. Refresh data
+      await fetchData();
+      
+      alert(`Successfully queued "${campaign.name}" for ${subscriberIds.length} recipients!`);
+    } catch (error) {
+      console.error('Error sending campaign:', error);
+      alert('Failed to send campaign. Please try again.');
+    } finally {
+      setSendingId(null);
     }
   };
 
@@ -193,6 +236,26 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
                       <p className="text-sm font-bold text-slate-900">{campaign.metrics?.bounceCount || 0}</p>
                     </div>
                   </div>
+
+                  {campaign.status === 'draft' && (
+                    <div className="mt-4 flex gap-2">
+                       <button 
+                        onClick={() => handleSendCampaign(campaign)}
+                        disabled={sendingId === campaign.id}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 active:scale-95 disabled:opacity-50"
+                      >
+                        {sendingId === campaign.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Send className="w-3 h-3" />
+                        )}
+                        <span>Send Campaign</span>
+                      </button>
+                      <button className="px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors">
+                        Edit
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
