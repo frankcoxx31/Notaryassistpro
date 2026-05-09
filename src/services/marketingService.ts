@@ -31,7 +31,8 @@ const COLLECTIONS = {
   TEMPLATES: 'marketingTemplates',
   AUTOMATIONS: 'marketingAutomations',
   EVENTS: 'emailEvents',
-  QUEUE: 'outboundEmailQueue'
+  QUEUE: 'outboundEmailQueue',
+  PREFERENCES: 'marketingPreferences'
 };
 
 export const marketingService = {
@@ -346,5 +347,24 @@ export const marketingService = {
     if (addedCount > 0) {
       await batch.commit();
     }
+  },
+
+  // Preferences
+  async getPreferences(userId: string) {
+    const docRef = doc(db, COLLECTIONS.PREFERENCES, userId);
+    const snapshot = await getDoc(docRef);
+    if (snapshot.exists()) {
+      return snapshot.data();
+    }
+    return null;
+  },
+
+  async updatePreferences(userId: string, preferences: any) {
+    const docRef = doc(db, COLLECTIONS.PREFERENCES, userId);
+    await setDoc(docRef, {
+      ...preferences,
+      ownerId: userId,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
   }
 };

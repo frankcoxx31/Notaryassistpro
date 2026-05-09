@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   Mail, 
@@ -15,6 +15,7 @@ import {
 import { User as AuthUser } from 'firebase/auth';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { marketingService } from '../../services/marketingService';
 
 interface PreferencesViewProps {
   user: AuthUser;
@@ -22,29 +23,72 @@ interface PreferencesViewProps {
 
 const PreferencesView: React.FC<PreferencesViewProps> = ({ user }) => {
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [saved, setSaved] = useState(false);
   const [formData, setFormData] = useState({
-    fromName: 'Frank Coxx',
-    fromEmail: 'frank@integrityclosings.com',
-    replyTo: 'frank@integrityclosings.com',
-    emailSignature: 'Integrity Closings CLT\nProfessional Notary Services',
+    fromName: '',
+    fromEmail: '',
+    replyTo: '',
+    emailSignature: '',
     autoSyncEnabled: true,
     weeklyReport: true
   });
 
+  useEffect(() => {
+    const fetchPrefs = async () => {
+      try {
+        setFetching(true);
+        const prefs = await marketingService.getPreferences(user.uid);
+        if (prefs) {
+          setFormData({
+            fromName: prefs.fromName || '',
+            fromEmail: prefs.fromEmail || '',
+            replyTo: prefs.replyTo || '',
+            emailSignature: prefs.emailSignature || '',
+            autoSyncEnabled: prefs.autoSyncEnabled ?? true,
+            weeklyReport: prefs.weeklyReport ?? true
+          });
+        } else {
+          // Default values if no prefs exist
+          setFormData({
+            fromName: user.displayName || 'Frank Coxx',
+            fromEmail: user.email || 'frank@integrityclosings.com',
+            replyTo: user.email || 'frank@integrityclosings.com',
+            emailSignature: 'Integrity Closings CLT\nProfessional Notary Services',
+            autoSyncEnabled: true,
+            weeklyReport: true
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching defaults:', error);
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchPrefs();
+  }, [user]);
+
   const handleSave = async () => {
     try {
       setLoading(true);
-      // Simulate save
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await marketingService.updatePreferences(user.uid, formData);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (error) {
       console.error('Error saving preferences:', error);
+      alert('Failed to save preferences.');
     } finally {
       setLoading(false);
     }
   };
+
+  if (fetching) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl space-y-8 pb-20">
@@ -90,8 +134,20 @@ const PreferencesView: React.FC<PreferencesViewProps> = ({ user }) => {
                     type="email" 
                     value={formData.fromEmail}
                     onChange={(e) => setFormData({ ...formData, fromEmail: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-50/20 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reply-To Email</label>
+                  <input 
+                    type="email" 
+                    value={formData.replyTo}
+                    onChange={(e) => setFormData({ ...formData, replyTo: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
                   />
+                  <p className="text-[10px] text-slate-400">Where recipients will respond if they click 'Reply'</p>
                 </div>
               </div>
               <div className="space-y-1.5 pt-2 border-t border-slate-50 mt-4">
