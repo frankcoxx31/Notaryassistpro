@@ -97,6 +97,11 @@ export const marketingService = {
     await updateDoc(docRef, { ...updates, updatedAt: now });
   },
 
+  async deleteSegment(id: string) {
+    const docRef = doc(db, COLLECTIONS.SEGMENTS, id);
+    await deleteDoc(docRef);
+  },
+
   // Campaigns
   async getCampaigns(userId: string) {
     const q = query(
@@ -127,6 +132,20 @@ export const marketingService = {
     };
     await setDoc(docRef, newCampaign);
     return newCampaign;
+  },
+
+  async updateCampaign(id: string, updates: Partial<MarketingCampaign>) {
+    const docRef = doc(db, COLLECTIONS.CAMPAIGNS, id);
+    const now = new Date().toISOString();
+    await updateDoc(docRef, { ...updates, updatedAt: now });
+  },
+
+  async deleteCampaign(id: string) {
+    const docRef = doc(db, COLLECTIONS.CAMPAIGNS, id);
+    await deleteDoc(docRef);
+    
+    // Also clean up queue if needed, but usually we just keep the audit trail.
+    // For now, just delete the campaign doc.
   },
 
   // Queue sending
@@ -187,29 +206,37 @@ export const marketingService = {
   },
 
   async queueCampaignSend(campaignId: string, subscriberIds: string[], userId: string) {
-    const batch = writeBatch(db);
     const now = new Date().toISOString();
     
-    subscriberIds.forEach(subId => {
-      const queueRef = doc(collection(db, COLLECTIONS.QUEUE));
-      batch.set(queueRef, {
-        campaignId,
-        subscriberId: subId,
-        ownerId: userId,
-        status: 'pending',
-        createdAt: now,
-        attempts: 0
+    // Process in batches of 400 to be safe (limit is 500)
+    const BATCH_SIZE = 400;
+    for (let i = 0; i < subscriberIds.length; i += BATCH_SIZE) {
+      const batchChunk = subscriberIds.slice(i, i + BATCH_SIZE);
+      const batch = writeBatch(db);
+      
+      batchChunk.forEach(subId => {
+        const queueRef = doc(collection(db, COLLECTIONS.QUEUE));
+        batch.set(queueRef, {
+          campaignId,
+          subscriberId: subId,
+          ownerId: userId,
+          status: 'pending',
+          createdAt: now,
+          attempts: 0
+        });
       });
-    });
-
-    // Update campaign status
-    const campaignRef = doc(db, COLLECTIONS.CAMPAIGNS, campaignId);
-    batch.update(campaignRef, {
-      status: 'sending',
-      updatedAt: now
-    });
-
-    await batch.commit();
+      
+      // If it's the first batch, also update the campaign status
+      if (i === 0) {
+        const campaignRef = doc(db, COLLECTIONS.CAMPAIGNS, campaignId);
+        batch.update(campaignRef, {
+          status: 'sending',
+          updatedAt: now
+        });
+      }
+      
+      await batch.commit();
+    }
   },
 
   // Templates

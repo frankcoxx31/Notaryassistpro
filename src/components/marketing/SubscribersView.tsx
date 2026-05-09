@@ -15,6 +15,14 @@ import {
   Layers,
   Plus
 } from 'lucide-react';
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot 
+} from 'firebase/firestore';
+import { db } from '../../firebase';
 import { User } from 'firebase/auth';
 import { marketingService } from '../../services/marketingService';
 import { Subscriber, MarketingSegment } from '../../types/marketing';
@@ -30,39 +38,63 @@ interface SubscribersViewProps {
 
 const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [segments, setSegments] = useState<MarketingSegment[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [segments, setSegments] = useState<MarketingSegment[]>([]);
   const [isSegmentMenuOpen, setIsSegmentMenuOpen] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [subsData, segsData] = await Promise.all([
-        marketingService.getSubscribers(user.uid),
-        marketingService.getSegments(user.uid)
-      ]);
-      setSubscribers(subsData);
-      setSegments(segsData.filter(s => !s.isDynamic)); // Only show static segments for manual adding
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Real-time listener for subscribers
   useEffect(() => {
-    fetchData();
+    if (!user.uid) return;
+
+    const q = query(
+      collection(db, 'subscribers'),
+      where('ownerId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Subscriber));
+      setSubscribers(data);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error listening to subscribers:', error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user.uid]);
+
+  // Real-time listener for segments
+  useEffect(() => {
+    if (!user.uid) return;
+
+    const q = query(
+      collection(db, 'marketingSegments'),
+      where('ownerId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MarketingSegment));
+      // Only show static segments for manual adding
+      setSegments(data.filter(s => !s.isDynamic));
+    }, (error) => {
+      console.error('Error listening to segments:', error);
+    });
+
+    return () => unsubscribe();
   }, [user.uid]);
 
   const handleSync = async () => {
     try {
       setSyncing(true);
+      // Simulate/trigger sync logic
       await new Promise(resolve => setTimeout(resolve, 2000));
-      await fetchData();
+      // In a real app we'd trigger a sync function or fetch appointments
     } catch (error) {
       console.error('Error syncing customers:', error);
     } finally {
@@ -73,7 +105,6 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
   const handleAddSubscriber = async (data: Omit<Subscriber, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       await marketingService.addSubscriber(data);
-      await fetchData();
     } catch (error) {
       console.error('Error adding subscriber:', error);
       throw error;
@@ -86,13 +117,13 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
       const newManualIds = Array.from(new Set([...currentManualIds, ...selectedIds]));
       
       await marketingService.updateSegment(segment.id, {
-        manualSubscriberIds: newManualIds
+        manualSubscriberIds: newManualIds,
+        subscriberCount: newManualIds.length
       });
       
       alert(`Added ${selectedIds.length} subscribers to ${segment.name}`);
       setSelectedIds([]);
       setIsSegmentMenuOpen(false);
-      await fetchData();
     } catch (error) {
       console.error('Error adding to segment:', error);
       alert('Failed to add subscribers to segment.');

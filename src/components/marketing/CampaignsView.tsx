@@ -9,8 +9,17 @@ import {
   MoreVertical,
   BarChart3,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot 
+} from 'firebase/firestore';
+import { db } from '../../firebase';
 import { User } from 'firebase/auth';
 import { marketingService } from '../../services/marketingService';
 import { MarketingCampaign, MarketingSegment, MarketingTemplate } from '../../types/marketing';
@@ -37,27 +46,94 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
     }
   }, [autoOpen]);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [campaignData, segmentData, templateData] = await Promise.all([
-        marketingService.getCampaigns(user.uid),
-        marketingService.getSegments(user.uid),
-        marketingService.getTemplates(user.uid)
-      ]);
-      setCampaigns(campaignData);
-      setSegments(segmentData);
-      setTemplates(templateData);
-    } catch (error) {
-      console.error('Error fetching marketing data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Real-time listener for campaigns
   useEffect(() => {
-    fetchData();
+    if (!user.uid) return;
+
+    const q = query(
+      collection(db, 'marketingCampaigns'),
+      where('ownerId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const campaignData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MarketingCampaign));
+      setCampaigns(campaignData);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error listening to campaigns:', error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [user.uid]);
+
+  // Load supporting data (segments/templates)
+  useEffect(() => {
+    const fetchSupportData = async () => {
+      try {
+        const [segmentData, templateData] = await Promise.all([
+          marketingService.getSegments(user.uid),
+          marketingService.getTemplates(user.uid)
+        ]);
+        setSegments(segmentData);
+        setTemplates(templateData);
+      } catch (error) {
+        console.error('Error fetching supporting marketing data:', error);
+      }
+    };
+    fetchSupportData();
+  }, [user.uid]);
+
+  // Simulated processing for campaigns in "sending" state
+  useEffect(() => {
+    const processingInterval = setInterval(async () => {
+      const sendingCampaigns = campaigns.filter(c => c.status === 'sending');
+      
+      for (const campaign of sendingCampaigns) {
+        // Randomly "process" some emails
+        const currentSent = campaign.metrics?.sentCount || 0;
+        // In a real app we'd check the queue, here we just simulate
+        // Let's say it takes ~30 seconds to "send" everything in this demo
+        const increment = Math.max(5, Math.floor(Math.random() * 20));
+        const totalTarget = 100; // Mock target for simulation if we don't know queue size
+        
+        const nextSent = currentSent + increment;
+        
+        if (nextSent >= totalTarget) {
+          // Mark as sent
+          try {
+            await marketingService.updateCampaign(campaign.id, {
+              status: 'sent',
+              sentAt: new Date().toISOString(),
+              metrics: {
+                ...campaign.metrics,
+                sentCount: totalTarget,
+                deliveredCount: totalTarget
+              }
+            });
+          } catch (e) {
+            console.error('Simulation error:', e);
+          }
+        } else {
+          // Update progress
+          try {
+            await marketingService.updateCampaign(campaign.id, {
+              metrics: {
+                ...campaign.metrics,
+                sentCount: nextSent,
+                deliveredCount: nextSent
+              }
+            });
+          } catch (e) {
+            console.error('Simulation update error:', e);
+          }
+        }
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(processingInterval);
+  }, [campaigns]);
 
   const handleCreateCampaign = async (data: any, sendNow?: boolean) => {
     try {
@@ -85,7 +161,7 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
         }
       }
 
-      await fetchData();
+      // No need to fetchData() as listener handles it
     } catch (error) {
       console.error('Error creating campaign:', error);
       throw error;
@@ -110,15 +186,24 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
       // 2. Queue the send
       await marketingService.queueCampaignSend(campaign.id, subscriberIds, user.uid);
       
-      // 3. Refresh data
-      await fetchData();
-      
+      // No need to fetchData() as listener handles it
       alert(`Successfully queued "${campaign.name}" for ${subscriberIds.length} recipients!`);
     } catch (error) {
       console.error('Error sending campaign:', error);
       alert('Failed to send campaign. Please try again.');
     } finally {
       setSendingId(null);
+    }
+  };
+
+  const handleDeleteCampaign = async (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation();
+    if (typeof window !== 'undefined' && !window.confirm(`Are you sure you want to delete "${name}"?`)) return;
+    try {
+      await marketingService.deleteCampaign(id);
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      alert('Failed to delete campaign.');
     }
   };
 
@@ -197,9 +282,18 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
                     <StatusIcon className="w-3 h-3" />
                     {campaign.status}
                   </div>
-                  <button className="text-slate-300 hover:text-slate-600 transition-colors">
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={(e) => handleDeleteCampaign(e, campaign.id, campaign.name)}
+                      className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                      title="Delete Campaign"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button className="text-slate-300 hover:text-slate-600 transition-colors">
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
                 
                 <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors mb-1 truncate">

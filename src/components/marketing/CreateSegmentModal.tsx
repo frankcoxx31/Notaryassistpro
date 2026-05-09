@@ -7,7 +7,7 @@ import { cn } from '../../lib/utils';
 interface CreateSegmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (segment: Omit<MarketingSegment, 'id' | 'createdAt' | 'updatedAt' | 'subscriberCount'>) => Promise<void>;
+  onSave: (segment: Omit<MarketingSegment, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   ownerId: string;
   availableSubscribers: Subscriber[];
   initialData?: MarketingSegment | null;
@@ -123,13 +123,28 @@ const CreateSegmentModal: React.FC<CreateSegmentModalProps> = ({
     e.preventDefault();
     try {
       setLoading(true);
+
+      let count = 0;
+      if (formData.isDynamic) {
+        // Calculate dynamic count
+        const { tags = [], contactTypes = [] } = formData.rules;
+        count = availableSubscribers.filter(sub => {
+          const matchesTags = tags.length === 0 || (sub.tags && tags.some((t: string) => sub.tags.includes(t)));
+          const matchesTypes = contactTypes.length === 0 || contactTypes.includes(sub.contactType);
+          return matchesTags && matchesTypes;
+        }).length;
+      } else {
+        count = formData.manualSubscriberIds.length;
+      }
+
       await onSave({
         ownerId,
         name: formData.name,
         description: formData.description,
         isDynamic: formData.isDynamic,
         rules: formData.isDynamic ? [formData.rules] : [],
-        manualSubscriberIds: formData.isDynamic ? [] : formData.manualSubscriberIds
+        manualSubscriberIds: formData.isDynamic ? [] : formData.manualSubscriberIds,
+        subscriberCount: count
       });
       onClose();
     } catch (error) {

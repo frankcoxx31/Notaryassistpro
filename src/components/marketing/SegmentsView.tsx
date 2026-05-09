@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, Plus, Search, Loader2, MoreVertical, LayoutGrid, List } from 'lucide-react';
+import { Layers, Plus, Search, Loader2, MoreVertical, LayoutGrid, List, Trash2 } from 'lucide-react';
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot 
+} from 'firebase/firestore';
+import { db } from '../../firebase';
 import { User } from 'firebase/auth';
 import { marketingService } from '../../services/marketingService';
 import { MarketingSegment } from '../../types/marketing';
@@ -24,24 +32,40 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
     }
   }, [autoOpen]);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [segmentsData, subscribersData] = await Promise.all([
-        marketingService.getSegments(user.uid),
-        marketingService.getSubscribers(user.uid)
-      ]);
-      setSegments(segmentsData);
-      setSubscribers(subscribersData);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
+  // Real-time listener for segments
+  useEffect(() => {
+    if (!user.uid) return;
+
+    const q = query(
+      collection(db, 'marketingSegments'),
+      where('ownerId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MarketingSegment));
+      setSegments(data);
       setLoading(false);
+    }, (error) => {
+      console.error('Error listening to segments:', error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user.uid]);
+
+  // Fetch subscribers (static fetch is fine for modal usage)
+  const fetchSubscribers = async () => {
+    try {
+      const data = await marketingService.getSubscribers(user.uid);
+      setSubscribers(data);
+    } catch (error) {
+      console.error('Error fetching subscribers:', error);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchSubscribers();
   }, [user.uid]);
 
   const handleSaveSegment = async (data: any) => {
@@ -53,7 +77,6 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
       }
       setEditingSegment(null);
       setIsModalOpen(false);
-      await fetchData();
     } catch (error) {
       console.error('Error saving segment:', error);
       throw error;
@@ -64,6 +87,34 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
     setEditingSegment(segment);
     setIsModalOpen(true);
   };
+
+  const handleDeleteSegment = async (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation(); // Don't trigger edit
+    if (typeof window !== 'undefined' && !window.confirm(`Are you sure you want to delete "${name}"?`)) return;
+    try {
+      await marketingService.deleteSegment(id);
+    } catch (error) {
+      console.error('Error deleting segment:', error);
+      alert('Failed to delete segment.');
+    }
+  };
+
+  // Calculate real-time reach for all segments
+  const segmentsWithCounts = segments.map(segment => {
+    let count = 0;
+    if (segment.isDynamic) {
+      const rule = (segment.rules && segment.rules[0]) || {};
+      const { tags = [], contactTypes = [] } = rule;
+      count = subscribers.filter(sub => {
+        const matchesTags = !tags.length || (sub.tags && tags.some((t: string) => sub.tags.includes(t)));
+        const matchesTypes = !contactTypes.length || contactTypes.includes(sub.contactType);
+        return matchesTags && matchesTypes;
+      }).length;
+    } else {
+      count = segment.manualSubscriberIds?.length || 0;
+    }
+    return { ...segment, subscriberCount: count };
+  });
 
   return (
     <div className="space-y-6">
@@ -106,13 +157,20 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {segments.map((segment) => (
+          {segmentsWithCounts.map((segment) => (
             <div 
               key={segment.id} 
               onClick={() => handleEditSegment(segment)}
               className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all cursor-pointer group relative overflow-hidden"
             >
-              <div className="absolute top-0 right-0 p-3">
+              <div className="absolute top-0 right-0 p-3 flex items-center gap-1">
+                <button 
+                  onClick={(e) => handleDeleteSegment(e, segment.id, segment.name)}
+                  className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                  title="Delete Segment"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
                 <button className="text-slate-300 hover:text-slate-600 transition-colors">
                   <MoreVertical className="w-4 h-4" />
                 </button>
