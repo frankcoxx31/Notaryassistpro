@@ -373,9 +373,21 @@ const LandingPage = () => {
               ))}
             </ul>
 
-            <button className="w-full py-5 bg-indigo-600 text-white font-black text-xl rounded-2xl shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all">
-              Start Your Free Trial
-            </button>
+            <div className="flex flex-col gap-4">
+              <Link 
+                to="/login"
+                className="w-full py-5 bg-indigo-600 text-white font-black text-xl rounded-2xl shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all flex items-center justify-center"
+              >
+                Start Your Free Trial
+              </Link>
+              <Link 
+                to="/login?demo=true"
+                className="w-full py-3 bg-white text-indigo-600 border-2 border-indigo-50 font-bold text-sm rounded-xl hover:bg-indigo-50/30 transition-all flex items-center justify-center gap-2"
+              >
+                <Zap className="w-4 h-4 fill-indigo-600" />
+                Try the Demo Login
+              </Link>
+            </div>
             <p className="text-xs text-slate-400 font-medium italic">No credit card required to start</p>
           </div>
         </div>

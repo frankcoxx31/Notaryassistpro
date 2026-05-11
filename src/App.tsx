@@ -157,8 +157,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 
-// Top-level mode detection
-const IS_DEMO_VERSION = window.location.hostname.includes('ais-pre') || window.location.search.includes('demo=true');
+// Top-level mode detection removed to use useSearchParams inside App component
 
 // Robust date/time parsing for deterministic sorting and display
 const getStatusLabel = (status: string) => {
@@ -1451,7 +1450,7 @@ const Reports = ({
         ...app,
         displayClient,
         displayCompany: customer,
-        normalizedFee: Number(app.fee || app.agreedFee || 0)
+        normalizedFee: Number(app.agreedFee ?? app.fee ?? 0)
       };
     };
 
@@ -3070,7 +3069,8 @@ const Sidebar = ({
   onNewMileage,
   user,
   onSignIn,
-  onSignOut
+  onSignOut,
+  IS_DEMO_VERSION
 }: { 
   isOpen: boolean; 
   toggle: () => void; 
@@ -3083,6 +3083,7 @@ const Sidebar = ({
   user: FirebaseUser | null;
   onSignIn: () => void;
   onSignOut: () => void;
+  IS_DEMO_VERSION: boolean;
 }) => {
   const location = useLocation();
   const [isSigningsOpen, setIsSigningsOpen] = useState(true);
@@ -3509,7 +3510,7 @@ const Dashboard = ({
   }, [appointments, todaySignings]);
 
   const totalDueToday = useMemo(() => {
-    return todaySignings.reduce((sum, a) => sum + (Number(a.fee) || 0), 0);
+    return todaySignings.reduce((sum, a) => sum + (Number(a.agreedFee ?? a.fee) || 0), 0);
   }, [todaySignings]);
 
   const followUpsNeeded = useMemo(() => {
@@ -3526,18 +3527,23 @@ const Dashboard = ({
     const now = new Date();
     const monthStart = startOfMonth(now);
     
-    const monthAppointments = appointments.filter(a => 
-      isAfter(parseSafeDateTime(a.date), monthStart) && 
-      a.status !== 'Cancelled' && 
-      a.status !== 'No Show'
-    );
+    const monthAppointments = appointments.filter(a => {
+      const appDate = parseSafeDateTime(a.date);
+      return isSameMonth(appDate, now) && 
+             isSameYear(appDate, now) && 
+             a.status !== 'Cancelled' && 
+             a.status !== 'No Show';
+    });
 
-    const gross = monthAppointments.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
-    const paid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? Number(a.fee) : 0) || 0), 0);
+    const gross = monthAppointments.reduce((sum, a) => sum + (Number(a.agreedFee ?? a.fee) || 0), 0);
+    const paid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? (Number(a.agreedFee ?? a.fee) || 0) : 0) || 0), 0);
     const unpaid = Math.max(0, gross - paid);
     const avgOrderValue = monthAppointments.length > 0 ? gross / monthAppointments.length : 0;
     
-    const monthExpenses = expenses.filter(e => isAfter(parseSafeDateTime(e.date), monthStart)).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const monthExpenses = expenses.filter(e => {
+      const expDate = parseSafeDateTime(e.date);
+      return isSameMonth(expDate, now) && isSameYear(expDate, now);
+    }).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const netEarnings = gross - monthExpenses;
     
     return { paid, gross, unpaid, count: monthAppointments.length, avgOrderValue, netEarnings };
@@ -3566,7 +3572,7 @@ const Dashboard = ({
         acc[name] = { name, count: 0, total: 0 };
       }
       acc[name].count += 1;
-      acc[name].total += Number(app.fee) || 0;
+      acc[name].total += Number(app.agreedFee ?? app.fee) || 0;
       return acc;
     }, {} as Record<string, { name: string; count: number; total: number }>);
 
@@ -4643,7 +4649,7 @@ const Appointments = ({
       totalEntries: all.length,
       mostCommonAct,
       retentionYears,
-      totalFees: all.reduce((sum, a) => sum + (a.fee || 0), 0)
+      totalFees: all.reduce((sum, a) => sum + (Number(a.agreedFee ?? a.fee) || 0), 0)
     };
   }, [filteredAppointments, appointments, viewMode]);
 
@@ -5896,7 +5902,7 @@ const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer 
 const Accounting = ({ appointments, expenses, onNewExpense, onDeleteExpense }: { appointments: Appointment[]; expenses: Expense[]; onNewExpense: () => void; onDeleteExpense: (id: string) => void }) => {
   const totalIncome = appointments
     .filter(a => a.status === 'Completed' || a.status === 'Paid')
-    .reduce((sum, a) => sum + Number(a.fee || (a as any).agreedFee || 0), 0);
+    .reduce((sum, a) => sum + Number(a.agreedFee ?? a.fee ?? 0), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const netProfit = totalIncome - totalExpenses;
 
@@ -6037,6 +6043,9 @@ const Accounting = ({ appointments, expenses, onNewExpense, onDeleteExpense }: {
 // --- Main App ---
 
 export default function App() {
+  const [searchParams] = useSearchParams();
+  const IS_DEMO_VERSION = window.location.hostname.includes('ais-pre') || searchParams.get('demo') === 'true';
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNewSigningModalOpen, setIsNewSigningModalOpen] = useState(false);
   const [isNewJournalModalOpen, setIsNewJournalModalOpen] = useState(false);
@@ -6932,7 +6941,7 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const isAuthenticated = IS_DEMO_VERSION ? isDemoUser : (!!user || isDemoUser);
+  const isAuthenticated = (IS_DEMO_VERSION || isDemoUser) ? true : !!user;
 
   if (!isAuthReady) {
     return (
@@ -6959,6 +6968,7 @@ export default function App() {
         user={user}
         onSignIn={handleSignIn}
         onSignOut={handleSignOut}
+        IS_DEMO_VERSION={IS_DEMO_VERSION}
       />
       
       <div className={cn(
@@ -7310,35 +7320,33 @@ export default function App() {
   );
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/features" element={<LandingPage />} />
-        
-        <Route path="/login" element={
-          isAuthenticated ? (
-            <Navigate to="/" replace />
+    <Routes>
+      <Route path="/features" element={<LandingPage />} />
+      
+      <Route path="/login" element={
+        isAuthenticated ? (
+          <Navigate to="/" replace />
+        ) : (
+          IS_DEMO_VERSION ? (
+            <DemoLoginPage 
+              onEnterDemo={handleDemoSignIn} 
+              onResetDemo={() => {
+                if (window.confirm('Reset all demo data?')) {
+                  demoStorage.resetAll();
+                  window.location.reload();
+                }
+              }} 
+            />
           ) : (
-            IS_DEMO_VERSION ? (
-              <DemoLoginPage 
-                onEnterDemo={handleDemoSignIn} 
-                onResetDemo={() => {
-                  if (window.confirm('Reset all demo data?')) {
-                    demoStorage.resetAll();
-                    window.location.reload();
-                  }
-                }} 
-              />
-            ) : (
-              <LoginPage onSignIn={handleSignIn} onEnterDemo={handleDemoSignIn} />
-            )
+            <LoginPage onSignIn={handleSignIn} onEnterDemo={handleDemoSignIn} />
           )
-        } />
+        )
+      } />
 
-        <Route path="/*" element={
-          isAuthenticated ? mainAppLayout : <LandingPage />
-        } />
-      </Routes>
-    </Router>
+      <Route path="/*" element={
+        isAuthenticated ? mainAppLayout : <LandingPage />
+      } />
+    </Routes>
   );
 }
 
