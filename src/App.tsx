@@ -5283,7 +5283,7 @@ const Appointments = ({
           </button>
           <button 
             onClick={() => handlePrint()}
-            className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+            className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all shadow-sm"
           >
             <Printer className="w-4 h-4" /> {viewMode === 'journal' ? 'Print Ledger' : 'Print Report'}
           </button>
@@ -5437,6 +5437,14 @@ const Appointments = ({
               {isImporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               {isImporting ? '...' : 'Import'}
             </button>
+
+            <button 
+              onClick={handlePrint}
+              className="hidden lg:flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 shadow-sm"
+            >
+              <Printer className="w-4 h-4 text-indigo-500" />
+              Print
+            </button>
           </div>
         </div>
 
@@ -5564,7 +5572,6 @@ const Appointments = ({
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Doc Status</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Appointment Address</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Order Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -5681,33 +5688,6 @@ const Appointments = ({
                         {app.status === 'Scheduled' ? 'Pending' : 
                          app.status === 'Completed' ? 'Closed' : 
                          app.status}
-                      </div>
-                    </td>
-
-                    {/* Actions Column */}
-                    <td className="px-6 py-5 text-right">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); printInvoice(app, businessProfile); }}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-slate-100"
-                        >
-                          <Printer className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onViewSigning(app); }}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-slate-100"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            setIsBatchDropdownOpen(isBatchDropdownOpen === app.id ? false : app.id); 
-                          }}
-                          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-slate-100"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
                       </div>
                     </td>
                   </tr>
