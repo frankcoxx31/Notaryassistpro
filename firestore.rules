@@ -33,15 +33,15 @@ service cloud.firestore {
     // Helper Functions
     // ===============================================================
     function isAuthenticated() {
-      return request.auth != null && request.auth.token.email_verified == true;
+      return request.auth != null;
     }
 
     function isOwner(userId) {
-      return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == userId;
+      return request.auth != null && request.auth.uid == userId;
     }
 
     function isDocOwner() {
-      return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == resource.data.userId;
+      return request.auth != null && request.auth.uid == resource.data.userId;
     }
 
     function uidUnchanged() {

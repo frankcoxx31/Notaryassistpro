@@ -113,6 +113,7 @@ import {
 } from 'recharts';
 import { cn } from './lib/utils';
 import { Appointment, Customer, CustomerType, Expense, AppointmentStatus, PaymentStatus, Mileage, BusinessProfile, SigningCompany } from './types';
+import { printInvoice } from './lib/invoiceUtils';
 
 const DEFAULT_MILEAGE_RATE = 0.725;
 import { 
@@ -3070,7 +3071,7 @@ const Sidebar = ({
   user,
   onSignIn,
   onSignOut,
-  IS_DEMO_VERSION
+  isPlatformDemo
 }: { 
   isOpen: boolean; 
   toggle: () => void; 
@@ -3083,7 +3084,7 @@ const Sidebar = ({
   user: FirebaseUser | null;
   onSignIn: () => void;
   onSignOut: () => void;
-  IS_DEMO_VERSION: boolean;
+  isPlatformDemo: boolean;
 }) => {
   const location = useLocation();
   const [isSigningsOpen, setIsSigningsOpen] = useState(true);
@@ -3174,7 +3175,7 @@ const Sidebar = ({
         { name: 'Laws Lookup', icon: BookOpen, path: '/laws-lookup' },
       ]
     },
-    !user && !IS_DEMO_VERSION ? { name: 'Firestore Login', icon: ShieldCheck, path: '#', onClick: onSignIn } : null,
+    !user && !isPlatformDemo ? { name: 'Firestore Login', icon: ShieldCheck, path: '#', onClick: onSignIn } : null,
   ].filter(Boolean) as any[];
 
   return (
@@ -3510,7 +3511,7 @@ const Dashboard = ({
   }, [appointments, todaySignings]);
 
   const totalDueToday = useMemo(() => {
-    return todaySignings.reduce((sum, a) => sum + (Number(a.agreedFee ?? a.fee) || 0), 0);
+    return todaySignings.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
   }, [todaySignings]);
 
   const followUpsNeeded = useMemo(() => {
@@ -3535,8 +3536,8 @@ const Dashboard = ({
              a.status !== 'No Show';
     });
 
-    const gross = monthAppointments.reduce((sum, a) => sum + (Number(a.agreedFee ?? a.fee) || 0), 0);
-    const paid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? (Number(a.agreedFee ?? a.fee) || 0) : 0) || 0), 0);
+    const gross = monthAppointments.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
+    const paid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? (Number(a.agreedFee) || Number(a.fee) || 0) : 0) || 0), 0);
     const unpaid = Math.max(0, gross - paid);
     const avgOrderValue = monthAppointments.length > 0 ? gross / monthAppointments.length : 0;
     
@@ -3572,7 +3573,7 @@ const Dashboard = ({
         acc[name] = { name, count: 0, total: 0 };
       }
       acc[name].count += 1;
-      acc[name].total += Number(app.agreedFee ?? app.fee) || 0;
+      acc[name].total += Number(app.agreedFee) || Number(app.fee) || 0;
       return acc;
     }, {} as Record<string, { name: string; count: number; total: number }>);
 
@@ -3630,7 +3631,7 @@ const Dashboard = ({
                   <div className="space-y-2">
                     <div className="flex items-baseline gap-3">
                       <h2 className="text-5xl font-black text-slate-900 tracking-tighter">{nextSigning.time}</h2>
-                      <span className="text-sky-600 font-bold text-lg">${Number(nextSigning.fee).toFixed(2)}</span>
+                      <span className="text-sky-600 font-bold text-lg">${(Number(nextSigning.agreedFee) || Number(nextSigning.fee) || 0).toFixed(2)}</span>
                     </div>
                     <h3 className="text-2xl font-bold text-slate-800">{formatDisplayName(nextSigning.clientName)}</h3>
                   </div>
@@ -3728,7 +3729,7 @@ const Dashboard = ({
                       >
                         <div className="flex justify-between items-start mb-2">
                           <p className="text-xs font-black text-slate-900 truncate max-w-[120px]">{formatDisplayName(item.clientName)}</p>
-                          <span className="text-[10px] font-black text-sky-600">${Number(item.fee).toFixed(0)}</span>
+                          <span className="text-[10px] font-black text-sky-600">${(Number(item.agreedFee) || Number(item.fee) || 0).toFixed(0)}</span>
                         </div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter truncate mb-3">
                           {format(parseSafeDateTime(item.date), 'MMM d')} • {item.time}
@@ -4365,7 +4366,8 @@ const Appointments = ({
   userId, 
   viewMode = 'journal',
   setModalInitialTab,
-  setModalAutoScan
+  setModalAutoScan,
+  businessProfile
 }: { 
   appointments: Appointment[]; 
   customers: Customer[]; 
@@ -4385,6 +4387,7 @@ const Appointments = ({
   viewMode?: 'signings' | 'journal';
   setModalInitialTab: (tab: string) => void;
   setModalAutoScan: (scan: boolean) => void;
+  businessProfile: BusinessProfile | null;
 }) => {
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState<string | boolean>(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -5698,6 +5701,16 @@ const Appointments = ({
                             )}
                             <div className="flex items-center gap-0.5">
                               <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  printInvoice(app, businessProfile);
+                                }}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all"
+                                title="Print Invoice"
+                              >
+                                <Printer className="w-4 h-4" />
+                              </button>
+                              <button 
                                 onClick={(e) => { e.stopPropagation(); onViewSigning(app); }}
                                 className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                               >
@@ -6044,7 +6057,8 @@ const Accounting = ({ appointments, expenses, onNewExpense, onDeleteExpense }: {
 
 export default function App() {
   const [searchParams] = useSearchParams();
-  const IS_DEMO_VERSION = window.location.hostname.includes('ais-pre') || searchParams.get('demo') === 'true';
+  const isPlatformDemo = window.location.hostname.includes('ais-pre');
+  const showDemoOptions = searchParams.get('demo') === 'true';
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNewSigningModalOpen, setIsNewSigningModalOpen] = useState(false);
@@ -6273,7 +6287,7 @@ export default function App() {
 
   // Auth listener
   useEffect(() => {
-    if (IS_DEMO_VERSION) {
+    if (isPlatformDemo) {
       setIsAuthReady(true);
       return;
     }
@@ -6941,7 +6955,7 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const isAuthenticated = (IS_DEMO_VERSION || isDemoUser) ? true : !!user;
+  const isAuthenticated = (isPlatformDemo || isDemoUser) ? true : !!user;
 
   if (!isAuthReady) {
     return (
@@ -6968,7 +6982,7 @@ export default function App() {
         user={user}
         onSignIn={handleSignIn}
         onSignOut={handleSignOut}
-        IS_DEMO_VERSION={IS_DEMO_VERSION}
+        isPlatformDemo={isPlatformDemo}
       />
       
       <div className={cn(
@@ -7039,6 +7053,7 @@ export default function App() {
                   userId={user?.uid || 'mock-user'}
                   setModalInitialTab={setModalInitialTab}
                   setModalAutoScan={setModalAutoScan}
+                  businessProfile={businessProfile}
                 />
               } 
             />
@@ -7079,6 +7094,7 @@ export default function App() {
                   userId={user?.uid || 'mock-user'}
                   setModalInitialTab={setModalInitialTab}
                   setModalAutoScan={setModalAutoScan}
+                  businessProfile={businessProfile}
                 />
               } 
             />
@@ -7207,6 +7223,7 @@ export default function App() {
             appointments={appointments}
             companies={companies}
             onSaveCompany={handleSaveCompany}
+            businessProfile={businessProfile}
           />
         )}
 
@@ -7238,6 +7255,7 @@ export default function App() {
             appointments={appointments}
             companies={companies}
             onSaveCompany={handleSaveCompany}
+            businessProfile={businessProfile}
           />
         )}
 
@@ -7327,7 +7345,7 @@ export default function App() {
         isAuthenticated ? (
           <Navigate to="/" replace />
         ) : (
-          IS_DEMO_VERSION ? (
+          (isPlatformDemo || showDemoOptions) ? (
             <DemoLoginPage 
               onEnterDemo={handleDemoSignIn} 
               onResetDemo={() => {

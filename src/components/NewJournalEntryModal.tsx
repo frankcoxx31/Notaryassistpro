@@ -5,15 +5,16 @@ import {
   HelpCircle, CheckCircle2, Phone, Banknote, 
   List, Pencil, Plus, Trash2, Camera, Loader2, AlertCircle,
   Car, TrendingUp, PlusCircle, Upload, ChevronLeft, ChevronRight,
-  FileText, ShieldCheck
+  FileText, ShieldCheck, Printer
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
-import { Appointment, AppointmentStatus, Customer, SigningCompany, Signer } from '../types';
+import { Appointment, AppointmentStatus, Customer, SigningCompany, Signer, BusinessProfile } from '../types';
 import { cn } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebase';
 import SigningCompanyModal from './SigningCompanyModal';
+import { printInvoice } from '../lib/invoiceUtils';
 
 import { HYBRID_LOAN_PACKAGE, PACKAGE_CONFIGS, mergeUniqueDocuments, validateDocuments, normalizeDocName } from '../lib/packageConfigs';
 
@@ -29,6 +30,7 @@ interface NewJournalEntryModalProps {
   companies: SigningCompany[];
   onSaveCompany: (company: SigningCompany) => void;
   autoScan?: boolean;
+  businessProfile: BusinessProfile | null;
 }
 
 const DEFAULT_MILEAGE_RATE = 0.725;
@@ -65,7 +67,8 @@ const NewJournalEntryModal = ({
   appointments,
   companies,
   onSaveCompany,
-  autoScan = false
+  autoScan = false,
+  businessProfile
 }: NewJournalEntryModalProps) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formData, setFormData] = useState<Partial<Appointment>>({});
@@ -993,6 +996,14 @@ const NewJournalEntryModal = ({
                       <h3 className="text-lg font-bold text-slate-900">Fee Tracking & Billing</h3>
                       <p className="text-sm text-slate-500">Record your fees and track payment status for this journal entry.</p>
                     </div>
+                    <div className="flex-1"></div>
+                    <button 
+                      onClick={() => printInvoice(formData as Appointment, businessProfile)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-50 transition-all shadow-sm h-fit"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      Print Invoice
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/50 p-8 rounded-2xl border border-slate-100">

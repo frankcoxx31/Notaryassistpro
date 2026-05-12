@@ -5,16 +5,17 @@ import {
   HelpCircle, CheckCircle2, Phone, Banknote, 
   List, Pencil, Plus, Trash2, Camera, Loader2, AlertCircle,
   Car, TrendingUp, PlusCircle, Upload, ChevronLeft, ChevronRight,
-  FileText, ShieldCheck, Settings
+  FileText, ShieldCheck, Settings, Printer
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
-import { Appointment, AppointmentStatus, Customer, SigningCompany, Signer } from '../types';
+import { Appointment, AppointmentStatus, Customer, SigningCompany, Signer, BusinessProfile } from '../types';
 import { cn } from '../lib/utils';
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebase';
 import SigningCompanyModal from './SigningCompanyModal';
 import { IdentityVerificationModule } from './idv/IdentityVerificationModule';
+import { printInvoice } from '../lib/invoiceUtils';
 
 import { HYBRID_LOAN_PACKAGE, PACKAGE_CONFIGS, mergeUniqueDocuments, validateDocuments, normalizeDocName } from '../lib/packageConfigs';
 
@@ -30,6 +31,7 @@ interface NewSigningModalProps {
   companies: SigningCompany[];
   onSaveCompany: (company: SigningCompany) => void;
   autoScan?: boolean;
+  businessProfile: BusinessProfile | null;
 }
 
 const DEFAULT_MILEAGE_RATE = 0.725;
@@ -66,7 +68,8 @@ const NewSigningModal = ({
   appointments,
   companies,
   onSaveCompany,
-  autoScan = false
+  autoScan = false,
+  businessProfile
 }: NewSigningModalProps) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [formData, setFormData] = useState<Partial<Appointment>>({});
@@ -1417,6 +1420,13 @@ const NewSigningModal = ({
                         Fee Tracking & Billing
                       </h3>
                       <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => printInvoice(formData as Appointment, businessProfile)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-slate-50 transition-all shadow-sm"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          Print Invoice
+                        </button>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Payment Status:</span>
                         <select 
                           value={formData.paymentStatus || "Not Sent"}
