@@ -57,6 +57,13 @@ const NOTARIAL_ACTS = [
   "Acknowledgment", "Jurat", "Oath / Affirmation", "Verification / Proof", "No Notarial Act Required"
 ];
 
+const TIME_SLOTS = [
+  "6:00 AM", "6:30 AM", "7:00 AM", "7:30 AM", "8:00 AM", "8:30 AM", "9:00 AM", "9:30 AM",
+  "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM", "12:00 PM", "12:30 PM", "1:00 PM", "1:30 PM",
+  "2:00 PM", "2:30 PM", "3:00 PM", "3:30 PM", "4:00 PM", "4:30 PM", "5:00 PM", "5:30 PM",
+  "6:00 PM", "6:30 PM", "7:00 PM", "7:30 PM", "8:00 PM", "8:30 PM", "9:00 PM", "9:30 PM", "10:00 PM"
+];
+
 const NewSigningModal = ({ 
   isOpen, 
   onClose, 
@@ -741,13 +748,15 @@ const NewSigningModal = ({
                         <label className="text-xs font-bold text-slate-700 w-24 text-right">Time:</label>
                         <div className="flex-1 relative">
                           <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                          <input 
-                            type="text" 
-                            value={formData.time || ""}
+                          <select 
+                            value={formData.time || "10:00 AM"}
                             onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white" 
-                            placeholder="10:00 AM"
-                          />
+                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white appearance-none cursor-pointer font-bold text-slate-900" 
+                          >
+                            {TIME_SLOTS.map(slot => (
+                              <option key={slot} value={slot}>{slot}</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 

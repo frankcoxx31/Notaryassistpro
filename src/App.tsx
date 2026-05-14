@@ -5658,20 +5658,30 @@ const Appointments = ({
                     {/* Column 6: Appointment Address */}
                     <td className="px-6 py-5">
                       <div className="max-w-[200px]">
-                        <div className="text-sm font-bold text-sky-600 group-hover:text-sky-700 transition-colors capitalize transition-all">
-                          {(app.address || '').toLowerCase()}
-                        </div>
-                        <div className="text-sm font-bold text-sky-600 group-hover:text-sky-700 flex items-center gap-2 transition-all">
-                          {app.city ? `${app.city.toLowerCase()} ${app.state ? app.state.toUpperCase() : ''} ${app.zip || ''}` : 'Location TBD'}
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigator.clipboard.writeText(`${app.address}, ${app.city}, ${app.state} ${app.zip}`);
-                            }}
-                            className="p-1 hover:bg-sky-50 rounded-md transition-all text-slate-400 hover:text-sky-600"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (app.location && app.location !== 'TBD') {
+                              window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${app.address}, ${app.city}, ${app.state} ${app.zip}`)}`, '_blank');
+                            }
+                          }}
+                          className="cursor-pointer group/address"
+                        >
+                          <div className="text-sm font-bold text-sky-600 group-hover/address:text-indigo-600 transition-colors capitalize transition-all underline decoration-sky-200 underline-offset-4 group-hover/address:decoration-indigo-200">
+                            {(app.address || '').toLowerCase()}
+                          </div>
+                          <div className="text-[11px] font-bold text-slate-400 group-hover/address:text-indigo-400 flex items-center gap-2 transition-all mt-0.5">
+                            {app.city ? `${app.city.toLowerCase()} ${app.state ? app.state.toUpperCase() : ''} ${app.zip || ''}` : 'Location TBD'}
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(`${app.address}, ${app.city}, ${app.state} ${app.zip}`);
+                              }}
+                              className="p-1 hover:bg-sky-50 rounded-md transition-all text-slate-400 hover:text-sky-600 ml-auto opacity-0 group-hover/address:opacity-100"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </td>
