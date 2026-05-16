@@ -3481,6 +3481,7 @@ const Dashboard = ({
   onViewSigning: (app: Appointment, tab?: string) => void;
 }) => {
   const navigate = useNavigate();
+  const [timePeriod, setTimePeriod] = useState<'thisMonth' | 'lastMonth' | 'thisYear' | 'allTime'>('thisMonth');
 
   const todaySignings = useMemo(() => {
     const now = new Date();
@@ -3528,29 +3529,49 @@ const Dashboard = ({
 
   const stats = useMemo(() => {
     const now = new Date();
-    const monthStart = startOfMonth(now);
     
-    const monthAppointments = appointments.filter(a => {
+    const filteredApps = appointments.filter(a => {
       const appDate = parseSafeDateTime(a.date);
-      return isSameMonth(appDate, now) && 
-             isSameYear(appDate, now) && 
-             a.status !== 'Cancelled' && 
-             a.status !== 'No Show';
+      if (a.status === 'Cancelled' || a.status === 'No Show') return false;
+      
+      switch (timePeriod) {
+        case 'thisMonth':
+          return isSameMonth(appDate, now) && isSameYear(appDate, now);
+        case 'lastMonth':
+          return isSameMonth(appDate, subMonths(now, 1)) && isSameYear(appDate, subMonths(now, 1));
+        case 'thisYear':
+          return isSameYear(appDate, now);
+        case 'allTime':
+          return true;
+        default:
+          return isSameMonth(appDate, now) && isSameYear(appDate, now);
+      }
     });
 
-    const gross = monthAppointments.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
-    const paid = monthAppointments.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? (Number(a.agreedFee) || Number(a.fee) || 0) : 0) || 0), 0);
+    const gross = filteredApps.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
+    const paid = filteredApps.reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' ? (Number(a.agreedFee) || Number(a.fee) || 0) : 0) || 0), 0);
     const unpaid = Math.max(0, gross - paid);
-    const avgOrderValue = monthAppointments.length > 0 ? gross / monthAppointments.length : 0;
+    const avgOrderValue = filteredApps.length > 0 ? gross / filteredApps.length : 0;
     
-    const monthExpenses = expenses.filter(e => {
+    const filteredExpenses = expenses.filter(e => {
       const expDate = parseSafeDateTime(e.date);
-      return isSameMonth(expDate, now) && isSameYear(expDate, now);
+      switch (timePeriod) {
+        case 'thisMonth':
+          return isSameMonth(expDate, now) && isSameYear(expDate, now);
+        case 'lastMonth':
+          return isSameMonth(expDate, subMonths(now, 1)) && isSameYear(expDate, subMonths(now, 1));
+        case 'thisYear':
+          return isSameYear(expDate, now);
+        case 'allTime':
+          return true;
+        default:
+          return isSameMonth(expDate, now) && isSameYear(expDate, now);
+      }
     }).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-    const netEarnings = gross - monthExpenses;
+    const netEarnings = gross - filteredExpenses;
     
-    return { paid, gross, unpaid, count: monthAppointments.length, avgOrderValue, netEarnings };
-  }, [appointments, expenses]);
+    return { paid, gross, unpaid, count: filteredApps.length, avgOrderValue, netEarnings };
+  }, [appointments, expenses, timePeriod]);
 
   const monthlyGoal = 5000;
   const goalProgress = Math.min(100, (stats.paid / monthlyGoal) * 100);
@@ -3602,7 +3623,28 @@ const Dashboard = ({
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">Business Overview</h1>
               <p className="text-sm text-slate-500 font-medium">Manage signings, track revenue, and stay ahead of follow-ups from one professional workspace.</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-3">
+              <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                {[
+                  { id: 'thisMonth', label: 'This Month' },
+                  { id: 'lastMonth', label: 'Last Month' },
+                  { id: 'thisYear', label: 'This Year' },
+                  { id: 'allTime', label: 'All Time' }
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setTimePeriod(p.id as any)}
+                    className={cn(
+                      "px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all",
+                      timePeriod === p.id 
+                        ? "bg-slate-900 text-white shadow-md" 
+                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
               <div className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-sm" title="Appointments scheduled for today.">
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
                 <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{todaySignings.length} Signings Today</span>
@@ -5145,17 +5187,20 @@ const Appointments = ({
     const todaysSignings = activeApps.filter(a => isSameDay(parseSafeDateTime(a.date, a.time), startOfToday)).length;
     const upcomingSignings = activeApps.filter(a => isAfter(parseSafeDateTime(a.date, a.time), startOfToday)).length;
     const awaitingInvoice = activeApps.filter(a => (a.status === 'Completed' || a.status === 'Paid') && !a.invoiceSent).length;
-    const outstandingBalance = activeApps.reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? Number(a.fee) : 0) || 0), 0);
-    const collectedThisWeek = activeApps
-      .filter(a => isAfter(parseSafeDateTime(a.date, a.time), subDays(now, 7)) && (a.status === 'Paid' || a.paymentStatus === 'Paid'))
-      .reduce((sum, a) => sum + (Number(a.amountCollected) || Number(a.fee) || 0), 0);
+    
+    // Financials for the selected filtered period
+    const grossRevenue = filteredAppointments.filter(a => a.status !== 'Cancelled' && a.status !== 'No Show').reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0);
+    const amountCollected = filteredAppointments.filter(a => a.status !== 'Cancelled' && a.status !== 'No Show').reduce((sum, a) => sum + (Number(a.amountCollected) || (a.status === 'Paid' || a.paymentStatus === 'Paid' ? (Number(a.agreedFee) || Number(a.fee) || 0) : 0) || 0), 0);
+    const outstandingBalance = filteredAppointments.filter(a => a.status !== 'Cancelled' && a.status !== 'No Show').reduce((sum, a) => sum + (Number(a.amountOutstanding) || ((a.status !== 'Paid' && !a.invoicePaidDate) ? (Number(a.agreedFee) || Number(a.fee) || 0) : 0) || 0), 0);
 
     return {
       todaysSignings,
       upcomingSignings,
       awaitingInvoice,
+      grossRevenue,
+      amountCollected,
       outstandingBalance,
-      collectedThisWeek
+      count: activeApps.length
     };
   }, [filteredAppointments]);
 
@@ -5335,13 +5380,23 @@ const Appointments = ({
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Today's Signings</p>
-            <p className="text-xl font-black text-slate-900">{stats.todaysSignings}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Signings ({dateFilter})</p>
+            <p className="text-xl font-black text-slate-900">{stats.count}</p>
           </div>
           
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Upcoming</p>
-            <p className="text-xl font-black text-indigo-600">{stats.upcomingSignings}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Gross Revenue</p>
+            <p className="text-xl font-black text-indigo-600">${stats.grossRevenue.toLocaleString()}</p>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Collected</p>
+            <p className="text-xl font-black text-emerald-600">${stats.amountCollected.toLocaleString()}</p>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Remaining Due</p>
+            <p className="text-xl font-black text-rose-600">${stats.outstandingBalance.toLocaleString()}</p>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
@@ -5350,16 +5405,6 @@ const Appointments = ({
               {stats.awaitingInvoice > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
             </div>
             <p className="text-xl font-black text-amber-600">{stats.awaitingInvoice}</p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Outstanding Balance</p>
-            <p className="text-xl font-black text-rose-600">${stats.outstandingBalance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Collected This Week</p>
-            <p className="text-xl font-black text-emerald-600">${stats.collectedThisWeek.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
           </div>
         </div>
       )}
