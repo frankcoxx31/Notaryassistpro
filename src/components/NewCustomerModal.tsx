@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { X, Users } from 'lucide-react';
 import { Customer, CustomerType } from '../types';
+import { generateCustomerId } from '../services/customerService';
 
 interface NewCustomerModalProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ const NewCustomerModal = ({ isOpen, onClose, customer, onSave, userId }: NewCust
       setFormData(customer);
     } else {
       setFormData({
-        id: Math.random().toString(36).substr(2, 9),
+        id: generateCustomerId(),
         userId: userId,
         firstName: '',
         lastName: '',

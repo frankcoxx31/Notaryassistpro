@@ -136,6 +136,9 @@ import NewJournalEntryModal from './components/NewJournalEntryModal';
 import NewCustomerModal from './components/NewCustomerModal';
 import SigningCompanyModal from './components/SigningCompanyModal';
 import SigningCompaniesPage from './components/SigningCompaniesPage';
+import { findExistingCustomer } from './services/customerService';
+import Newsletter from './pages/Newsletter';
+import EmailModal from './components/EmailModal';
 import LawsLookup from './components/LawsLookup';
 import MarketingView from './components/marketing/MarketingView';
 import { 
@@ -3120,6 +3123,7 @@ const Sidebar = ({
       ]
     },
     { name: 'Marketing', icon: Mail, path: '/marketing' },
+    { name: 'Newsletter', icon: Mail, path: '/newsletter' },
     { name: 'Calendar', icon: Calendar, path: '/calendar' },
     { name: 'Customers', icon: Users, path: '/customers' },
     { name: 'Signing Companies', icon: Building2, path: '/companies' },
@@ -5818,6 +5822,7 @@ const Appointments = ({
 const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer }: { customers: Customer[]; onNewCustomer: () => void; onEditCustomer: (c: Customer) => void; onDeleteCustomer: (id: string) => void }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<CustomerType | 'All'>('All');
+  const [emailModalCustomer, setEmailModalCustomer] = useState<Customer | null>(null);
 
   const filteredCustomers = customers.filter(c => {
     const matchesSearch = c.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -5876,6 +5881,13 @@ const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer 
                 {customer.firstName.charAt(0)}{customer.lastName.charAt(0)}
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setEmailModalCustomer(customer)}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  Send Email
+                </button>
                 <button 
                   onClick={() => onEditCustomer(customer)}
                   className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
@@ -5924,6 +5936,13 @@ const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer 
           <h3 className="text-lg font-bold text-slate-900">No customers found</h3>
           <p className="text-sm text-slate-500">Try adjusting your search or add a new customer.</p>
         </div>
+      )}
+
+      {emailModalCustomer && (
+        <EmailModal
+          customer={emailModalCustomer}
+          onClose={() => setEmailModalCustomer(null)}
+        />
       )}
     </div>
   );
@@ -6852,6 +6871,30 @@ export default function App() {
     }
 
     try {
+      // Deduplication strategy: if this seems to be a new customer (ID matches the random pattern)
+      // but email or phone matches an existing record, we should merge or use the existing one.
+      // However, if we're editing an existing customer (from the list), we should skip this check.
+      
+      const isNewCustomer = !customers.some(c => c.id === customer.id);
+      
+      if (isNewCustomer) {
+        const existing = await findExistingCustomer(user.uid, customer.email, customer.phone);
+        if (existing) {
+          console.log(`[Customer Service] Deduplication matched existing customer: ${existing.id}`);
+          // Update existing with new data while retaining ID and createdAt
+          const updatedCustomer = {
+            ...existing,
+            ...customer,
+            id: existing.id,
+            createdAt: existing.createdAt,
+            updatedAt: new Date().toISOString()
+          };
+          const customerData = sanitizeData({ ...updatedCustomer, userId: user.uid });
+          await setDoc(doc(db, 'customers', existing.id), customerData);
+          return;
+        }
+      }
+
       const customerData = sanitizeData({ ...customer, userId: user.uid });
       await setDoc(doc(db, 'customers', customer.id), customerData);
     } catch (error) {
@@ -7159,6 +7202,7 @@ export default function App() {
               } 
             />
             <Route path="/marketing" element={<MarketingView />} />
+            <Route path="/newsletter" element={<Newsletter />} />
             <Route 
               path="/mileage" 
               element={
