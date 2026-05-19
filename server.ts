@@ -25,6 +25,34 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+const getFirebaseConfig = () => {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) {
+    console.error('[Firebase] GOOGLE_SERVICE_ACCOUNT_JSON is not set.');
+    return null;
+  }
+
+  const attempts = [
+    () => JSON.parse(raw),
+    () => JSON.parse(raw.replace(/\\{/g, '{').replace(/\\}/g, '}')),
+    () => JSON.parse(raw.replace(/\\{/g, '{').replace(/\\}/g, '}').replace(/\\"/g, '"')),
+    () => JSON.parse(raw.replace(/\\([^"\\\/bfnrtu])/g, '$1')),
+  ];
+
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      const result = attempts[i]();
+      console.log(`[Firebase] JSON parsed successfully on attempt ${i + 1}`);
+      return result;
+    } catch (e) {
+      console.warn(`[Firebase] Parse attempt ${i + 1} failed`);
+    }
+  }
+
+  console.error('[Firebase] All JSON parse attempts failed.');
+  return null;
+};
+
 async function startServer() {
   console.log("Starting server process...");
   const app = express();
