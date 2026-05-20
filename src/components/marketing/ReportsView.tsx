@@ -38,6 +38,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ user }) => {
   const [unsubscribeCount, setUnsubscribeCount] = useState(0);
   const [recentCampaigns, setRecentCampaigns] = useState<any[]>([]);
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
+  const [avgOpenRate, setAvgOpenRate] = useState('0%');
 
   useEffect(() => {
     const fetchRealData = async () => {
@@ -88,6 +89,50 @@ const ReportsView: React.FC<ReportsViewProps> = ({ user }) => {
         }));
         setRecentCampaigns(campaigns);
 
+        // 4.5 Calculate average open rate from all campaigns and email events
+        let totalSentCampaign = 0;
+        let totalOpenedCampaign = 0;
+        try {
+          const allCampaignsSnap = await getDocs(
+            query(
+              collection(db, 'marketingCampaigns'),
+              where('ownerId', '==', user.uid)
+            )
+          );
+          allCampaignsSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.metrics) {
+              totalSentCampaign += data.metrics.sentCount || 0;
+              totalOpenedCampaign += data.metrics.openCount || 0;
+            }
+          });
+        } catch (e) {
+          console.error("Error calculating campaign stats:", e);
+        }
+
+        let extraSent = 0;
+        let extraOpened = 0;
+        try {
+          const eventsSnap = await getDocs(
+            query(
+              collection(db, 'emailEvents'),
+              where('ownerId', '==', user.uid)
+            )
+          );
+          eventsSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.type === 'sent') extraSent++;
+            if (data.type === 'opened') extraOpened++;
+          });
+        } catch (e) {
+          console.error("Error calculating extra email event stats:", e);
+        }
+
+        const totalSent = totalSentCampaign + extraSent;
+        const totalOpened = totalOpenedCampaign + extraOpened;
+        const avgRate = totalSent > 0 ? `${Math.round((totalOpened / totalSent) * 100)}%` : '0%';
+        setAvgOpenRate(avgRate);
+
         // 5. Build monthly customer growth chart from createdAt dates
         const allCustomers = customersSnap.docs.map(d => d.data());
         const monthMap: Record<string, number> = {};
@@ -137,9 +182,9 @@ const ReportsView: React.FC<ReportsViewProps> = ({ user }) => {
     },
     { 
       label: 'Avg Open Rate', 
-      value: 'N/A', 
+      value: loading ? '...' : avgOpenRate, 
       icon: MailOpen, 
-      delta: 'Tracking off', 
+      delta: 'Active', 
       isPositive: true, 
       color: 'text-emerald-600', 
       bg: 'bg-emerald-50' 

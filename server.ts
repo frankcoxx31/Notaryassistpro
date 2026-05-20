@@ -271,14 +271,40 @@ async function startServer() {
         `);
       }
 
+      const tags = [];
+      if (customerId) tags.push({ name: "subscriber_id", value: customerId });
+      if (templateId) tags.push({ name: "campaign_id", value: templateId });
+
       const result = await resend.emails.send({
         from: FROM_EMAIL,
         to: [to],
         subject: emailSubject,
         html: emailHtml,
+        tags: tags.length > 0 ? tags : undefined,
       });
 
       console.log(`[Email] Sent single email to ${to}`, result);
+
+      const emailId = (result as any)?.data?.id || (result as any)?.id;
+      if (adminDb && emailId) {
+        try {
+          await adminDb.collection('emailEvents').add({
+            ownerId: process.env.CRM_OWNER_USER_ID || 'system',
+            subscriberId: customerId || 'unknown',
+            campaignId: templateId || 'single',
+            type: 'sent',
+            timestamp: new Date().toISOString(),
+            metadata: {
+              emailId,
+              subject: emailSubject,
+              to: [to],
+            }
+          });
+        } catch (dbErr: any) {
+          console.error("[Email Sync] Failed to store sent event:", dbErr.message);
+        }
+      }
+
       res.json({ success: true, result });
     } catch (error: any) {
       console.error("[Email] Send single error:", error);
@@ -290,7 +316,7 @@ async function startServer() {
     if (!resend) return res.status(503).json({ error: "Email service not configured. Add RESEND_API_KEY." });
     if (!adminDb) return res.status(503).json({ error: "Database not configured." });
 
-    const { templateId, subject, body, templateData, recipientGroups } = req.body;
+    const { templateId, subject, body, templateData, recipientGroups, campaignId } = req.body;
 
     if (!recipientGroups || !recipientGroups.length) {
       return res.status(400).json({ error: "recipientGroups is required" });
@@ -347,13 +373,41 @@ async function startServer() {
               `);
             }
 
-            await resend.emails.send({
+            const tags = [];
+            if (customer.id) tags.push({ name: 'subscriber_id', value: customer.id });
+            if (campaignId || templateId) {
+              tags.push({ name: 'campaign_id', value: campaignId || templateId });
+            }
+
+            const sendResult = await resend.emails.send({
               from: FROM_EMAIL,
               to: [customer.email],
               subject: emailSubject,
               html: emailHtml,
+              tags: tags.length > 0 ? tags : undefined,
             });
+
             sent++;
+
+            const emailId = (sendResult as any)?.data?.id || (sendResult as any)?.id;
+            if (adminDb && emailId) {
+              try {
+                await adminDb.collection('emailEvents').add({
+                  ownerId: process.env.CRM_OWNER_USER_ID || 'system',
+                  subscriberId: customer.id || 'unknown',
+                  campaignId: campaignId || templateId || 'newsletter',
+                  type: 'sent',
+                  timestamp: new Date().toISOString(),
+                  metadata: {
+                    emailId,
+                    subject: emailSubject,
+                    to: [customer.email],
+                  }
+                });
+              } catch (dbErr: any) {
+                console.error("[Email Sync] Failed to store sent event:", dbErr.message);
+              }
+            }
           } catch (err: any) {
             failed++;
             errors.push(`${customer.email}: ${err.message}`);
@@ -418,6 +472,95 @@ async function startServer() {
     } catch (error: any) {
       console.error("[Email] Unsubscribe error:", error);
       res.status(500).send("Something went wrong. Please try again.");
+    }
+  });
+
+  app.post("/api/webhooks/resend", async (req, res) => {
+    try {
+      const payload = req.body;
+      console.log("[Resend Webhook Received]:", JSON.stringify(payload));
+
+      const type = payload.type; 
+      const data = payload.data;
+
+      if (data && adminDb) {
+        const emailId = data.email_id;
+        const tags = data.tags;
+
+        let campaignId = '';
+        let subscriberId = '';
+
+        if (tags) {
+          if (Array.isArray(tags)) {
+            const campaignTag = tags.find((t: any) => t.name === 'campaign_id');
+            const subTag = tags.find((t: any) => t.name === 'subscriber_id');
+            if (campaignTag) campaignId = campaignTag.value;
+            if (subTag) subscriberId = subTag.value;
+          } else if (typeof tags === 'object') {
+            campaignId = tags.campaign_id || '';
+            subscriberId = tags.subscriber_id || '';
+          }
+        }
+
+        const normType = (type && typeof type === 'string') ? type.replace('email.', '') : 'event';
+
+        // Add the event to emailEvents
+        await adminDb.collection('emailEvents').add({
+          ownerId: process.env.CRM_OWNER_USER_ID || 'system',
+          subscriberId: subscriberId || 'unknown',
+          campaignId: campaignId || 'single',
+          type: normType,
+          timestamp: payload.created_at || new Date().toISOString(),
+          metadata: {
+            emailId: emailId || '',
+            subject: data.subject || '',
+            to: data.to || [],
+            raw: data
+          }
+        });
+
+        console.log(`[Resend Webhook Store Success] Stored event "${normType}" for email ${emailId}`);
+
+        // Update campaign metrics if normalized type is 'opened' or 'clicked' or 'unsubscribed' etc
+        if (campaignId && campaignId !== 'single' && campaignId !== 'newsletter') {
+          const campaignRef = adminDb.collection('marketingCampaigns').doc(campaignId);
+          const campaignDoc = await campaignRef.get();
+          if (campaignDoc.exists) {
+            const metrics = campaignDoc.data()?.metrics || {
+              sentCount: 0,
+              deliveredCount: 0,
+              openCount: 0,
+              clickCount: 0,
+              unsubscribeCount: 0,
+              bounceCount: 0,
+            };
+
+            const fieldToUpdate = 
+              normType === 'opened' ? 'metrics.openCount' :
+              normType === 'clicked' ? 'metrics.clickCount' :
+              normType === 'unsubscribed' ? 'metrics.unsubscribeCount' :
+              normType === 'bounced' ? 'metrics.bounceCount' : null;
+
+            if (fieldToUpdate) {
+              const currentVal = normType === 'opened' ? (metrics.openCount || 0) :
+                                 normType === 'clicked' ? (metrics.clickCount || 0) :
+                                 normType === 'unsubscribed' ? (metrics.unsubscribeCount || 0) :
+                                 normType === 'bounced' ? (metrics.bounceCount || 0) : 0;
+
+              await campaignRef.update({
+                [fieldToUpdate]: currentVal + 1,
+                updatedAt: new Date().toISOString()
+              });
+              console.log(`[Resend Webhook Store Success] Incremented ${fieldToUpdate} for campaign ${campaignId}`);
+            }
+          }
+        }
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error("[Resend Webhook Error]:", error);
+      res.status(500).json({ error: error.message || "Failed to process webhook" });
     }
   });
 

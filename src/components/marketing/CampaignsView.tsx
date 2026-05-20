@@ -110,6 +110,7 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
             subject: data.subject,
             body: template?.htmlContent || '',
             templateId: null,
+            campaignId: newCampaign.id,
           })
         });
 
@@ -151,6 +152,7 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
           subject: campaign.subject,
           body: template?.htmlContent || '',
           templateId: null,
+          campaignId: campaign.id,
         })
       });
 
