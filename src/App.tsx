@@ -5868,6 +5868,11 @@ const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer 
           <option value="Buyer">Buyer</option>
           <option value="Signer">Signer</option>
           <option value="General Client">General Client</option>
+          <option value="Loan Officer">Loan Officer</option>
+          <option value="Closing Attorney">Closing Attorney</option>
+          <option value="Title Processor">Title Processor</option>
+          <option value="Realtor">Realtor</option>
+          <option value="Estate Attorney">Estate Attorney</option>
         </select>
       </div>
 

@@ -124,7 +124,7 @@ export interface SigningCompany {
   favorite?: boolean;
 }
 
-export type CustomerType = 'Buyer' | 'Seller' | 'Borrower' | 'Signer' | 'General Client';
+export type CustomerType = 'Buyer' | 'Seller' | 'Borrower' | 'Signer' | 'General Client' | 'Loan Officer' | 'Closing Attorney' | 'Title Processor' | 'Realtor' | 'Estate Attorney';
 
 export interface Customer {
   id: string;

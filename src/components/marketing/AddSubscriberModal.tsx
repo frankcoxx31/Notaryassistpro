@@ -144,6 +144,11 @@ const AddSubscriberModal: React.FC<AddSubscriberModalProps> = ({ isOpen, onClose
               <option value="hospital">Hospital</option>
               <option value="nursing home">Nursing Home</option>
               <option value="estate planning">Estate Planning</option>
+              <option value="Loan Officer">Loan Officer</option>
+              <option value="Closing Attorney">Closing Attorney</option>
+              <option value="Title Processor">Title Processor</option>
+              <option value="Realtor">Realtor</option>
+              <option value="Estate Attorney">Estate Attorney</option>
               <option value="other">Other</option>
             </select>
           </div>
