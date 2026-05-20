@@ -32,8 +32,9 @@ import AutomationsView from './AutomationsView';
 import TemplatesView from './TemplatesView';
 import ReportsView from './ReportsView';
 import PreferencesView from './PreferencesView';
+import Newsletter from '../../pages/Newsletter';
 
-type MarketingTab = 'subscribers' | 'segments' | 'campaigns' | 'automations' | 'templates' | 'reports' | 'preferences';
+type MarketingTab = 'subscribers' | 'segments' | 'campaigns' | 'automations' | 'templates' | 'reports' | 'preferences' | 'newsletter';
 
 const MarketingView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<MarketingTab>('campaigns');
@@ -45,7 +46,8 @@ const MarketingView: React.FC = () => {
     automations: false,
     templates: false,
     reports: false,
-    preferences: false
+    preferences: false,
+    newsletter: false
   });
   const [user] = useAuthState(auth);
 
@@ -57,6 +59,7 @@ const MarketingView: React.FC = () => {
     { id: 'templates', name: 'Templates', icon: FileText },
     { id: 'reports', name: 'Reports', icon: BarChart3 },
     { id: 'preferences', name: 'Preferences', icon: Settings2 },
+    { id: 'newsletter', name: 'Newsletter', icon: Mail },
   ];
 
   const handleCreateAction = (tabId: MarketingTab) => {
@@ -86,6 +89,7 @@ const MarketingView: React.FC = () => {
       case 'templates': return <TemplatesView user={user} autoOpen={autoOpenState.templates} />;
       case 'reports': return <ReportsView user={user} />;
       case 'preferences': return <PreferencesView user={user} />;
+      case 'newsletter': return <Newsletter />;
       default: return <CampaignsView user={user} autoOpen={autoOpenState.campaigns} />;
     }
   };

@@ -3123,7 +3123,6 @@ const Sidebar = ({
       ]
     },
     { name: 'Marketing', icon: Mail, path: '/marketing' },
-    { name: 'Newsletter', icon: Mail, path: '/newsletter' },
     { name: 'Calendar', icon: Calendar, path: '/calendar' },
     { name: 'Customers', icon: Users, path: '/customers' },
     { name: 'Signing Companies', icon: Building2, path: '/companies' },
