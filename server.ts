@@ -75,7 +75,7 @@ try {
 
 // ─── Resend Setup ─────────────────────────────────────────────────────────────
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM_EMAIL = "Frank Coxx <fcoxx@integrityclosingsclt.com>";
+const FROM_EMAIL = "Frank Coxx <fcoxx@notaryinfo.icclt.com>";
 const APP_URL = process.env.APP_URL || "https://www.notaryproapp.com";
 
 // ─── Email Templates ──────────────────────────────────────────────────────────
