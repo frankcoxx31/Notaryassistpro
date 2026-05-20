@@ -13,14 +13,22 @@ import {
   XCircle,
   Loader2,
   Layers,
-  Plus
+  Plus,
+  Edit2,
+  UserCheck,
+  X,
+  User as UserIcon,
+  Phone as PhoneIcon
 } from 'lucide-react';
 import { 
   collection, 
   query, 
   where, 
   orderBy, 
-  onSnapshot 
+  onSnapshot,
+  doc,
+  setDoc,
+  getDocs
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { User } from 'firebase/auth';
@@ -30,6 +38,7 @@ import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import AddSubscriberModal from './AddSubscriberModal';
+import EmailModal from '../../components/EmailModal';
 
 interface SubscribersViewProps {
   user: User;
@@ -45,6 +54,9 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
   const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSegmentMenuOpen, setIsSegmentMenuOpen] = useState(false);
+  const [editingSubscriber, setEditingSubscriber] = useState<Subscriber | null>(null);
+  const [emailModalCustomer, setEmailModalCustomer] = useState<any | null>(null);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
 
   // Real-time listener for subscribers
   useEffect(() => {
@@ -108,6 +120,64 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
     } catch (error) {
       console.error('Error adding subscriber:', error);
       throw error;
+    }
+  };
+
+  const handleSaveEditedSubscriber = async (id: string, updates: Partial<Subscriber>) => {
+    try {
+      await marketingService.updateSubscriber(id, updates);
+    } catch (error) {
+      console.error('Error saving edited subscriber:', error);
+      throw error;
+    }
+  };
+
+  const handleConvertToCustomer = async (subscriber: Subscriber) => {
+    try {
+      setConvertingId(subscriber.id);
+      
+      const customersRef = collection(db, 'customers');
+      const q = query(
+        customersRef,
+        where('userId', '==', user.uid),
+        where('email', '==', subscriber.email)
+      );
+      const snapshot = await getDocs(q);
+      
+      if (!snapshot.empty) {
+        alert("This contact is already a customer.");
+        return;
+      }
+
+      const customerId = generateId();
+      const newCustomer = {
+        id: customerId,
+        userId: user.uid,
+        firstName: subscriber.firstName,
+        lastName: subscriber.lastName,
+        fullName: subscriber.fullName,
+        email: subscriber.email,
+        phone: subscriber.phone || '',
+        address: '',
+        city: '',
+        state: '',
+        zip: '',
+        notes: '',
+        customerType: 'General Client',
+        source: 'marketing-subscriber',
+        status: 'new',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: 'marketing-convert'
+      };
+
+      await setDoc(doc(db, 'customers', customerId), newCustomer);
+      alert("Converted to customer successfully!");
+    } catch (error: any) {
+      console.error('Error converting to customer:', error);
+      alert(`Failed to convert: ${error.message}`);
+    } finally {
+      setConvertingId(null);
     }
   };
 
@@ -384,10 +454,47 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
                         {format(new Date(sub.createdAt), 'MMM d, yyyy')}
                       </p>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-indigo-600">
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
+                     <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => setEditingSubscriber(sub)}
+                          className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"
+                          title="Edit Subscriber"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Edit</span>
+                        </button>
+                        
+                        <button 
+                          onClick={() => handleConvertToCustomer(sub)}
+                          disabled={convertingId === sub.id}
+                          className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 border border-emerald-100 rounded-lg text-xs font-bold transition-all flex items-center gap-1 disabled:opacity-50 shadow-sm"
+                          title="Convert to CRM"
+                        >
+                          {convertingId === sub.id ? <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" /> : <UserCheck className="w-3.5 h-3.5 text-emerald-600" />}
+                          <span>Convert</span>
+                        </button>
+                        
+                        <button 
+                          onClick={() => setEmailModalCustomer({
+                            id: sub.id,
+                            firstName: sub.firstName,
+                            lastName: sub.lastName,
+                            fullName: sub.fullName,
+                            email: sub.email,
+                            phone: sub.phone || '',
+                            address: '',
+                            userId: user.uid,
+                            createdAt: sub.createdAt,
+                            updatedAt: sub.updatedAt
+                          })}
+                          className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 border border-indigo-100 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm"
+                          title="Send Email"
+                        >
+                          <Mail className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Send Email</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -415,6 +522,221 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
         onSave={handleAddSubscriber}
         ownerId={user.uid}
       />
+
+      {editingSubscriber && (
+        <EditSubscriberModal 
+          subscriber={editingSubscriber}
+          onClose={() => setEditingSubscriber(null)}
+          onSave={handleSaveEditedSubscriber}
+        />
+      )}
+
+      {emailModalCustomer && (
+        <EmailModal 
+          customer={emailModalCustomer}
+          onClose={() => setEmailModalCustomer(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+function generateId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 9; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+interface EditSubscriberModalProps {
+  subscriber: Subscriber;
+  onClose: () => void;
+  onSave: (id: string, updates: Partial<Subscriber>) => Promise<void>;
+}
+
+const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({ subscriber, onClose, onSave }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: subscriber.firstName || '',
+    lastName: subscriber.lastName || '',
+    email: subscriber.email || '',
+    phone: subscriber.phone || '',
+    contactType: (subscriber.contactType || 'direct client') as Subscriber['contactType'],
+    tags: subscriber.tags ? subscriber.tags.join(', ') : '',
+    status: (subscriber.status || 'active') as Subscriber['status']
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const tagsArray = formData.tags
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag !== '');
+
+      const updates: Partial<Subscriber> = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        phone: formData.phone,
+        contactType: formData.contactType as any,
+        tags: tagsArray,
+        status: formData.status as any,
+      };
+
+      await onSave(subscriber.id, updates);
+      onClose();
+    } catch (error) {
+      console.error('Error updating subscriber:', error);
+      alert('Failed to update subscriber.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-600 text-white rounded-lg">
+              <Edit2 className="w-5 h-5" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Edit Subscriber</h2>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Name</label>
+              <div className="relative">
+                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input 
+                  type="text" 
+                  required
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="John"
+                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Last Name</label>
+              <input 
+                type="text" 
+                required
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                placeholder="Doe"
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="email" 
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="john.doe@example.com"
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone (Optional)</label>
+            <div className="relative">
+              <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="tel" 
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="(555) 000-0000"
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Type</label>
+              <select 
+                value={formData.contactType}
+                onChange={(e) => setFormData({ ...formData, contactType: e.target.value as any })}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 fill-slate-50"
+              >
+                <option value="direct client">Direct Client</option>
+                <option value="title company">Title Company</option>
+                <option value="attorney">Attorney</option>
+                <option value="signing service">Signing Service</option>
+                <option value="hospital">Hospital</option>
+                <option value="nursing home">Nursing Home</option>
+                <option value="estate planning">Estate Planning</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</label>
+              <select 
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 fill-slate-50"
+              >
+                <option value="active">Active</option>
+                <option value="unsubscribed">Unsubscribed</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tags (comma separated)</label>
+            <div className="relative">
+              <TagIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="text" 
+                value={formData.tags}
+                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                placeholder="VIP, Repeat Customer, Estate Planning"
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button 
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
+            >
+              {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{loading ? 'Saving...' : 'Save Changes'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
