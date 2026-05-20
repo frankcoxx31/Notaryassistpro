@@ -85,56 +85,6 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
     fetchSupportData();
   }, [user.uid]);
 
-  // Simulated processing for campaigns in "sending" state
-  useEffect(() => {
-    const processingInterval = setInterval(async () => {
-      const sendingCampaigns = campaigns.filter(c => c.status === 'sending');
-      
-      for (const campaign of sendingCampaigns) {
-        // Randomly "process" some emails
-        const currentSent = campaign.metrics?.sentCount || 0;
-        // In a real app we'd check the queue, here we just simulate
-        // Let's say it takes ~30 seconds to "send" everything in this demo
-        const increment = Math.max(5, Math.floor(Math.random() * 20));
-        const totalTarget = 100; // Mock target for simulation if we don't know queue size
-        
-        const nextSent = currentSent + increment;
-        
-        if (nextSent >= totalTarget) {
-          // Mark as sent
-          try {
-            await marketingService.updateCampaign(campaign.id, {
-              status: 'sent',
-              sentAt: new Date().toISOString(),
-              metrics: {
-                ...campaign.metrics,
-                sentCount: totalTarget,
-                deliveredCount: totalTarget
-              }
-            });
-          } catch (e) {
-            console.error('Simulation error:', e);
-          }
-        } else {
-          // Update progress
-          try {
-            await marketingService.updateCampaign(campaign.id, {
-              metrics: {
-                ...campaign.metrics,
-                sentCount: nextSent,
-                deliveredCount: nextSent
-              }
-            });
-          } catch (e) {
-            console.error('Simulation update error:', e);
-          }
-        }
-      }
-    }, 5000); // Check every 5 seconds
-
-    return () => clearInterval(processingInterval);
-  }, [campaigns]);
-
   const handleCreateCampaign = async (data: any, sendNow?: boolean) => {
     try {
       const newCampaign = await marketingService.addCampaign({
@@ -145,27 +95,26 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
         segmentIds: data.selectedSegmentIds,
         status: 'draft',
         contentType: 'newsletter',
-        fromName: user.displayName || user.email?.split('@')[0] || 'NotaryPro Agent', 
+        fromName: user.displayName || user.email?.split('@')[0] || 'Frank Coxx',
         replyTo: user.email || ''
       });
 
       if (sendNow) {
+        const template = templates.find(t => t.id === data.selectedTemplateId);
+
         const res = await fetch('/api/email/send-newsletter', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipientGroups: ['all'],
             subject: data.subject,
-            body: '',
+            body: template?.htmlContent || '',
             templateId: null,
           })
         });
 
         const result = await res.json();
-
-        if (!res.ok) {
-          throw new Error(result.error || 'Failed to send');
-        }
+        if (!res.ok) throw new Error(result.error || 'Failed to send');
 
         await marketingService.updateCampaign(newCampaign.id, {
           status: 'sent',
@@ -180,10 +129,8 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
           }
         });
 
-        alert(`Successfully sent "${data.name}" to ${result.sent} recipients!`);
+        alert(`Campaign sent to ${result.sent} recipients!`);
       }
-
-      // No need to fetchData() as listener handles it
     } catch (error) {
       console.error('Error creating campaign:', error);
       throw error;
@@ -194,15 +141,8 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
     try {
       setSendingId(campaign.id);
 
-      // Get the template content
       const template = templates.find(t => t.id === campaign.templateId);
 
-      // Build recipient groups from segments
-      const segmentNames = segments
-        .filter(s => campaign.segmentIds.includes(s.id))
-        .map(s => s.name);
-
-      // Call our Resend-powered newsletter API
       const res = await fetch('/api/email/send-newsletter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -215,12 +155,8 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send campaign');
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to send campaign');
-      }
-
-      // Update campaign status to sent in Firestore
       await marketingService.updateCampaign(campaign.id, {
         status: 'sent',
         sentAt: new Date().toISOString(),
@@ -231,11 +167,10 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
         }
       });
 
-      alert(`Campaign "${campaign.name}" sent successfully to ${data.sent} recipients!`);
-
+      alert(`Campaign "${campaign.name}" sent to ${data.sent} recipients!`);
     } catch (error: any) {
       console.error('Error sending campaign:', error);
-      alert(`Failed to send campaign: ${error.message}`);
+      alert(`Failed to send: ${error.message}`);
     } finally {
       setSendingId(null);
     }

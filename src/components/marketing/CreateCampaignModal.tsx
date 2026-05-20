@@ -187,48 +187,85 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {segments.length > 0 ? (
-                    segments.map((segment) => (
-                      <div 
-                        key={segment.id}
-                        onClick={() => {
-                          const ids = formData.selectedSegmentIds.includes(segment.id)
-                            ? formData.selectedSegmentIds.filter(id => id !== segment.id)
-                            : [...formData.selectedSegmentIds, segment.id];
-                          setFormData({ ...formData, selectedSegmentIds: ids });
-                        }}
-                        className={cn(
-                          "cursor-pointer p-4 rounded-xl border-2 transition-all group flex items-start gap-4",
-                          formData.selectedSegmentIds.includes(segment.id)
-                            ? "bg-indigo-50 border-indigo-600 shadow-md ring-4 ring-indigo-50" 
-                            : "bg-white border-slate-100 hover:border-slate-200"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-10 h-10 rounded-lg flex items-center justify-center transition-colors shadow-sm",
-                          formData.selectedSegmentIds.includes(segment.id) ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 group-hover:bg-slate-200"
-                        )}>
-                          <Layers className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{segment.name}</p>
-                          <p className="text-[11px] text-slate-500 font-medium mb-2">{segment.description}</p>
-                          <div className="inline-block px-2 py-0.5 bg-white border border-slate-100 rounded text-[10px] font-bold text-slate-400 group-hover:text-indigo-400">
-                             {segment.subscriberCount || 0} SUBSCRIBERS
-                          </div>
-                        </div>
-                        {formData.selectedSegmentIds.includes(segment.id) && (
-                          <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-                            <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="col-span-2 py-12 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                      <p className="text-slate-400 text-sm font-semibold italic">No segments found. Please create a segment first.</p>
+                  <div 
+                    onClick={() => {
+                      const allId = 'all-customers';
+                      const ids = formData.selectedSegmentIds.includes(allId)
+                        ? formData.selectedSegmentIds.filter(id => id !== allId)
+                        : [allId];
+                      setFormData({ ...formData, selectedSegmentIds: ids });
+                    }}
+                    className={cn(
+                      "cursor-pointer p-4 rounded-xl border-2 transition-all group flex items-start gap-4",
+                      formData.selectedSegmentIds.includes('all-customers')
+                        ? "bg-indigo-50 border-indigo-600 shadow-md ring-4 ring-indigo-50" 
+                        : "bg-white border-slate-100 hover:border-slate-200"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-10 h-10 rounded-lg flex items-center justify-center transition-colors shadow-sm",
+                      formData.selectedSegmentIds.includes('all-customers') 
+                        ? "bg-indigo-600 text-white" 
+                        : "bg-slate-100 text-slate-400"
+                    )}>
+                      <Layers className="w-5 h-5" />
                     </div>
-                  )}
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-900">All Customers</p>
+                      <p className="text-[11px] text-slate-500 font-medium mb-2">
+                        Send to all customers in your CRM
+                      </p>
+                      <div className="inline-block px-2 py-0.5 bg-white border border-slate-100 rounded text-[10px] font-bold text-slate-400">
+                        ALL RECIPIENTS
+                      </div>
+                    </div>
+                    {formData.selectedSegmentIds.includes('all-customers') && (
+                      <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                        <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
+                      </div>
+                    )}
+                  </div>
+
+                  {segments.map((segment) => (
+                    <div 
+                      key={segment.id}
+                      onClick={() => {
+                        const ids = formData.selectedSegmentIds.includes(segment.id)
+                          ? formData.selectedSegmentIds.filter(id => id !== segment.id)
+                          : [...formData.selectedSegmentIds, segment.id];
+                        setFormData({ ...formData, selectedSegmentIds: ids });
+                      }}
+                      className={cn(
+                        "cursor-pointer p-4 rounded-xl border-2 transition-all group flex items-start gap-4",
+                        formData.selectedSegmentIds.includes(segment.id)
+                          ? "bg-indigo-50 border-indigo-600 shadow-md ring-4 ring-indigo-50" 
+                          : "bg-white border-slate-100 hover:border-slate-200"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center transition-colors shadow-sm",
+                        formData.selectedSegmentIds.includes(segment.id) 
+                          ? "bg-indigo-600 text-white" 
+                          : "bg-slate-100 text-slate-400 group-hover:bg-slate-200"
+                      )}>
+                        <Layers className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-slate-900">{segment.name}</p>
+                        <p className="text-[11px] text-slate-500 font-medium mb-2">
+                          {segment.description}
+                        </p>
+                        <div className="inline-block px-2 py-0.5 bg-white border border-slate-100 rounded text-[10px] font-bold text-slate-400">
+                          {segment.subscriberCount || 0} SUBSCRIBERS
+                        </div>
+                      </div>
+                      {formData.selectedSegmentIds.includes(segment.id) && (
+                        <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                          <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             )}

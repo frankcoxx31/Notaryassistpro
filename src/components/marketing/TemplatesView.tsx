@@ -55,8 +55,53 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
     }
   };
 
+  const seedDefaultTemplates = async () => {
+    const existing = await marketingService.getTemplates(user.uid);
+    if (existing.length > 0) return;
+
+    const defaults = [
+      {
+        ownerId: user.uid,
+        name: 'Thank You',
+        category: 'Transactional',
+        subjectSuggestion: 'Thank You for Choosing Integrity Closings CLT',
+        htmlContent: `<h2>Thank You!</h2><p>We truly appreciate you trusting Integrity Closings CLT with your notary needs. It was a pleasure working with you, and we hope to serve you again in the future.</p><p>If you need notary services again, we're available 7 days a week across Charlotte and surrounding areas.</p>`,
+      },
+      {
+        ownerId: user.uid,
+        name: 'Appointment Reminder',
+        category: 'Transactional',
+        subjectSuggestion: 'Reminder: Your Upcoming Notary Appointment',
+        htmlContent: `<h2>Appointment Reminder</h2><p>This is a friendly reminder about your upcoming notary appointment. Please remember to bring a valid government-issued photo ID. Do not sign any documents before the appointment — all signatures must be made in the notary's presence.</p>`,
+      },
+      {
+        ownerId: user.uid,
+        name: 'New Service Announcement',
+        category: 'Marketing',
+        subjectSuggestion: 'New Service Available — Integrity Closings CLT',
+        htmlContent: `<h2>Exciting News!</h2><p>We have a new service available for you. Contact us today to learn more about how we can help with your notary needs across Charlotte and surrounding areas.</p>`,
+      },
+      {
+        ownerId: user.uid,
+        name: 'General Outreach',
+        category: 'Marketing',
+        subjectSuggestion: 'A Message from Integrity Closings CLT',
+        htmlContent: `<h2>Hello!</h2><p>We wanted to reach out and let you know we're here for all your notary needs. Whether it's loan signings, estate planning, or general notary work — we come to you, 7 days a week.</p>`,
+      },
+    ];
+
+    for (const t of defaults) {
+      await marketingService.addTemplate(t);
+    }
+    await fetchData();
+  };
+
   useEffect(() => {
-    fetchData();
+    const init = async () => {
+      await fetchData();
+      await seedDefaultTemplates();
+    };
+    init();
   }, [user.uid]);
 
   const handleSaveTemplate = async (templateData: Omit<MarketingTemplate, 'id' | 'createdAt' | 'updatedAt'>) => {
