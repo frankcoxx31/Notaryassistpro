@@ -160,6 +160,7 @@ import {
   deleteDoc, 
   updateDoc,
   getDoc,
+  getDocs,
   writeBatch,
   getDocFromServer,
   arrayUnion
@@ -2402,7 +2403,8 @@ const SettingsView = ({
   isDemoMode,
   onResetDemo,
   businessProfile,
-  onMigrateLocalToCloud
+  onMigrateLocalToCloud,
+  onMigrateCloudToLocal
 }: { 
   onEditProfile: () => void, 
   user: FirebaseUser | null, 
@@ -2412,7 +2414,8 @@ const SettingsView = ({
   isDemoMode: boolean,
   onResetDemo: () => void,
   businessProfile: BusinessProfile | null,
-  onMigrateLocalToCloud: () => Promise<void>
+  onMigrateLocalToCloud: () => Promise<void>,
+  onMigrateCloudToLocal: () => Promise<void>
 }) => {
   const [isImporting, setIsImporting] = useState(false);
 
@@ -2682,23 +2685,41 @@ const SettingsView = ({
               <h3 className="font-bold text-slate-900 text-lg">Cloud Sync & Data Migration</h3>
             </div>
             <p className="text-sm text-slate-500">
-              Did your data disappear after connecting to the cloud? Copy your locally saved appointments, customers, and expenses into your active Firestore database.
+              Need to shift data or back up your system? You can upload your locally saved data to Firestore or download your active cloud database to your offline local storage.
             </p>
-            <button 
-              onClick={async () => {
-                if (window.confirm("This will upload your local/offline signing appointments, customers, signing companies, expenses, and mileage to your live cloud database. Continue?")) {
-                  try {
-                    await onMigrateLocalToCloud();
-                  } catch (e) {
-                    console.error(e);
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button 
+                onClick={async () => {
+                  if (window.confirm("This will upload your local/offline signing appointments, customers, signing companies, expenses, and mileage to your live cloud database. Continue?")) {
+                    try {
+                      await onMigrateLocalToCloud();
+                    } catch (e) {
+                      console.error(e);
+                    }
                   }
-                }
-              }}
-              className="w-full py-2.5 bg-indigo-600 rounded-xl text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
-            >
-              <Database className="w-4 h-4" />
-              Migrate Local Data to Cloud
-            </button>
+                }}
+                className="w-full py-2.5 bg-indigo-600 rounded-xl text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
+              >
+                <Database className="w-4 h-4" />
+                Migrate Local Data to Cloud
+              </button>
+
+              <button 
+                onClick={async () => {
+                  if (window.confirm("This will download ALL your active cloud appointments, customers, signing companies, expenses, and mileage into your browser's offline local storage. Continue?")) {
+                    try {
+                      await onMigrateCloudToLocal();
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }
+                }}
+                className="w-full py-2.5 bg-emerald-600 rounded-xl text-sm font-semibold text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
+              >
+                <Database className="w-4 h-4" />
+                Migrate Cloud Data to Local
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -7322,6 +7343,77 @@ export default function App() {
     }
   };
 
+  const handleMigrateCloudToLocal = async () => {
+    if (!user) {
+      alert("Please sign in first to migrate data.");
+      return;
+    }
+    try {
+      const qAppointments = query(collection(db, 'appointments'), where('userId', '==', user.uid));
+      const qCustomers = query(collection(db, 'customers'), where('userId', '==', user.uid));
+      const qExpenses = query(collection(db, 'expenses'), where('userId', '==', user.uid));
+      const qMileage = query(collection(db, 'mileage'), where('userId', '==', user.uid));
+      const qCompanies = query(collection(db, 'signingCompanies'), where('userId', '==', user.uid));
+      const profileDocRef = doc(db, 'profiles', user.uid);
+
+      const [
+        snapAppointments,
+        snapCustomers,
+        snapExpenses,
+        snapMileage,
+        snapCompanies,
+        snapProfile
+      ] = await Promise.all([
+        getDocs(qAppointments),
+        getDocs(qCustomers),
+        getDocs(qExpenses),
+        getDocs(qMileage),
+        getDocs(qCompanies),
+        getDoc(profileDocRef)
+      ]);
+
+      const apps = snapAppointments.docs.map(d => ({ ...d.data(), id: d.id } as Appointment));
+      const customers = snapCustomers.docs.map(d => ({ ...d.data(), id: d.id } as Customer));
+      const expenses = snapExpenses.docs.map(d => ({ ...d.data(), id: d.id } as Expense));
+      const mileage = snapMileage.docs.map(d => ({ ...d.data(), id: d.id } as Mileage));
+      const companies = snapCompanies.docs.map(d => ({ ...d.data(), id: d.id } as SigningCompany));
+      
+      let count = 0;
+
+      if (apps.length > 0) {
+        demoStorage.saveAppointments(apps);
+        count += apps.length;
+      }
+      if (customers.length > 0) {
+        demoStorage.set('notarypro_demo_customers', customers);
+        count += customers.length;
+      }
+      if (expenses.length > 0) {
+        demoStorage.set('notarypro_demo_expenses', expenses);
+        count += expenses.length;
+      }
+      if (mileage.length > 0) {
+        demoStorage.set('notarypro_demo_mileage', mileage);
+        count += mileage.length;
+      }
+      if (companies.length > 0) {
+        demoStorage.set('notarypro_demo_companies', companies);
+        count += companies.length;
+      }
+      
+      if (snapProfile.exists()) {
+        const profile = { ...snapProfile.data(), userId: user.uid } as BusinessProfile;
+        demoStorage.saveProfile(profile);
+        count += 1;
+      }
+
+      alert(`Successfully downloaded ${count} records from active cloud Firestore database to your browser local storage!`);
+    } catch (error: any) {
+      console.error('[Cloud to Local Migration Error]:', error);
+      alert(`Migration failed: ${error.message || error}`);
+    }
+  };
+
   // Responsive sidebar
   useEffect(() => {
     const handleResize = () => {
@@ -7567,6 +7659,7 @@ export default function App() {
                 onResetDemo={handleResetDemo}
                 businessProfile={businessProfile}
                 onMigrateLocalToCloud={handleMigrateLocalToCloud}
+                onMigrateCloudToLocal={handleMigrateCloudToLocal}
               />
             } />
           </Routes>
