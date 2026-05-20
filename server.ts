@@ -272,8 +272,13 @@ async function startServer() {
         html: emailHtml,
       });
 
-      console.log(`[Email] Sent single email to ${to}`, result);
-      res.json({ success: true, result });
+      if (result.error) {
+        console.error(`[Email] Resend rejected email to ${to}:`, result.error);
+        return res.status(400).json({ error: result.error.message || "Resend rejected the email." });
+      }
+
+      console.log(`[Email] Sent single email to ${to}`, result.data);
+      res.json({ success: true, id: result.data?.id });
     } catch (error: any) {
       console.error("[Email] Send single error:", error);
       res.status(500).json({ error: error.message || "Failed to send email" });
