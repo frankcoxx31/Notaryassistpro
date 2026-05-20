@@ -88,6 +88,36 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
         subjectSuggestion: 'A Message from Integrity Closings CLT',
         htmlContent: `<h2>Hello!</h2><p>We wanted to reach out and let you know we're here for all your notary needs. Whether it's loan signings, estate planning, or general notary work — we come to you, 7 days a week.</p>`,
       },
+      {
+        ownerId: user.uid,
+        name: 'How Did We Do?',
+        category: 'Marketing',
+        subjectSuggestion: 'How Did We Do? Please Leave Us a Review!',
+        htmlContent: `
+<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;">
+  <h2 style="color:#1e3a5f;font-size:22px;margin:0 0 16px;">How Did We Do?</h2>
+  <p style="color:#475569;line-height:1.7;margin:0 0 16px;">
+    Thank you for choosing <strong>Integrity Closings CLT</strong> for your notary needs. 
+    We hope your experience was smooth and professional.
+  </p>
+  <p style="color:#475569;line-height:1.7;margin:0 0 24px;">
+    We would truly appreciate it if you could take a moment to share your feedback 
+    by leaving us a Google review. Your review helps other clients find us and 
+    helps us continue to improve our services.
+  </p>
+  <div style="text-align:center;margin:32px 0;">
+    <p style="color:#1e3a5f;font-weight:bold;font-size:16px;margin:0 0 16px;">
+      Scan the QR code below to leave your review:
+    </p>
+    <img 
+      src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCADIAMgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKGkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/" alt="QR Code" style="max-width:180px;height:auto;border:1px solid #e2e8f0;border-radius:12px;padding:8px;background:white;" />
+  </div>
+  <p style="color:#64748b;font-size:12px;line-height:1.5;margin:24px 0 0;text-align:center;border-top:1px solid #f1f5f9;padding-top:16px;">
+    Integrity Closings CLT • Charlotte, NC • Mobile Notary Services
+  </p>
+</div>
+`,
+      },
     ];
 
     for (const t of defaults) {

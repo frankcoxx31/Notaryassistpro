@@ -621,7 +621,7 @@ const NewSigningModal = ({
       <motion.div 
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-white">
