@@ -74,7 +74,9 @@ import {
   Zap,
   Tag,
   Copy,
-  Check
+  Check,
+  Database,
+  CloudLightning
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -2399,7 +2401,8 @@ const SettingsView = ({
   userId,
   isDemoMode,
   onResetDemo,
-  businessProfile
+  businessProfile,
+  onMigrateLocalToCloud
 }: { 
   onEditProfile: () => void, 
   user: FirebaseUser | null, 
@@ -2408,7 +2411,8 @@ const SettingsView = ({
   userId: string,
   isDemoMode: boolean,
   onResetDemo: () => void,
-  businessProfile: BusinessProfile | null
+  businessProfile: BusinessProfile | null,
+  onMigrateLocalToCloud: () => Promise<void>
 }) => {
   const [isImporting, setIsImporting] = useState(false);
 
@@ -2664,6 +2668,36 @@ const SettingsView = ({
             >
               <User className="w-4 h-4" />
               Sign In to Firestore
+            </button>
+          </div>
+        )}
+
+        {/* Cloud Sync & Migration */}
+        {user && (
+          <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                <CloudLightning className="w-5 h-5 text-indigo-600" />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg">Cloud Sync & Data Migration</h3>
+            </div>
+            <p className="text-sm text-slate-500">
+              Did your data disappear after connecting to the cloud? Copy your locally saved appointments, customers, and expenses into your active Firestore database.
+            </p>
+            <button 
+              onClick={async () => {
+                if (window.confirm("This will upload your local/offline signing appointments, customers, signing companies, expenses, and mileage to your live cloud database. Continue?")) {
+                  try {
+                    await onMigrateLocalToCloud();
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }
+              }}
+              className="w-full py-2.5 bg-indigo-600 rounded-xl text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
+            >
+              <Database className="w-4 h-4" />
+              Migrate Local Data to Cloud
             </button>
           </div>
         )}
@@ -7206,6 +7240,88 @@ export default function App() {
     }
   };
 
+  const handleMigrateLocalToCloud = async () => {
+    if (!user) {
+      alert("Please sign in first to migrate data.");
+      return;
+    }
+    try {
+      const localApps = demoStorage.getAppointments();
+      const localCustomers = demoStorage.getCustomers();
+      const localExpenses = demoStorage.getExpenses();
+      const localMileage = demoStorage.getMileage();
+      const localCompanies = demoStorage.getCompanies();
+      const localProfile = demoStorage.getProfile();
+
+      let count = 0;
+
+      if (localApps && localApps.length > 0) {
+        const batch = writeBatch(db);
+        localApps.forEach(app => {
+          const appData = sanitizeData({ 
+            ...app, 
+            userId: user.uid,
+            sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
+          });
+          batch.set(doc(db, 'appointments', app.id), appData);
+        });
+        await batch.commit();
+        count += localApps.length;
+      }
+
+      if (localCustomers && localCustomers.length > 0) {
+        const batch = writeBatch(db);
+        localCustomers.forEach(c => {
+          const cData = sanitizeData({ ...c, userId: user.uid });
+          batch.set(doc(db, 'customers', c.id), cData);
+        });
+        await batch.commit();
+        count += localCustomers.length;
+      }
+
+      if (localExpenses && localExpenses.length > 0) {
+        const batch = writeBatch(db);
+        localExpenses.forEach(e => {
+          const eData = sanitizeData({ ...e, userId: user.uid });
+          batch.set(doc(db, 'expenses', e.id), eData);
+        });
+        await batch.commit();
+        count += localExpenses.length;
+      }
+
+      if (localMileage && localMileage.length > 0) {
+        const batch = writeBatch(db);
+        localMileage.forEach(m => {
+          const mData = sanitizeData({ ...m, userId: user.uid });
+          batch.set(doc(db, 'mileage', m.id), mData);
+        });
+        await batch.commit();
+        count += localMileage.length;
+      }
+
+      if (localCompanies && localCompanies.length > 0) {
+        const batch = writeBatch(db);
+        localCompanies.forEach(c => {
+          const cData = sanitizeData({ ...c, userId: user.uid });
+          batch.set(doc(db, 'signingCompanies', c.id), cData);
+        });
+        await batch.commit();
+        count += localCompanies.length;
+      }
+
+      if (localProfile) {
+        const profileData = sanitizeData({ ...localProfile, userId: user.uid });
+        await setDoc(doc(db, 'profiles', user.uid), profileData);
+        count += 1;
+      }
+
+      alert(`Successfully migrated ${count} records from local storage to your active cloud Firestore database!`);
+    } catch (error: any) {
+      console.error('[Migration Error]:', error);
+      alert(`Migration failed: ${error.message || error}`);
+    }
+  };
+
   // Responsive sidebar
   useEffect(() => {
     const handleResize = () => {
@@ -7450,6 +7566,7 @@ export default function App() {
                 isDemoMode={isDemoUser}
                 onResetDemo={handleResetDemo}
                 businessProfile={businessProfile}
+                onMigrateLocalToCloud={handleMigrateLocalToCloud}
               />
             } />
           </Routes>
