@@ -62,7 +62,7 @@ try {
   console.error("[Firebase Admin] Failed to initialize:", e?.message || e);
 }
 var resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-var FROM_EMAIL = "Frank Coxx <fcoxx@integrityclosingsclt.com>";
+var FROM_EMAIL = "Frank Coxx <fcoxx@notaryinfo.icclt.com>";
 var APP_URL = process.env.APP_URL || "https://www.notaryproapp.com";
 function baseTemplate(content) {
   return `
