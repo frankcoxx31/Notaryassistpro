@@ -4545,6 +4545,10 @@ const Appointments = ({
   const filteredAppointments = useMemo(() => {
     let filtered = appointments;
 
+    if (viewMode === 'journal') {
+      filtered = filtered.filter(a => a.status === 'Completed' || a.status === 'Paid');
+    }
+
     // Date Filter
     const now = new Date();
     if (dateFilter === 'This year') {
@@ -4614,7 +4618,7 @@ const Appointments = ({
     }
 
     return filtered;
-  }, [appointments, dateFilter, companyFilter, statusFilter, workTypeFilter, paymentStatusFilter, invoiceSentFilter, profitFilter, searchTerm]);
+  }, [appointments, dateFilter, companyFilter, statusFilter, workTypeFilter, paymentStatusFilter, invoiceSentFilter, profitFilter, searchTerm, viewMode]);
 
   // Sort appointments by combined date and time in descending order (newest at the top)
   const sortedAppointments = useMemo(() => {
@@ -5292,28 +5296,258 @@ const Appointments = ({
     }
   };
 
+  const primaryAct = useMemo(() => {
+    const counts: Record<string, number> = {};
+    sortedAppointments.forEach(a => {
+      const act = a.actType || 'Acknowledgment';
+      counts[act] = (counts[act] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Acknowledgment';
+  }, [sortedAppointments]);
+
+  const getJournalStatusBadge = (status: string) => {
+    if (status === 'Completed' || status === 'Closed') {
+      return (
+        <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold bg-[#E1F5EE] text-[#0F6E56] border border-emerald-100 whitespace-nowrap">
+          Completed
+        </span>
+      );
+    }
+    if (status === 'Paid') {
+      return (
+        <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold bg-[#E1F5EE] text-[#0F6E56] border border-emerald-100 whitespace-nowrap">
+          Paid
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap">
+        {status}
+      </span>
+    );
+  };
+
+  if (viewMode === 'journal') {
+    return (
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        {/* Navy Header Section */}
+        <div className="bg-[#1e1b4b] text-white rounded-[2rem] p-8 md:p-10 shadow-xl border border-indigo-950">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">Notary journal</h1>
+              <p className="text-indigo-200 mt-1.5 text-sm font-medium">Integrity Closings CLT</p>
+            </div>
+            <div>
+              <button 
+                onClick={() => {
+                  setModalInitialTab('Signer(s)');
+                  setModalAutoScan(true);
+                  onNewSigning();
+                }}
+                className="px-5 py-2.5 bg-white text-[#1e1b4b] rounded-xl text-sm font-bold hover:bg-indigo-50 transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4 font-black text-[#1e1b4b]" />
+                <span>New entry</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 4 stat cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            <div className="bg-white/10 backdrop-blur-xs p-5 rounded-2xl border border-white/10 shadow-sm">
+              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-1">Total entries</p>
+              <h4 className="text-2xl font-black text-white">{sortedAppointments.length}</h4>
+            </div>
+            <div className="bg-white/10 backdrop-blur-xs p-5 rounded-2xl border border-white/10 shadow-sm">
+              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-1">Total earned</p>
+              <h4 className="text-2xl font-black text-white">
+                ${sortedAppointments.reduce((sum, a) => sum + (Number(a.agreedFee) || Number(a.fee) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </h4>
+            </div>
+            <div className="bg-white/10 backdrop-blur-xs p-5 rounded-2xl border border-white/10 shadow-sm">
+              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-1">Primary act</p>
+              <h4 className="text-lg font-black text-white truncate" title={primaryAct}>{primaryAct}</h4>
+            </div>
+            <div className="bg-white/10 backdrop-blur-xs p-5 rounded-2xl border border-white/10 shadow-sm">
+              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-1">Retention status</p>
+              <h4 className="text-base font-black text-emerald-400 flex items-center gap-1.5 mt-1 block">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1" />
+                1 year · Active
+              </h4>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter / Search Bar */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/85 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+          <div className="relative flex-1 w-full group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <input 
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search ledger (principal, type, act, notes)..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 placeholder:text-slate-400"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1 flex-1 md:flex-none">
+              <Calendar className="w-4 h-4 text-slate-400" />
+              <select 
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="bg-transparent text-sm font-bold text-slate-600 outline-none pr-4 py-1.5 cursor-pointer text-slate-900"
+              >
+                <option value="All">All Time</option>
+                <option value="This year">This Year</option>
+                <option value="Last year">Last Year</option>
+                <option value="This month">This Month</option>
+                <option value="Last month">Last Month</option>
+                <option value="This week">This Week</option>
+                <option value="Last week">Last Week</option>
+              </select>
+            </div>
+            <select 
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer flex-1 md:flex-none text-slate-950"
+            >
+              <option value="All Companies">All Companies</option>
+              {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <button 
+              onClick={() => handlePrint()}
+              className="px-4 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all shadow-sm flex items-center justify-center gap-2 flex-1 md:flex-none cursor-pointer"
+            >
+              <Printer className="w-4 h-4" /> Print Ledger
+            </button>
+            <button 
+              onClick={() => handleExport()}
+              className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all shadow-sm flex items-center justify-center gap-2 flex-1 md:flex-none cursor-pointer"
+            >
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+          </div>
+        </div>
+
+        {/* Entries list/rows */}
+        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden divide-y-[0.5px] divide-slate-200">
+          {paginatedAppointments.length > 0 ? (
+            paginatedAppointments.map((app) => (
+              <div 
+                key={app.id} 
+                onClick={() => onViewSigning(app)}
+                className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 hover:bg-slate-50/30 transition-colors cursor-pointer"
+              >
+                {/* LEFT COLUMN: 4-column grid */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1 w-full">
+                  {/* Column 1 (180px width limit) */}
+                  <div style={{ width: '180px' }} className="flex-shrink-0 flex flex-col gap-1 pr-4">
+                    <div className="text-[13px] font-bold text-slate-900 truncate" title={app.customerName || app.clientName}>
+                      {formatDisplayName(app.customerName || app.clientName)}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{app.date}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{app.time}</span>
+                    </div>
+                  </div>
+
+                  {/* Column 2 */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Signing type</span>
+                    <span className="text-[12px] font-bold text-slate-800">{app.signingType || 'Mobile'}</span>
+                    <span className="text-[11px] text-slate-500 font-medium">{app.docType || 'Other'}</span>
+                  </div>
+
+                  {/* Column 3 */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Client</span>
+                    <span className="text-[12px] font-bold text-slate-800">{app.signingCompany || app.companyName || 'Private Direct'}</span>
+                    <span className="text-[11px] text-slate-500 font-medium">{app.orderNumber || app.id.slice(0, 8).toUpperCase()}</span>
+                  </div>
+
+                  {/* Column 4 */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Location</span>
+                    <span className="text-[12px] font-bold text-[#185FA5] hover:underline cursor-pointer" onClick={(e) => {
+                      e.stopPropagation();
+                      if (app.address) {
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${app.address}, ${app.city}, ${app.state} ${app.zip}`)}`, '_blank');
+                      }
+                    }}>
+                      {app.address || 'Address TBD'}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium capitalize">
+                      {app.city ? `${app.city.toLowerCase()}${app.state ? `, ${app.state.toUpperCase()}` : ''} ${app.zip || ''}` : 'Location TBD'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* RIGHT COLUMN */}
+                <div className="flex flex-col items-end gap-2 justify-center flex-shrink-0 w-full md:w-auto mt-4 md:mt-0">
+                  <div className="text-[18px] font-bold text-slate-900">
+                    ${(Number(app.agreedFee) || Number(app.fee) || 0).toFixed(2)}
+                  </div>
+                  {getJournalStatusBadge(app.status)}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-24 text-center">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ShieldCheck className="w-8 h-8 text-slate-300" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">No matching ledger entries</h3>
+              <p className="text-slate-500 max-w-xs mx-auto text-sm mt-1">
+                Try adjusting your filters or search terms to find what you're looking for.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Modern Pagination Section */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between py-6 border-t border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              Page {currentPage} of {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 cursor-pointer"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 cursor-pointer"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Title & Actions Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-            {viewMode === 'journal' ? (
-              <>
-                <ShieldCheck className="w-7 h-7 text-indigo-600" />
-                NC Notary Journal
-              </>
-            ) : (
-              <>
-                <FileText className="w-7 h-7 text-indigo-600" />
-                Signings
-              </>
-            )}
+            <FileText className="w-7 h-7 text-indigo-600" />
+            Signings
           </h1>
           <p className="text-slate-500 mt-1 max-w-xl">
-            {viewMode === 'journal' 
-              ? 'Official chronological record of all notarial acts. Maintained for legal compliance and professional accountability.' 
-              : 'Manage your signing appointments, track workflow status, and monitor client communications.'}
+            Manage your signing appointments, track workflow status, and monitor client communications.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -5333,7 +5567,7 @@ const Appointments = ({
             onClick={() => handlePrint()}
             className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all shadow-sm"
           >
-            <Printer className="w-4 h-4" /> {viewMode === 'journal' ? 'Print Ledger' : 'Print Report'}
+            <Printer className="w-4 h-4" /> Print Report
           </button>
           <button 
             onClick={() => {
@@ -5343,45 +5577,13 @@ const Appointments = ({
             }}
             className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
           >
-            <Plus className="w-4 h-4" /> {viewMode === 'journal' ? 'New Journal Entry' : 'Schedule Signing'}
+            <Plus className="w-4 h-4" /> Schedule Signing
           </button>
         </div>
       </div>
 
       {/* KPIs Section */}
-      {viewMode === 'journal' && journalStats ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 animate-in fade-in slide-in-from-top-4 duration-1000 delay-150">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Record Capacity</p>
-            <div className="flex items-end justify-between">
-              <h4 className="text-2xl font-bold text-slate-900">{journalStats.totalEntries}</h4>
-              <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Entries</span>
-            </div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Primary Act Type</p>
-            <div className="flex items-end justify-between">
-              <h4 className="text-lg font-bold text-slate-800 truncate">{journalStats.mostCommonAct}</h4>
-              <FileText className="w-4 h-4 text-slate-300" />
-            </div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Retention Standing</p>
-            <div className="flex items-end justify-between">
-              <h4 className="text-2xl font-bold text-slate-900">{journalStats.retentionYears} Years</h4>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Active</span>
-            </div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Legally Earned</p>
-            <div className="flex items-end justify-between">
-              <h4 className="text-2xl font-bold text-slate-900">${journalStats.totalFees.toLocaleString()}</h4>
-              <Banknote className="w-4 h-4 text-slate-300" />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Signings ({dateFilter})</p>
             <p className="text-xl font-black text-slate-900">{stats.count}</p>
@@ -5410,9 +5612,8 @@ const Appointments = ({
             <p className="text-xl font-black text-amber-600">{stats.awaitingInvoice}</p>
           </div>
         </div>
-      )}
 
-      {/* Main Filter & Action Bar */}
+        {/* Main Filter & Action Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="relative flex-1 group">
@@ -5421,7 +5622,7 @@ const Appointments = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={viewMode === 'journal' ? "Search ledger (principal, type, act, notes)..." : "Search signings..."}
+              placeholder="Search signings..."
               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-900 placeholder:text-slate-400"
             />
           </div>
@@ -5496,7 +5697,7 @@ const Appointments = ({
           </div>
         </div>
 
-        {companyStats && viewMode !== 'journal' && (
+        {companyStats && (
           <div className="flex items-center gap-6 px-4 py-3 bg-indigo-50/30 border border-indigo-100 rounded-xl text-xs font-bold animate-in fade-in slide-in-from-left-2 transition-all">
             <div className="flex items-center gap-2">
               <span className="text-slate-400 uppercase tracking-widest text-[10px]">Company Rev:</span>
