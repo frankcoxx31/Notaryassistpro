@@ -296,11 +296,7 @@ async function startServer() {
 
     try {
       const userId = process.env.CRM_OWNER_USER_ID;
-      console.log(`[Newsletter] CRM_OWNER_USER_ID: ${userId}`);
       const snapshot = await adminDb.collection('customers').where('userId', '==', userId).get();
-      console.log(`[Newsletter] Total customers found: ${snapshot.docs.length}`);
-      const allDocs = snapshot.docs.map(d => ({ id: d.id, userId: d.data().userId, email: d.data().email, unsubscribed: d.data().unsubscribed }));
-      console.log(`[Newsletter] Customer sample:`, JSON.stringify(allDocs.slice(0, 3)));
       let customers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
       customers = customers.filter((c: any) => !c.unsubscribed);
