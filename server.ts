@@ -223,12 +223,14 @@ async function startServer() {
     if (!clientId || !clientSecret) return null;
 
     let redirectUri = process.env.GOOGLE_REDIRECT_URI;
+    if (!redirectUri && req) {
+      const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const origin = req.get('origin') || `${proto}://${host}`;
+      redirectUri = `${origin.replace(/\/$/, '')}/api/auth/google/callback`;
+    }
     if (!redirectUri && process.env.APP_URL) {
       redirectUri = `${process.env.APP_URL.replace(/\/$/, '')}/api/auth/google/callback`;
-    }
-    if (!redirectUri && req) {
-      const origin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
-      redirectUri = `${origin}/api/auth/google/callback`;
     }
     if (!redirectUri) redirectUri = "http://localhost:3000/api/auth/google/callback";
 
