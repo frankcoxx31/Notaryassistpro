@@ -57,20 +57,24 @@ function fixPrivateKey(key: string): string {
 
 let adminDb: FirebaseFirestore.Firestore | null = null;
 
-try {
-  const serviceAccount = parseServiceAccountJson();
-  serviceAccount.private_key = fixPrivateKey(serviceAccount.private_key);
+if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+  console.warn("[Firebase Admin] GOOGLE_SERVICE_ACCOUNT_JSON is not set. Firestore sync features will run in demo/offline mode.");
+} else {
+  try {
+    const serviceAccount = parseServiceAccountJson();
+    serviceAccount.private_key = fixPrivateKey(serviceAccount.private_key);
 
-  if (!getApps().length) {
-    initializeApp({ credential: cert(serviceAccount) });
+    if (!getApps().length) {
+      initializeApp({ credential: cert(serviceAccount) });
+    }
+
+    const rawDbId = process.env.FIREBASE_DATABASE_ID || '';
+    const useDefault = !rawDbId || ['', '(default)', 'undefined', 'null'].includes(rawDbId.trim());
+    adminDb = useDefault ? getFirestore() : getFirestore(rawDbId.trim());
+    console.log(`[Firebase Admin] Connected to Firestore: ${useDefault ? 'default' : rawDbId.trim()}`);
+  } catch (e: any) {
+    console.error("[Firebase Admin] Failed to initialize:", e?.message || e);
   }
-
-  const rawDbId = process.env.FIREBASE_DATABASE_ID || '';
-  const useDefault = !rawDbId || ['', '(default)', 'undefined', 'null'].includes(rawDbId.trim());
-  adminDb = useDefault ? getFirestore() : getFirestore(rawDbId.trim());
-  console.log(`[Firebase Admin] Connected to Firestore: ${useDefault ? 'default' : rawDbId.trim()}`);
-} catch (e: any) {
-  console.error("[Firebase Admin] Failed to initialize:", e?.message || e);
 }
 
 // ─── Resend Setup ─────────────────────────────────────────────────────────────

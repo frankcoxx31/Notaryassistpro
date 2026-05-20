@@ -150,15 +150,37 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
       });
 
       if (sendNow) {
-        // Resolve subscriber IDs based on segments
-        const subscriberIds = await marketingService.getSubscribersForSegments(user.uid, data.selectedSegmentIds);
-        
-        if (subscriberIds.length > 0) {
-          await marketingService.queueCampaignSend(newCampaign.id, subscriberIds, user.uid);
-          alert(`Successfully created and queued "${data.name}" for ${subscriberIds.length} recipients!`);
-        } else {
-          alert(`Campaign created as draft, but no active subscribers were found in the selected segments to send.`);
+        const res = await fetch('/api/email/send-newsletter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientGroups: ['all'],
+            subject: data.subject,
+            body: '',
+            templateId: null,
+          })
+        });
+
+        const result = await res.json();
+
+        if (!res.ok) {
+          throw new Error(result.error || 'Failed to send');
         }
+
+        await marketingService.updateCampaign(newCampaign.id, {
+          status: 'sent',
+          sentAt: new Date().toISOString(),
+          metrics: {
+            sentCount: result.sent || 0,
+            deliveredCount: result.sent || 0,
+            openCount: 0,
+            clickCount: 0,
+            unsubscribeCount: 0,
+            bounceCount: 0,
+          }
+        });
+
+        alert(`Successfully sent "${data.name}" to ${result.sent} recipients!`);
       }
 
       // No need to fetchData() as listener handles it
@@ -169,28 +191,51 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
   };
 
   const handleSendCampaign = async (campaign: MarketingCampaign) => {
-    // Note: window.confirm is often blocked in iframe environments. 
-    // We'll proceed with sending as it's an explicit action on a draft.
-    
     try {
       setSendingId(campaign.id);
-      
-      // 1. Resolve subscriber IDs based on segments
-      const subscriberIds = await marketingService.getSubscribersForSegments(user.uid, campaign.segmentIds);
-      
-      if (subscriberIds.length === 0) {
-        alert('No active subscribers found in the selected segments. Please update your segments or subscribers first.');
-        return;
+
+      // Get the template content
+      const template = templates.find(t => t.id === campaign.templateId);
+
+      // Build recipient groups from segments
+      const segmentNames = segments
+        .filter(s => campaign.segmentIds.includes(s.id))
+        .map(s => s.name);
+
+      // Call our Resend-powered newsletter API
+      const res = await fetch('/api/email/send-newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientGroups: ['all'],
+          subject: campaign.subject,
+          body: template?.htmlContent || '',
+          templateId: null,
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send campaign');
       }
 
-      // 2. Queue the send
-      await marketingService.queueCampaignSend(campaign.id, subscriberIds, user.uid);
-      
-      // No need to fetchData() as listener handles it
-      alert(`Successfully queued "${campaign.name}" for ${subscriberIds.length} recipients!`);
-    } catch (error) {
+      // Update campaign status to sent in Firestore
+      await marketingService.updateCampaign(campaign.id, {
+        status: 'sent',
+        sentAt: new Date().toISOString(),
+        metrics: {
+          ...campaign.metrics,
+          sentCount: data.sent || 0,
+          deliveredCount: data.sent || 0,
+        }
+      });
+
+      alert(`Campaign "${campaign.name}" sent successfully to ${data.sent} recipients!`);
+
+    } catch (error: any) {
       console.error('Error sending campaign:', error);
-      alert('Failed to send campaign. Please try again.');
+      alert(`Failed to send campaign: ${error.message}`);
     } finally {
       setSendingId(null);
     }
