@@ -104,6 +104,22 @@ const SEED_LAWS: LawItem[] = [
     disclaimerVersion: 'v1'
   },
   {
+    id: 'nc-cost-faq',
+    state: 'North Carolina',
+    topic: 'Fees',
+    title: 'How much does a mobile notary cost in North Carolina?',
+    summary: 'The State of North Carolina regulates the notarial fee at a maximum of $10 per principal signature. In addition to this state-mandated fee, mobile notaries charge a separate travel fee which varies based on distance.',
+    officialSourceName: 'North Carolina General Statutes § 10B-31',
+    officialSourceUrl: 'https://www.ncleg.gov/enactedlegislation/statutes/pdf/bysection/chapter_10b/gs_10b-31.pdf',
+    secondarySourceName: 'NC Secretary of State Notary FAQ',
+    secondarySourceUrl: 'https://www.sosnc.gov/divisions/notary/faq',
+    lastVerifiedAt: '2024-03-15',
+    keywords: ['how much does a mobile notary cost in north carolina', 'north carolina', 'nc', 'cost', 'travel fee', 'fees', 'mobile notary', 'travel'],
+    searchKeywords: ['how much does a mobile notary cost in north carolina', 'north carolina', 'nc', 'cost', 'travel fee', 'fees', 'mobile notary', 'travel'],
+    isOfficial: true,
+    disclaimerVersion: 'v1'
+  },
+  {
     id: 'nc-id-1',
     state: 'North Carolina',
     topic: 'ID Rules',
@@ -288,7 +304,9 @@ const LawsLookup: React.FC<LawsLookupProps> = ({ userId, userState }) => {
         'travel fee': ['fees', 'travel', 'mileage', 'mobile notary fee', 'reimbursement', 'federal mileage rate'],
         'mileage': ['fees', 'travel', 'mileage', 'reimbursement', 'federal mileage rate'],
         'can a notary charge a travel fee': ['fees', 'travel', 'mileage', 'reimbursement', 'federal mileage rate'],
-        'mobile notary fee': ['fees', 'travel', 'mileage', 'mobile notary fee', 'reimbursement']
+        'mobile notary fee': ['fees', 'travel', 'mileage', 'mobile notary fee', 'reimbursement'],
+        'how much does a mobile notary cost': ['fees', 'travel', 'mileage', 'mobile notary fee', 'reimbursement', 'cost'],
+        'how much does a mobile notary cost in north carolina': ['fees', 'travel', 'mileage', 'mobile notary fee', 'reimbursement', 'cost']
       };
 
       for (const [key, keywords] of Object.entries(intents)) {

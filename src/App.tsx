@@ -5991,17 +5991,72 @@ const Appointments = ({
                     </td>
 
                     {/* Column 7: Order Status */}
-                    <td className="px-6 py-5">
-                      <div className={cn(
-                        "inline-flex px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] border",
-                        app.status === 'Scheduled' ? "bg-amber-100 text-amber-700 border-amber-200" :
-                        app.status === 'Completed' ? "bg-indigo-50 text-indigo-600 border-indigo-100" :
-                        app.status === 'Paid' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                        "bg-slate-100 text-slate-600 border-slate-200"
-                      )}>
-                        {app.status === 'Scheduled' ? 'Pending' : 
-                         app.status === 'Completed' ? 'Closed' : 
-                         app.status}
+                    <td className="px-6 py-5" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className={cn(
+                          "inline-flex items-center justify-center w-24 h-6 rounded-lg text-[9px] font-black uppercase tracking-[0.1em] border select-none whitespace-nowrap",
+                          app.status === 'Scheduled' ? "bg-amber-100 text-amber-700 border-amber-200" :
+                          app.status === 'Completed' ? "bg-indigo-50 text-indigo-600 border-indigo-100" :
+                          app.status === 'Paid' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                          "bg-slate-100 text-slate-600 border-slate-200"
+                        )}>
+                          {app.status === 'Scheduled' ? 'Pending' : 
+                           app.status === 'Completed' ? 'Closed' : 
+                           app.status}
+                        </div>
+                        {(() => {
+                          const isPaid = app.status === 'Paid' || app.paymentStatus === 'Paid';
+                          const isSent = app.invoiceSent || app.paymentStatus === 'Sent';
+                          
+                          let label = 'Unpaid';
+                          let btnStyle = 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100';
+                          
+                          if (isPaid) {
+                            label = 'Paid';
+                            btnStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100';
+                          } else if (isSent) {
+                            label = 'Invoice Sent';
+                            btnStyle = 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100';
+                          }
+                          
+                          return (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const updatedApp = { ...app };
+                                if (!isSent && !isPaid) {
+                                  // Unpaid -> Invoice Sent
+                                  updatedApp.invoiceSent = true;
+                                  updatedApp.paymentStatus = 'Sent';
+                                  if (updatedApp.status === 'Scheduled') {
+                                    updatedApp.status = 'Completed';
+                                  }
+                                } else if (isSent && !isPaid) {
+                                  // Invoice Sent -> Paid
+                                  updatedApp.paymentStatus = 'Paid';
+                                  updatedApp.status = 'Paid';
+                                  updatedApp.invoicePaidDate = new Date().toISOString().split('T')[0];
+                                  updatedApp.amountCollected = Number(app.agreedFee) || Number(app.fee) || 0;
+                                } else {
+                                  // Paid -> Unpaid
+                                  updatedApp.invoiceSent = false;
+                                  updatedApp.paymentStatus = 'Not Sent';
+                                  updatedApp.status = 'Scheduled';
+                                  updatedApp.invoicePaidDate = '';
+                                  updatedApp.amountCollected = 0;
+                                }
+                                await onUpdate(updatedApp);
+                              }}
+                              className={cn(
+                                "inline-flex items-center justify-center w-24 h-6 rounded-md text-[8.5px] font-bold border transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-sm",
+                                btnStyle
+                              )}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>
