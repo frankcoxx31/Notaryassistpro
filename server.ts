@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import compression from "compression";
 import fs from "fs";
+import crypto from "crypto";
 import { google } from "googleapis";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
@@ -161,10 +162,38 @@ function baseTemplate(content: string, biz: BizData): string {
 </html>`;
 }
 
+/**
+ * HMAC-signs a customerId so unsubscribe links cannot be forged by guessing IDs.
+ * Set UNSUBSCRIBE_SECRET in .env (any long random string).
+ * If the secret is missing the token is still included but effectively unsigned —
+ * the route will log a warning and fall through.
+ */
+function signUnsubscribeToken(customerId: string): string {
+  const secret = process.env.UNSUBSCRIBE_SECRET;
+  if (!secret) {
+    console.warn('[Unsubscribe] UNSUBSCRIBE_SECRET is not set — tokens are not secure.');
+    return 'unsigned';
+  }
+  return crypto.createHmac('sha256', secret).update(customerId).digest('hex');
+}
+
+function verifyUnsubscribeToken(customerId: string, token: string): boolean {
+  const secret = process.env.UNSUBSCRIBE_SECRET;
+  if (!secret) return true; // degrade gracefully if secret not configured yet
+  const expected = crypto.createHmac('sha256', secret).update(customerId).digest('hex');
+  try {
+    return token.length === expected.length &&
+      crypto.timingSafeEqual(Buffer.from(token, 'hex'), Buffer.from(expected, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
 function unsubscribeFooter(customerId: string): string {
+  const token = signUnsubscribeToken(customerId);
   return `<p style="margin:24px 0 0;text-align:center;font-size:11px;color:#94a3b8;">
     Don't want to receive these emails?
-    <a href="${APP_URL}/api/email/unsubscribe/${customerId}" style="color:#94a3b8;">Unsubscribe</a>
+    <a href="${APP_URL}/api/email/unsubscribe/${customerId}?token=${token}" style="color:#94a3b8;">Unsubscribe</a>
   </p>`;
 }
 
@@ -302,7 +331,10 @@ async function startServer() {
   }
 
   app.use(compression());
-  app.use(express.json());
+  // Store raw body buffer on req so the Resend webhook can verify Svix signatures.
+  app.use(express.json({
+    verify: (req: any, _res, buf) => { req.rawBody = buf; }
+  }));
   app.use(cookieParser());
 
   // ─── EMAIL ROUTES ────────────────────────────────────────────────────────────
@@ -502,7 +534,25 @@ async function startServer() {
     if (!adminDb) return res.status(503).send("Service unavailable");
 
     const { customerId } = req.params;
+    const token = typeof req.query.token === 'string' ? req.query.token : '';
+
     if (!customerId) return res.status(400).send("Invalid unsubscribe link");
+
+    // Verify HMAC token to prevent enumeration of customer IDs
+    if (!verifyUnsubscribeToken(customerId, token)) {
+      console.warn(`[Unsubscribe] Invalid token for customer ${customerId}`);
+      return res.status(400).send(`
+        <!DOCTYPE html><html><head><meta charset="utf-8"/>
+        <title>Invalid Link</title>
+        <style>body{margin:0;font-family:'Helvetica Neue',sans-serif;background:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+        .card{background:white;border-radius:12px;padding:48px 40px;text-align:center;max-width:480px;box-shadow:0 2px 12px rgba(0,0,0,.08);}
+        h1{color:#1e3a5f;font-size:22px;margin:0 0 12px;}p{color:#64748b;line-height:1.7;}</style>
+        </head><body><div class="card">
+          <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
+          <h1>Invalid unsubscribe link</h1>
+          <p>This link is invalid or has expired. Please use the unsubscribe link from your original email.</p>
+        </div></body></html>`);
+    }
 
     try {
       await adminDb.collection('customers').doc(customerId).update({
@@ -545,6 +595,64 @@ async function startServer() {
   });
 
   app.post("/api/webhooks/resend", async (req, res) => {
+    // ── Svix signature verification ──────────────────────────────────────────
+    // Resend delivers webhooks via Svix. Set RESEND_WEBHOOK_SECRET in .env
+    // (the "Signing Secret" shown in Resend → Webhooks). Without it, all
+    // webhook requests are accepted — set the secret before going to production.
+    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const msgId        = req.headers['svix-id'] as string | undefined;
+      const msgTimestamp = req.headers['svix-timestamp'] as string | undefined;
+      const msgSignature = req.headers['svix-signature'] as string | undefined;
+
+      if (!msgId || !msgTimestamp || !msgSignature) {
+        console.warn('[Resend Webhook] Missing Svix signature headers — rejecting');
+        return res.status(401).json({ error: 'Missing webhook signature headers' });
+      }
+
+      // Reject payloads older than 5 minutes to prevent replay attacks
+      const tsSeconds = parseInt(msgTimestamp, 10);
+      if (isNaN(tsSeconds) || Math.abs(Math.floor(Date.now() / 1000) - tsSeconds) > 300) {
+        console.warn('[Resend Webhook] Timestamp too old or invalid — rejecting');
+        return res.status(401).json({ error: 'Webhook timestamp out of range' });
+      }
+
+      // Raw body is captured by the express.json verify callback above
+      const rawBody: string = (req as any).rawBody
+        ? (req as any).rawBody.toString('utf8')
+        : JSON.stringify(req.body);
+
+      const signedContent = `${msgId}.${msgTimestamp}.${rawBody}`;
+
+      // Secret may be prefixed with "whsec_" — strip it before base64-decoding
+      const secretBytes = Buffer.from(
+        webhookSecret.startsWith('whsec_') ? webhookSecret.slice(6) : webhookSecret,
+        'base64'
+      );
+      const expectedSig = crypto.createHmac('sha256', secretBytes)
+        .update(signedContent)
+        .digest('base64');
+
+      // Header may contain multiple space-separated "v1,<sig>" entries
+      const signatures = msgSignature.split(' ').map(s => s.replace(/^v1,/, ''));
+      const valid = signatures.some(sig => {
+        try {
+          return crypto.timingSafeEqual(
+            Buffer.from(sig, 'base64'),
+            Buffer.from(expectedSig, 'base64')
+          );
+        } catch { return false; }
+      });
+
+      if (!valid) {
+        console.warn('[Resend Webhook] Signature mismatch — rejecting');
+        return res.status(401).json({ error: 'Invalid webhook signature' });
+      }
+    } else {
+      console.warn('[Resend Webhook] RESEND_WEBHOOK_SECRET not set — skipping signature check');
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     try {
       const payload = req.body;
       console.log("[Resend Webhook Received]:", JSON.stringify(payload));

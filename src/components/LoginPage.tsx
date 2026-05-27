@@ -78,12 +78,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onEnterDemo }) => {
     }, 7000);
 
     try {
-      if (onSignIn) {
-        onSignIn();
-      } else {
-        await signInWithPopup(auth, provider);
-      }
+      // Always complete real Firebase authentication first.
+      // onSignIn is a post-auth callback, never a replacement for auth.
+      await signInWithPopup(auth, provider);
       clearTimeout(timeoutId);
+      if (onSignIn) onSignIn();
     } catch (err: any) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
