@@ -61,35 +61,35 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
 
     const defaults = [
       {
-        ownerId: user.uid,
+        userId: user.uid,
         name: 'Thank You',
         category: 'Transactional',
-        subjectSuggestion: 'Thank You for Choosing Integrity Closings CLT',
-        htmlContent: `<h2>Thank You!</h2><p>We truly appreciate you trusting Integrity Closings CLT with your notary needs. It was a pleasure working with you, and we hope to serve you again in the future.</p><p>If you need notary services again, we're available 7 days a week across Charlotte and surrounding areas.</p>`,
+        subjectSuggestion: 'Thank You for Choosing Us',
+        htmlContent: `<h2>Thank You!</h2><p>We truly appreciate you trusting us with your notary needs. It was a pleasure working with you, and we hope to serve you again in the future.</p><p>If you need notary services again, don't hesitate to reach out — we're available 7 days a week.</p>`,
       },
       {
-        ownerId: user.uid,
+        userId: user.uid,
         name: 'Appointment Reminder',
         category: 'Transactional',
         subjectSuggestion: 'Reminder: Your Upcoming Notary Appointment',
         htmlContent: `<h2>Appointment Reminder</h2><p>This is a friendly reminder about your upcoming notary appointment. Please remember to bring a valid government-issued photo ID. Do not sign any documents before the appointment — all signatures must be made in the notary's presence.</p>`,
       },
       {
-        ownerId: user.uid,
+        userId: user.uid,
         name: 'New Service Announcement',
         category: 'Marketing',
-        subjectSuggestion: 'New Service Available — Integrity Closings CLT',
-        htmlContent: `<h2>Exciting News!</h2><p>We have a new service available for you. Contact us today to learn more about how we can help with your notary needs across Charlotte and surrounding areas.</p>`,
+        subjectSuggestion: 'New Service Available',
+        htmlContent: `<h2>Exciting News!</h2><p>We have a new service available for you. Contact us today to learn more about how we can help with your notary needs.</p>`,
       },
       {
-        ownerId: user.uid,
+        userId: user.uid,
         name: 'General Outreach',
         category: 'Marketing',
-        subjectSuggestion: 'A Message from Integrity Closings CLT',
+        subjectSuggestion: 'A Message from Our Team',
         htmlContent: `<h2>Hello!</h2><p>We wanted to reach out and let you know we're here for all your notary needs. Whether it's loan signings, estate planning, or general notary work — we come to you, 7 days a week.</p>`,
       },
       {
-        ownerId: user.uid,
+        userId: user.uid,
         name: 'How Did We Do?',
         category: 'Marketing',
         subjectSuggestion: 'How Did We Do? Please Leave Us a Review!',
@@ -97,7 +97,7 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
 <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;">
   <h2 style="color:#1e3a5f;font-size:22px;margin:0 0 16px;">How Did We Do?</h2>
   <p style="color:#475569;line-height:1.7;margin:0 0 16px;">
-    Thank you for choosing <strong>Integrity Closings CLT</strong> for your notary needs. 
+    Thank you for choosing us for your notary needs.
     We hope your experience was smooth and professional.
   </p>
   <p style="color:#475569;line-height:1.7;margin:0 0 24px;">
@@ -113,7 +113,7 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
       src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCADIAMgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKGkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/" alt="QR Code" style="max-width:180px;height:auto;border:1px solid #e2e8f0;border-radius:12px;padding:8px;background:white;" />
   </div>
   <p style="color:#64748b;font-size:12px;line-height:1.5;margin:24px 0 0;text-align:center;border-top:1px solid #f1f5f9;padding-top:16px;">
-    Integrity Closings CLT • Charlotte, NC • Mobile Notary Services
+    Professional Notary Services
   </p>
 </div>
 `,
@@ -304,14 +304,14 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveTemplate}
-        ownerId={user.uid}
+        userId={user.uid}
       />
 
       <AIDesignerModal 
         isOpen={isAiDesignerOpen}
         onClose={() => setIsAiDesignerOpen(false)}
         onSave={handleSaveTemplate}
-        ownerId={user.uid}
+        userId={user.uid}
       />
 
       <TemplatePreviewModal 

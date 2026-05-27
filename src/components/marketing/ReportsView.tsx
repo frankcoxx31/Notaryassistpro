@@ -78,7 +78,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ user }) => {
         const campaignsSnap = await getDocs(
           query(
             collection(db, 'marketingCampaigns'),
-            where('ownerId', '==', user.uid),
+            where('userId', '==', user.uid),
             orderBy('createdAt', 'desc'),
             limit(3)
           )
@@ -96,7 +96,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ user }) => {
           const allCampaignsSnap = await getDocs(
             query(
               collection(db, 'marketingCampaigns'),
-              where('ownerId', '==', user.uid)
+              where('userId', '==', user.uid)
             )
           );
           allCampaignsSnap.forEach(doc => {
@@ -116,7 +116,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ user }) => {
           const eventsSnap = await getDocs(
             query(
               collection(db, 'emailEvents'),
-              where('ownerId', '==', user.uid)
+              where('userId', '==', user.uid)
             )
           );
           eventsSnap.forEach(doc => {

@@ -49,12 +49,12 @@ const PreferencesView: React.FC<PreferencesViewProps> = ({ user }) => {
             weeklyReport: prefs.weeklyReport ?? true
           });
         } else {
-          // Default values if no prefs exist
+          // Default values if no prefs exist — use the signed-in user's own name/email
           setFormData({
-            fromName: user.displayName || 'Frank Coxx',
-            fromEmail: user.email || 'frank@integrityclosings.com',
-            replyTo: user.email || 'frank@integrityclosings.com',
-            emailSignature: 'Integrity Closings CLT\nProfessional Notary Services',
+            fromName: user.displayName || '',
+            fromEmail: user.email || '',
+            replyTo: user.email || '',
+            emailSignature: '',
             autoSyncEnabled: true,
             weeklyReport: true
           });

@@ -13,7 +13,8 @@ dotenv.config();
 
 // ─── Firebase Admin Setup ─────────────────────────────────────────────────────
 import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth as getAdminAuth } from "firebase-admin/auth";
 
 function parseServiceAccountJson(): any {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -56,6 +57,7 @@ function fixPrivateKey(key: string): string {
 }
 
 let adminDb: FirebaseFirestore.Firestore | null = null;
+let adminAuth: ReturnType<typeof getAdminAuth> | null = null;
 
 if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
   console.warn("[Firebase Admin] GOOGLE_SERVICE_ACCOUNT_JSON is not set. Firestore sync features will run in demo/offline mode.");
@@ -71,6 +73,7 @@ if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     const rawDbId = process.env.FIREBASE_DATABASE_ID || '';
     const useDefault = !rawDbId || ['', '(default)', 'undefined', 'null'].includes(rawDbId.trim());
     adminDb = useDefault ? getFirestore() : getFirestore(rawDbId.trim());
+    adminAuth = getAdminAuth();
     console.log(`[Firebase Admin] Connected to Firestore: ${useDefault ? 'default' : rawDbId.trim()}`);
   } catch (e: any) {
     console.error("[Firebase Admin] Failed to initialize:", e?.message || e);
@@ -79,18 +82,56 @@ if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
 
 // ─── Resend Setup ─────────────────────────────────────────────────────────────
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM_EMAIL = "Frank Coxx <fcoxx@notaryinfo.icclt.com>";
 const APP_URL = process.env.APP_URL || "https://www.notaryproapp.com";
 
+// ─── Business Profile Helpers ─────────────────────────────────────────────────
+// BizData is fetched per-request from the authenticated user's Firestore profile.
+// Nothing is hardcoded — every tenant gets their own name, email, and website in
+// outbound emails.
+interface BizData {
+  name: string;
+  email: string;
+  phone: string;
+  website: string;
+  location: string;
+}
+
+/** Reads the signed-in user's business profile from Firestore. */
+async function getBusinessProfile(uid: string): Promise<BizData> {
+  if (!adminDb) throw new Error("Database not available");
+  const doc = await adminDb.collection('profiles').doc(uid).get();
+  const d = doc.data() || {};
+  const parts = [d.address, d.city, d.state].filter(Boolean);
+  return {
+    name:     d.companyName || d.name || 'NotaryPro',
+    email:    d.email   || '',
+    phone:    d.phone   || '',
+    website:  d.website || '',
+    location: parts.join(', '),
+  };
+}
+
+/**
+ * Builds the From address for outbound email.
+ * The sending domain must be verified in Resend — set FROM_EMAIL_ADDRESS in .env
+ * (e.g. "noreply@notaryproapp.com").  The tenant's business name is used as the
+ * display name so recipients see "Acme Notary <noreply@notaryproapp.com>".
+ */
+function buildFromEmail(biz: BizData): string {
+  const addr = process.env.FROM_EMAIL_ADDRESS || 'noreply@notaryproapp.com';
+  return `${biz.name} <${addr}>`;
+}
+
 // ─── Email Templates ──────────────────────────────────────────────────────────
-function baseTemplate(content: string): string {
+function baseTemplate(content: string, biz: BizData): string {
+  const websiteDisplay = biz.website.replace(/^https?:\/\//, '');
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Integrity Closings CLT</title>
+  <title>${biz.name}</title>
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
@@ -98,7 +139,7 @@ function baseTemplate(content: string): string {
       <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%;">
         <tr>
           <td style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);padding:32px 40px;text-align:center;">
-            <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:0.5px;">Integrity Closings CLT</h1>
+            <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:0.5px;">${biz.name}</h1>
             <p style="margin:6px 0 0;color:#93c5fd;font-size:13px;letter-spacing:1px;">PROFESSIONAL NOTARY SERVICES</p>
           </td>
         </tr>
@@ -109,10 +150,8 @@ function baseTemplate(content: string): string {
         </tr>
         <tr>
           <td style="background:#f8fafc;padding:24px 40px;border-top:1px solid #e2e8f0;text-align:center;">
-            <p style="margin:0;color:#64748b;font-size:12px;">Integrity Closings CLT &bull; Mint Hill, NC &bull; Charlotte &amp; Surrounding Areas</p>
-            <p style="margin:6px 0 0;color:#64748b;font-size:12px;">
-              <a href="https://integrityclosingsclt.com" style="color:#2563eb;text-decoration:none;">integrityclosingsclt.com</a>
-            </p>
+            <p style="margin:0;color:#64748b;font-size:12px;">${biz.name}${biz.location ? ' &bull; ' + biz.location : ''}</p>
+            ${biz.website ? `<p style="margin:6px 0 0;color:#64748b;font-size:12px;"><a href="${biz.website}" style="color:#2563eb;text-decoration:none;">${websiteDisplay}</a></p>` : ''}
           </td>
         </tr>
       </table>
@@ -129,28 +168,26 @@ function unsubscribeFooter(customerId: string): string {
   </p>`;
 }
 
-const TEMPLATES: Record<string, { subject: string; html: (data: any) => string }> = {
+const TEMPLATES: Record<string, { subject: (biz: BizData) => string; html: (data: any, biz: BizData) => string }> = {
   thank_you: {
-    subject: "Thank You for Choosing Integrity Closings CLT",
-    html: (d) => baseTemplate(`
+    subject: (biz) => `Thank You for Choosing ${biz.name}`,
+    html: (d, biz) => baseTemplate(`
       <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:20px;">Thank You, ${d.firstName}!</h2>
       <p style="color:#475569;line-height:1.7;margin:0 0 16px;">
-        We truly appreciate you trusting Integrity Closings CLT with your notary needs.
+        We truly appreciate you trusting ${biz.name} with your notary needs.
         It was a pleasure working with you, and we hope to serve you again in the future.
       </p>
       <p style="color:#475569;line-height:1.7;margin:0 0 16px;">
         If you have any questions or need notary services again, don't hesitate to reach out.
-        We're available 7 days a week across Charlotte and surrounding areas.
+        We're available 7 days a week.
       </p>
-      <div style="text-align:center;margin:28px 0;">
-        <a href="https://integrityclosingsclt.com/book" style="background:#2563eb;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">Book Again</a>
-      </div>
+      ${biz.website ? `<div style="text-align:center;margin:28px 0;"><a href="${biz.website}/book" style="background:#2563eb;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">Book Again</a></div>` : ''}
       ${d.customerId ? unsubscribeFooter(d.customerId) : ''}
-    `)
+    `, biz)
   },
   appointment_reminder: {
-    subject: "Reminder: Your Upcoming Notary Appointment",
-    html: (d) => baseTemplate(`
+    subject: (_biz) => `Reminder: Your Upcoming Notary Appointment`,
+    html: (d, biz) => baseTemplate(`
       <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:20px;">Appointment Reminder</h2>
       <p style="color:#475569;line-height:1.7;margin:0 0 20px;">Hi ${d.firstName}, this is a friendly reminder about your upcoming appointment:</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin:0 0 20px;">
@@ -166,26 +203,24 @@ const TEMPLATES: Record<string, { subject: string; html: (data: any) => string }
         Do not sign any documents before the appointment.
       </p>
       ${d.customerId ? unsubscribeFooter(d.customerId) : ''}
-    `)
+    `, biz)
   },
   new_service: {
-    subject: "New Service Available — Integrity Closings CLT",
-    html: (d) => baseTemplate(`
+    subject: (biz) => `New Service Available — ${biz.name}`,
+    html: (d, biz) => baseTemplate(`
       <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:20px;">Exciting News, ${d.firstName}!</h2>
       <p style="color:#475569;line-height:1.7;margin:0 0 16px;">${d.body || 'We have a new service available for you.'}</p>
-      <div style="text-align:center;margin:28px 0;">
-        <a href="https://integrityclosingsclt.com" style="background:#2563eb;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">Learn More</a>
-      </div>
+      ${biz.website ? `<div style="text-align:center;margin:28px 0;"><a href="${biz.website}" style="background:#2563eb;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">Learn More</a></div>` : ''}
       ${d.customerId ? unsubscribeFooter(d.customerId) : ''}
-    `)
+    `, biz)
   },
   general_outreach: {
-    subject: "A Message from Integrity Closings CLT",
-    html: (d) => baseTemplate(`
+    subject: (biz) => `A Message from ${biz.name}`,
+    html: (d, biz) => baseTemplate(`
       <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:20px;">Hi ${d.firstName},</h2>
       <div style="color:#475569;line-height:1.7;margin:0 0 16px;">${d.body || ''}</div>
       ${d.customerId ? unsubscribeFooter(d.customerId) : ''}
-    `)
+    `, biz)
   }
 };
 
@@ -197,6 +232,35 @@ const __dirname = path.dirname(__filename);
 
 process.on('uncaughtException', (err) => { console.error('Uncaught Exception:', err); });
 process.on('unhandledRejection', (reason, promise) => { console.error('Unhandled Rejection at:', promise, 'reason:', reason); });
+
+// ─── Firebase Auth Middleware ─────────────────────────────────────────────────
+// Reads the Firebase ID token from the Authorization header, verifies it with
+// Firebase Admin, and attaches the decoded token to req.user.
+// Usage: add `verifyFirebaseToken` as the second argument to any route that
+// must be accessible only to signed-in users.
+async function verifyFirebaseToken(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+): Promise<void> {
+  if (!adminAuth) {
+    res.status(503).json({ error: "Auth service not available. Ensure GOOGLE_SERVICE_ACCOUNT_JSON is set." });
+    return;
+  }
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized: missing or malformed Authorization header" });
+    return;
+  }
+  const token = authHeader.slice(7);
+  try {
+    const decoded = await adminAuth.verifyIdToken(token);
+    (req as any).user = decoded;
+    next();
+  } catch (err: any) {
+    res.status(401).json({ error: "Unauthorized: invalid or expired token" });
+  }
+}
 
 async function startServer() {
   console.log("Starting server process...");
@@ -243,32 +307,35 @@ async function startServer() {
 
   // ─── EMAIL ROUTES ────────────────────────────────────────────────────────────
 
-  app.post("/api/email/send-single", async (req, res) => {
+  app.post("/api/email/send-single", verifyFirebaseToken, async (req, res) => {
     if (!resend) return res.status(503).json({ error: "Email service not configured. Add RESEND_API_KEY." });
 
+    const uid = (req as any).user.uid;
     const { to, toName, customerId, templateId, subject, body, templateData } = req.body;
     if (!to) return res.status(400).json({ error: "Recipient email required" });
 
     try {
+      const biz = await getBusinessProfile(uid);
+      const fromEmail = buildFromEmail(biz);
       let emailSubject = subject;
       let emailHtml = '';
 
       if (templateId && TEMPLATES[templateId]) {
         const template = TEMPLATES[templateId];
-        emailSubject = subject || template.subject;
+        emailSubject = subject || template.subject(biz);
         emailHtml = template.html({
           firstName: toName?.split(' ')[0] || 'Valued Client',
           customerId,
           body,
           ...templateData
-        });
+        }, biz);
       } else {
-        emailSubject = subject || "A Message from Integrity Closings CLT";
+        emailSubject = subject || `A Message from ${biz.name}`;
         emailHtml = baseTemplate(`
           <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:20px;">Hi ${toName?.split(' ')[0] || 'there'},</h2>
           <div style="color:#475569;line-height:1.7;">${body || ''}</div>
           ${customerId ? unsubscribeFooter(customerId) : ''}
-        `);
+        `, biz);
       }
 
       const tags = [];
@@ -276,7 +343,7 @@ async function startServer() {
       if (templateId) tags.push({ name: "campaign_id", value: templateId });
 
       const result = await resend.emails.send({
-        from: FROM_EMAIL,
+        from: fromEmail,
         to: [to],
         subject: emailSubject,
         html: emailHtml,
@@ -289,7 +356,7 @@ async function startServer() {
       if (adminDb && emailId) {
         try {
           await adminDb.collection('emailEvents').add({
-            ownerId: process.env.CRM_OWNER_USER_ID || 'system',
+            userId: uid,
             subscriberId: customerId || 'unknown',
             campaignId: templateId || 'single',
             type: 'sent',
@@ -312,10 +379,11 @@ async function startServer() {
     }
   });
 
-  app.post("/api/email/send-newsletter", async (req, res) => {
+  app.post("/api/email/send-newsletter", verifyFirebaseToken, async (req, res) => {
     if (!resend) return res.status(503).json({ error: "Email service not configured. Add RESEND_API_KEY." });
     if (!adminDb) return res.status(503).json({ error: "Database not configured." });
 
+    const uid = (req as any).user.uid;
     const { templateId, subject, body, templateData, recipientGroups, campaignId } = req.body;
 
     if (!recipientGroups || !recipientGroups.length) {
@@ -323,8 +391,9 @@ async function startServer() {
     }
 
     try {
-      const userId = process.env.CRM_OWNER_USER_ID;
-      const snapshot = await adminDb.collection('customers').where('userId', '==', userId).get();
+      const biz = await getBusinessProfile(uid);
+      const fromEmail = buildFromEmail(biz);
+      const snapshot = await adminDb.collection('customers').where('userId', '==', uid).get();
       let customers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
       customers = customers.filter((c: any) => !c.unsubscribed);
@@ -357,20 +426,20 @@ async function startServer() {
 
             if (templateId && TEMPLATES[templateId]) {
               const template = TEMPLATES[templateId];
-              emailSubject = subject || template.subject;
+              emailSubject = subject || template.subject(biz);
               emailHtml = template.html({
                 firstName,
                 customerId: customer.id,
                 body,
                 ...templateData
-              });
+              }, biz);
             } else {
-              emailSubject = subject || "A Message from Integrity Closings CLT";
+              emailSubject = subject || `A Message from ${biz.name}`;
               emailHtml = baseTemplate(`
                 <h2 style="margin:0 0 16px;color:#1e3a5f;font-size:20px;">Hi ${firstName},</h2>
                 <div style="color:#475569;line-height:1.7;">${body || ''}</div>
                 ${unsubscribeFooter(customer.id)}
-              `);
+              `, biz);
             }
 
             const tags = [];
@@ -380,7 +449,7 @@ async function startServer() {
             }
 
             const sendResult = await resend.emails.send({
-              from: FROM_EMAIL,
+              from: fromEmail,
               to: [customer.email],
               subject: emailSubject,
               html: emailHtml,
@@ -393,7 +462,7 @@ async function startServer() {
             if (adminDb && emailId) {
               try {
                 await adminDb.collection('emailEvents').add({
-                  ownerId: process.env.CRM_OWNER_USER_ID || 'system',
+                  userId: uid,
                   subscriberId: customer.id || 'unknown',
                   campaignId: campaignId || templateId || 'newsletter',
                   type: 'sent',
@@ -450,7 +519,7 @@ async function startServer() {
         <head>
           <meta charset="utf-8"/>
           <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-          <title>Unsubscribed — Integrity Closings CLT</title>
+          <title>Unsubscribed — NotaryPro</title>
           <style>
             body { margin:0; font-family: 'Helvetica Neue', sans-serif; background:#f1f5f9; display:flex; align-items:center; justify-content:center; min-height:100vh; }
             .card { background:white; border-radius:12px; padding:48px 40px; text-align:center; max-width:480px; box-shadow:0 2px 12px rgba(0,0,0,0.08); }
@@ -463,8 +532,8 @@ async function startServer() {
           <div class="card">
             <div style="font-size:48px;margin-bottom:16px;">✅</div>
             <h1>You've been unsubscribed</h1>
-            <p>You will no longer receive marketing emails from Integrity Closings CLT.</p>
-            <p>Need notary services? Visit <a href="https://integrityclosingsclt.com">integrityclosingsclt.com</a></p>
+            <p>You will no longer receive marketing emails from this business.</p>
+            <p>Need notary services? Visit <a href="${APP_URL}">${APP_URL}</a></p>
           </div>
         </body>
         </html>
@@ -506,7 +575,7 @@ async function startServer() {
 
         // Add the event to emailEvents
         await adminDb.collection('emailEvents').add({
-          ownerId: process.env.CRM_OWNER_USER_ID || 'system',
+          userId: process.env.CRM_OWNER_USER_ID || 'system',
           subscriberId: subscriberId || 'unknown',
           campaignId: campaignId || 'single',
           type: normType,
@@ -566,7 +635,7 @@ async function startServer() {
 
   // ─── IDV ROUTES ───────────────────────────────────────────────────────────────
 
-  app.post("/api/idv/process-document", async (req, res) => {
+  app.post("/api/idv/process-document", verifyFirebaseToken, async (req, res) => {
     const { recordId, frontUrl } = req.body;
     if (!recordId || !frontUrl) return res.status(400).json({ error: "Record ID and Front Image URL required" });
     console.log(`[IDV] Processing document for record: ${recordId}`);
@@ -606,15 +675,15 @@ async function startServer() {
     }
   });
 
-  app.post("/api/idv/face-match", async (req, res) => {
+  app.post("/api/idv/face-match", verifyFirebaseToken, async (req, res) => {
     setTimeout(() => res.json({ status: "matched", score: 0.98, checks: [{ id: "face_match", name: "Face Match", status: "pass", explanation: "Signer matches ID portrait", source: "automated", timestamp: new Date().toISOString() }] }), 1500);
   });
 
-  app.post("/api/idv/liveness-check", async (req, res) => {
+  app.post("/api/idv/liveness-check", verifyFirebaseToken, async (req, res) => {
     setTimeout(() => res.json({ status: "passed", score: 0.99, checks: [{ id: "liveness", name: "Liveness Check", status: "pass", explanation: "Physical presence confirmed", source: "automated", timestamp: new Date().toISOString() }] }), 2000);
   });
 
-  app.post("/api/idv/aamva-check", async (req, res) => {
+  app.post("/api/idv/aamva-check", verifyFirebaseToken, async (req, res) => {
     setTimeout(() => res.json({ status: "matched", details: { fullName: "match", dob: "match", documentNumber: "match", address: "match" }, checks: [{ id: "aamva", name: "AAMVA / DLDV", status: "pass", explanation: "Information verified against issuing agency", source: "external", timestamp: new Date().toISOString() }] }), 3000);
   });
 
@@ -802,6 +871,162 @@ async function startServer() {
     else if (modifier === 'PM') h = h + 12;
     return `${String(h).padStart(2, '0')}:${minutes.padStart(2, '0')}`;
   }
+
+  // ─── ONE-TIME MIGRATION: ownerId → userId ────────────────────────────────────
+  // DELETE THIS ROUTE AFTER RUNNING THE MIGRATION.
+  // Usage:
+  //   Dry run (default):  GET /api/admin/migrate-owner-field?secret=YOUR_SECRET
+  //   Live run:           GET /api/admin/migrate-owner-field?secret=YOUR_SECRET&dryRun=false
+  //
+  // Set MIGRATION_SECRET in your .env before deploying.  Never share or commit it.
+
+  app.get("/api/admin/migrate-owner-field", async (req, res) => {
+    const MIGRATION_COLLECTIONS = [
+      'subscribers',
+      'marketingSegments',
+      'marketingCampaigns',
+      'marketingTemplates',
+      'marketingAutomations',
+      'emailEvents',
+      'outboundEmailQueue',
+      'marketingPreferences',
+    ];
+    const BATCH_SIZE = 400;
+
+    // ── Secret check ──────────────────────────────────────────────────────────
+    const secret = process.env.MIGRATION_SECRET;
+    if (!secret) {
+      res.status(503).send('<h1>MIGRATION_SECRET is not set in .env.</h1><p>Add it and redeploy before running this migration.</p>');
+      return;
+    }
+    if (req.query.secret !== secret) {
+      res.status(401).send('<h1>Unauthorized</h1><p>Wrong or missing secret.</p>');
+      return;
+    }
+    if (!adminDb) {
+      res.status(503).send('<h1>Firestore not connected.</h1><p>Check GOOGLE_SERVICE_ACCOUNT_JSON in .env.</p>');
+      return;
+    }
+
+    const dryRun = req.query.dryRun !== 'false';
+    const startedAt = new Date().toISOString();
+    const rows: string[] = [];
+    let grandTotal = 0, grandNeedsMigration = 0, grandMigrated = 0, grandSkipped = 0;
+
+    for (const colName of MIGRATION_COLLECTIONS) {
+      let total = 0, needsMigration = 0, migrated = 0, skipped = 0;
+      let notes = '';
+      try {
+        const snapshot = await adminDb.collection(colName).get();
+        total = snapshot.size;
+
+        const needsDocs = snapshot.docs.filter(d => {
+          const data = d.data();
+          return typeof data.ownerId === 'string' && data.ownerId.length > 0;
+        });
+        needsMigration = needsDocs.length;
+        skipped = total - needsMigration;
+
+        if (needsMigration > 0 && !dryRun) {
+          for (let i = 0; i < needsDocs.length; i += BATCH_SIZE) {
+            const chunk = needsDocs.slice(i, i + BATCH_SIZE);
+            const batch = adminDb.batch();
+            chunk.forEach(docSnap => {
+              const ownerId = docSnap.data().ownerId as string;
+              batch.update(docSnap.ref, {
+                userId: ownerId,
+                ownerId: FieldValue.delete(),
+              });
+            });
+            await batch.commit();
+            migrated += chunk.length;
+          }
+          notes = `✅ Migrated ${migrated} doc(s)`;
+        } else if (needsMigration > 0 && dryRun) {
+          const sample = needsDocs[0].data();
+          notes = `🔍 Would migrate ${needsMigration} doc(s). Sample: ownerId="${sample.ownerId}"`;
+        } else {
+          notes = '✅ Already clean';
+        }
+      } catch (err: any) {
+        notes = `❌ Error: ${err.message}`;
+      }
+
+      grandTotal += total;
+      grandNeedsMigration += needsMigration;
+      grandMigrated += migrated;
+      grandSkipped += skipped;
+
+      const rowBg = needsMigration === 0 ? '#f0fdf4' : dryRun ? '#fefce8' : '#f0fdf4';
+      rows.push(`
+        <tr style="background:${rowBg}">
+          <td style="padding:10px 16px;font-family:monospace;font-size:13px;">${colName}</td>
+          <td style="padding:10px 16px;text-align:center;">${total}</td>
+          <td style="padding:10px 16px;text-align:center;">${needsMigration}</td>
+          <td style="padding:10px 16px;text-align:center;">${skipped}</td>
+          <td style="padding:10px 16px;font-size:12px;">${notes}</td>
+        </tr>`);
+    }
+
+    const modeLabel = dryRun
+      ? '🔍 DRY RUN — no writes were made'
+      : '⚡ LIVE — changes written to Firestore';
+
+    const liveLink = dryRun
+      ? `<p style="margin:16px 0 0;"><a href="?secret=${req.query.secret}&dryRun=false" style="background:#dc2626;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;">▶ Run for real (dryRun=false)</a></p>`
+      : `<p style="margin:16px 0 0;color:#15803d;font-weight:600;">✅ Migration applied. You can now delete this endpoint from server.ts.</p>`;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>ownerId → userId Migration</title>
+  <style>
+    body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f1f5f9; margin:0; padding:32px; }
+    h1 { color:#1e3a5f; font-size:22px; margin:0 0 4px; }
+    .mode { font-size:15px; font-weight:600; margin:0 0 24px; color:#64748b; }
+    table { border-collapse:collapse; width:100%; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+    th { background:#1e3a5f; color:#fff; padding:10px 16px; text-align:left; font-size:12px; letter-spacing:.5px; text-transform:uppercase; }
+    td { border-bottom:1px solid #e2e8f0; }
+    tr:last-child td { border-bottom:none; }
+    .summary { margin:24px 0 0; background:#fff; border-radius:10px; padding:20px 24px; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+    .summary p { margin:4px 0; color:#475569; font-size:14px; }
+    .warning { margin:24px 0 0; background:#fef9c3; border:1px solid #fde047; border-radius:8px; padding:16px 20px; font-size:13px; color:#713f12; }
+  </style>
+</head>
+<body>
+  <h1>Firestore: ownerId → userId Migration</h1>
+  <p class="mode">${modeLabel}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Collection</th>
+        <th>Total docs</th>
+        <th>Need migration</th>
+        <th>Already clean</th>
+        <th>Result / Notes</th>
+      </tr>
+    </thead>
+    <tbody>${rows.join('')}</tbody>
+  </table>
+  <div class="summary">
+    <p><strong>Grand total scanned:</strong> ${grandTotal}</p>
+    <p><strong>Documents that needed migration:</strong> ${grandNeedsMigration}</p>
+    <p><strong>Documents migrated this run:</strong> ${grandMigrated}${dryRun ? ' (dry run — not written)' : ''}</p>
+    <p><strong>Already clean / skipped:</strong> ${grandSkipped}</p>
+    <p style="margin-top:10px;font-size:12px;color:#94a3b8;">Run started: ${startedAt}</p>
+  </div>
+  ${liveLink}
+  <div class="warning">
+    ⚠️ <strong>Remember:</strong> Delete the <code>/api/admin/migrate-owner-field</code> route from <code>server.ts</code> once the migration is complete.
+  </div>
+</body>
+</html>`;
+
+    res.send(html);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");

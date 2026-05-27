@@ -145,7 +145,7 @@ service cloud.firestore {
     }
 
     function isMarketingOwner() {
-      return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == resource.data.ownerId;
+      return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == resource.data.userId;
     }
 
     // ===============================================================
@@ -153,32 +153,32 @@ service cloud.firestore {
     // ===============================================================
     match /subscribers/{id} {
       allow read, delete: if isMarketingOwner();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.userId == resource.data.userId;
     }
 
     match /marketingSegments/{id} {
       allow read, delete: if isMarketingOwner();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.userId == resource.data.userId;
     }
 
     match /marketingCampaigns/{id} {
       allow read, delete: if isMarketingOwner();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.userId == resource.data.userId;
     }
 
     match /marketingTemplates/{id} {
       allow read, delete: if isMarketingOwner();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.userId == resource.data.userId;
     }
 
     match /marketingAutomations/{id} {
       allow read, delete: if isMarketingOwner();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isMarketingOwner() && request.resource.data.ownerId == resource.data.ownerId;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isMarketingOwner() && request.resource.data.userId == resource.data.userId;
     }
 
     match /marketingPreferences/{userId} {
@@ -187,12 +187,12 @@ service cloud.firestore {
 
     match /emailEvents/{id} {
       allow read: if isMarketingOwner();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
     }
 
     match /outboundEmailQueue/{id} {
       allow read, delete: if isMarketingOwner();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
     }
 
     match /appointments/{appointmentId} {

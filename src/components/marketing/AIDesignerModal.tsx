@@ -9,10 +9,10 @@ interface AIDesignerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (template: Omit<MarketingTemplate, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  ownerId: string;
+  userId: string;
 }
 
-const AIDesignerModal: React.FC<AIDesignerModalProps> = ({ isOpen, onClose, onSave, ownerId }) => {
+const AIDesignerModal: React.FC<AIDesignerModalProps> = ({ isOpen, onClose, onSave, userId }) => {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<{ name: string; htmlContent: string; category: string } | null>(null);
@@ -41,7 +41,7 @@ const AIDesignerModal: React.FC<AIDesignerModalProps> = ({ isOpen, onClose, onSa
     try {
       setSaving(true);
       await onSave({
-        ownerId,
+        userId,
         name: preview.name,
         category: preview.category,
         htmlContent: preview.htmlContent,

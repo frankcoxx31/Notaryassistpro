@@ -39,7 +39,7 @@ const DemoLoginPage: React.FC<DemoLoginPageProps> = ({ onEnterDemo, onResetDemo 
               <FileText className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-white">
-              Integrity Closings CLT
+              NotaryPro
             </h1>
             <p className="text-slate-400 text-sm font-medium">
               Professional Notary Management System
@@ -106,7 +106,7 @@ const DemoLoginPage: React.FC<DemoLoginPageProps> = ({ onEnterDemo, onResetDemo 
           </div>
 
           <p className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-            Demo Environment | Integrity Closings CLT
+            Demo Environment | NotaryPro
           </p>
         </motion.div>
       </div>

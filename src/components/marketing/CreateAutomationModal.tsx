@@ -7,10 +7,10 @@ interface CreateAutomationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (automation: Omit<MarketingAutomation, 'id' | 'createdAt' | 'updatedAt' | 'executionStats'>) => Promise<void>;
-  ownerId: string;
+  userId: string;
 }
 
-const CreateAutomationModal: React.FC<CreateAutomationModalProps> = ({ isOpen, onClose, onSave, ownerId }) => {
+const CreateAutomationModal: React.FC<CreateAutomationModalProps> = ({ isOpen, onClose, onSave, userId }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -27,7 +27,7 @@ const CreateAutomationModal: React.FC<CreateAutomationModalProps> = ({ isOpen, o
     try {
       setLoading(true);
       await onSave({
-        ownerId,
+        userId,
         name: formData.name,
         description: formData.description,
         triggerType: formData.triggerType,

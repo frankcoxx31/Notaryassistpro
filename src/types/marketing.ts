@@ -5,7 +5,7 @@ export type EmailFrequency = 'weekly' | 'monthly' | 'only-important-updates';
 
 export interface Subscriber {
   id: string;
-  ownerId: string;
+  userId: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -31,7 +31,7 @@ export interface Subscriber {
 
 export interface MarketingSegment {
   id: string;
-  ownerId: string;
+  userId: string;
   name: string;
   description?: string;
   rules: any[]; 
@@ -47,7 +47,7 @@ export type CampaignContentType = 'newsletter' | 'service-update' | 'announcemen
 
 export interface MarketingCampaign {
   id: string;
-  ownerId: string;
+  userId: string;
   name: string;
   subject: string;
   previewText?: string;
@@ -73,7 +73,7 @@ export interface MarketingCampaign {
 
 export interface MarketingTemplate {
   id: string;
-  ownerId: string;
+  userId: string;
   name: string;
   category: string;
   subjectSuggestion?: string;
@@ -102,7 +102,7 @@ export type AutomationStatus = 'draft' | 'active' | 'paused';
 
 export interface MarketingAutomation {
   id: string;
-  ownerId: string;
+  userId: string;
   name: string;
   description: string;
   triggerType: AutomationTriggerType;
@@ -120,7 +120,7 @@ export interface MarketingAutomation {
 
 export interface EmailEvent {
   id: string;
-  ownerId: string;
+  userId: string;
   subscriberId: string;
   campaignId?: string;
   automationId?: string;

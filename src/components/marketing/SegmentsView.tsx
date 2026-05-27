@@ -38,7 +38,7 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
 
     const q = query(
       collection(db, 'marketingSegments'),
-      where('ownerId', '==', user.uid),
+      where('userId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
 
@@ -226,7 +226,7 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
           setEditingSegment(null);
         }}
         onSave={handleSaveSegment}
-        ownerId={user.uid}
+        userId={user.uid}
         availableSubscribers={subscribers}
         initialData={editingSegment}
       />

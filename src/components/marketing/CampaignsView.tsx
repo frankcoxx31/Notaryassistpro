@@ -52,7 +52,7 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
 
     const q = query(
       collection(db, 'marketingCampaigns'),
-      where('ownerId', '==', user.uid),
+      where('userId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
 
@@ -88,14 +88,14 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
   const handleCreateCampaign = async (data: any, sendNow?: boolean) => {
     try {
       const newCampaign = await marketingService.addCampaign({
-        ownerId: user.uid,
+        userId: user.uid,
         name: data.name,
         subject: data.subject,
         templateId: data.selectedTemplateId,
         segmentIds: data.selectedSegmentIds,
         status: 'draft',
         contentType: 'newsletter',
-        fromName: user.displayName || user.email?.split('@')[0] || 'Frank Coxx',
+        fromName: user.displayName || user.email?.split('@')[0] || '',
         replyTo: user.email || ''
       });
 

@@ -202,7 +202,7 @@ const AutomationsView: React.FC<AutomationsViewProps> = ({ user, autoOpen }) => 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveAutomation}
-        ownerId={user.uid}
+        userId={user.uid}
       />
     </div>
   );

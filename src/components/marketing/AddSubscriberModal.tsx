@@ -7,10 +7,10 @@ interface AddSubscriberModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (subscriber: Omit<Subscriber, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  ownerId: string;
+  userId: string;
 }
 
-const AddSubscriberModal: React.FC<AddSubscriberModalProps> = ({ isOpen, onClose, onSave, ownerId }) => {
+const AddSubscriberModal: React.FC<AddSubscriberModalProps> = ({ isOpen, onClose, onSave, userId }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -29,7 +29,7 @@ const AddSubscriberModal: React.FC<AddSubscriberModalProps> = ({ isOpen, onClose
       setLoading(true);
       const tagsArray = formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
       await onSave({
-        ownerId,
+        userId,
         email: formData.email,
         firstName: formData.firstName,
         lastName: formData.lastName,

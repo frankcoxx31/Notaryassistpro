@@ -6,7 +6,7 @@ const todayDate = format(new Date(), 'yyyy-MM-dd');
 export const MOCK_CUSTOMERS: Customer[] = [
   {
     id: 'c1',
-    userId: 'mock-user',
+    userId: '',
     firstName: 'Larry',
     lastName: 'Jones',
     fullName: 'Larry Jones',
@@ -24,7 +24,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
   },
   {
     id: 'c2',
-    userId: 'mock-user',
+    userId: '',
     firstName: 'Monica',
     lastName: 'Davis',
     fullName: 'Monica Davis',
@@ -40,7 +40,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
   },
   {
     id: 'c3',
-    userId: 'mock-user',
+    userId: '',
     firstName: 'Robert',
     lastName: 'Allen',
     fullName: 'Robert Allen',
@@ -56,7 +56,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
   },
   {
     id: 'c4',
-    userId: 'mock-user',
+    userId: '',
     firstName: 'Sarah',
     lastName: 'Mitchell',
     fullName: 'Sarah Mitchell',
@@ -75,7 +75,7 @@ export const MOCK_CUSTOMERS: Customer[] = [
 export const MOCK_COMPANIES: SigningCompany[] = [
   {
     id: 'sc1',
-    userId: 'mock-user',
+    userId: '',
     companyName: 'Signature Close LLC',
     companyType: 'Signing Company',
     contactName: 'Jane Smith',
@@ -91,7 +91,7 @@ export const MOCK_COMPANIES: SigningCompany[] = [
   },
   {
     id: 'sc2',
-    userId: 'mock-user',
+    userId: '',
     companyName: 'Premier Notary Network',
     companyType: 'Signing Company',
     contactName: 'Bob Wilson',
@@ -107,7 +107,7 @@ export const MOCK_COMPANIES: SigningCompany[] = [
   },
   {
     id: 'sc3',
-    userId: 'mock-user',
+    userId: '',
     companyName: 'Coastal Title & Escrow',
     companyType: 'Title Company',
     contactName: 'Sarah Miller',
@@ -122,7 +122,7 @@ export const MOCK_COMPANIES: SigningCompany[] = [
   },
   {
     id: 'sc4',
-    userId: 'mock-user',
+    userId: '',
     companyName: 'Direct Signings Inc',
     companyType: 'Signing Company',
     contactName: 'Mike Ross',
@@ -141,7 +141,7 @@ export const MOCK_APPOINTMENTS: Appointment[] = [
   // TODAY'S SIGNINGS
   {
     id: 'today-1',
-    userId: 'mock-user',
+    userId: '',
     date: todayDate,
     time: '10:00 AM',
     clientName: 'Larry Jones',
@@ -159,7 +159,7 @@ export const MOCK_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'today-2',
-    userId: 'mock-user',
+    userId: '',
     date: todayDate,
     time: '02:00 PM',
     clientName: 'Sarah Mitchell',
@@ -176,7 +176,7 @@ export const MOCK_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'today-3',
-    userId: 'mock-user',
+    userId: '',
     date: todayDate,
     time: '04:30 PM',
     clientName: 'Hospital Patient A',
@@ -189,7 +189,7 @@ export const MOCK_APPOINTMENTS: Appointment[] = [
   // UPCOMING
   {
     id: 'next-1',
-    userId: 'mock-user',
+    userId: '',
     date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
     time: '09:00 AM',
     clientName: 'Monica Davis',
@@ -206,7 +206,7 @@ export const MOCK_APPOINTMENTS: Appointment[] = [
   // RECENT PAST (Completed/Pending Payment)
   {
     id: 'past-1',
-    userId: 'mock-user',
+    userId: '',
     date: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
     time: '11:00 AM',
     clientName: 'Robert Allen',
@@ -223,7 +223,7 @@ export const MOCK_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'past-2',
-    userId: 'mock-user',
+    userId: '',
     date: format(subDays(new Date(), 3), 'yyyy-MM-dd'),
     time: '03:00 PM',
     clientName: 'John Smith',
@@ -238,7 +238,7 @@ export const MOCK_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'past-3',
-    userId: 'mock-user',
+    userId: '',
     date: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
     time: '01:00 PM',
     clientName: 'Emily White',
@@ -255,7 +255,7 @@ export const MOCK_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'past-4',
-    userId: 'mock-user',
+    userId: '',
     date: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
     time: '10:30 AM',
     clientName: 'David Graham',
@@ -277,7 +277,7 @@ export const MOCK_CLIENTS: Client[] = [];
 export const MOCK_EXPENSES: Expense[] = [
   {
     id: 'e1',
-    userId: 'mock-user',
+    userId: '',
     date: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
     category: 'Mileage',
     amount: 45.50,
@@ -285,7 +285,7 @@ export const MOCK_EXPENSES: Expense[] = [
   },
   {
     id: 'e2',
-    userId: 'mock-user',
+    userId: '',
     date: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
     category: 'Supplies',
     amount: 85.00,
@@ -293,7 +293,7 @@ export const MOCK_EXPENSES: Expense[] = [
   },
   {
     id: 'e3',
-    userId: 'mock-user',
+    userId: '',
     date: format(subDays(new Date(), 10), 'yyyy-MM-dd'),
     category: 'Software',
     amount: 25.00,
@@ -304,7 +304,7 @@ export const MOCK_EXPENSES: Expense[] = [
 export const MOCK_MILEAGE: Mileage[] = [
   {
     id: 'm1',
-    userId: 'mock-user',
+    userId: '',
     date: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
     description: 'Durham Signing Trip',
     miles: 45.2,
@@ -313,7 +313,7 @@ export const MOCK_MILEAGE: Mileage[] = [
   },
   {
     id: 'm2',
-    userId: 'mock-user',
+    userId: '',
     date: format(subDays(new Date(), 3), 'yyyy-MM-dd'),
     description: 'Gastonia Signing Trip',
     miles: 28.5,
@@ -322,14 +322,17 @@ export const MOCK_MILEAGE: Mileage[] = [
   }
 ];
 
+// MOCK_PROFILE is used only in Demo Mode. All fields are intentionally blank so
+// that demo users are prompted to complete their own profile rather than seeing
+// a previous owner's business data.
 export const MOCK_PROFILE: BusinessProfile = {
-  name: 'Integrity Closings Notary',
-  companyName: 'Integrity Closings CLT',
-  email: 'notary.clt@integrityclosings.com',
-  phone: '(704) 555-0199',
-  address: 'mint hill, nc',
-  commissionNumber: '2024123456',
-  commissionExpiration: '2028-04-30',
-  userId: 'mock-user',
+  name: '',
+  companyName: '',
+  email: '',
+  phone: '',
+  address: '',
+  commissionNumber: '',
+  commissionExpiration: '',
+  userId: '',
   googleCalendarConnected: false
 };

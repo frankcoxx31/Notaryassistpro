@@ -3432,7 +3432,7 @@ const Header = ({ toggleSidebar, onNewSigning, onSignOut, user, isDemoMode, onRe
           
           <div className="hidden lg:flex flex-col">
             <h2 className="text-lg font-black text-slate-900 tracking-tight leading-none">{pageTitle}</h2>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Integrity Closings CLT</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{businessProfile?.companyName || ''}</p>
           </div>
 
           <div className="relative hidden xl:block">
@@ -4819,7 +4819,7 @@ const Appointments = ({
           <body>
             <header>
               <h1>${title}</h1>
-              <p class="meta">Official Record of Notarial Acts | Integrity Closings CLT</p>
+              <p class="meta">Official Record of Notarial Acts | ${businessProfile?.companyName || ''}</p>
             </header>
             <table>
               <thead>
@@ -5390,7 +5390,7 @@ const Appointments = ({
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
             <div>
               <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">Notary journal</h1>
-              <p className="text-indigo-200 mt-1.5 text-sm font-medium">Integrity Closings CLT</p>
+              <p className="text-indigo-200 mt-1.5 text-sm font-medium">{businessProfile?.companyName || ''}</p>
             </div>
             <div>
               <button 
@@ -7578,7 +7578,7 @@ export default function App() {
                   onBulkUpdateSigningType={handleBulkUpdateSigningType}
                   onBulkUpdateCompany={handleBulkUpdateCompany}
                   onBulkMarkPaid={handleBulkMarkPaid}
-                  userId={user?.uid || 'mock-user'}
+                  userId={user?.uid || ''}
                   setModalInitialTab={setModalInitialTab}
                   setModalAutoScan={setModalAutoScan}
                   businessProfile={businessProfile}
@@ -7619,7 +7619,7 @@ export default function App() {
                   onBulkUpdateSigningType={handleBulkUpdateSigningType}
                   onBulkUpdateCompany={handleBulkUpdateCompany}
                   onBulkMarkPaid={handleBulkMarkPaid}
-                  userId={user?.uid || 'mock-user'}
+                  userId={user?.uid || ''}
                   setModalInitialTab={setModalInitialTab}
                   setModalAutoScan={setModalAutoScan}
                   businessProfile={businessProfile}
@@ -7700,16 +7700,16 @@ export default function App() {
                 />
               } 
             />
-            <Route path="/tools" element={<ToolsView userId={user?.uid || 'mock-user'} userState={businessProfile?.state} />} />
+            <Route path="/tools" element={<ToolsView userId={user?.uid || ''} userState={businessProfile?.state} />} />
             <Route path="/fee-calculator" element={<FeeCalculator />} />
-            <Route path="/laws-lookup" element={<LawsLookup userId={user?.uid || 'mock-user'} userState={businessProfile?.state} />} />
+            <Route path="/laws-lookup" element={<LawsLookup userId={user?.uid || ''} userState={businessProfile?.state} />} />
             <Route path="/settings" element={
               <SettingsView 
                 onEditProfile={() => setIsProfileModalOpen(true)} 
                 user={user} 
                 onSignIn={handleSignIn} 
                 onImport={handleImport} 
-                userId={user?.uid || 'mock-user'} 
+                userId={user?.uid || ''} 
                 isDemoMode={isDemoUser}
                 onResetDemo={handleResetDemo}
                 businessProfile={businessProfile}
@@ -7749,7 +7749,7 @@ export default function App() {
                 throw error;
               }
             }}
-            userId={user?.uid || 'mock-user'}
+            userId={user?.uid || ''}
             customers={customers}
             appointments={appointments}
             companies={companies}
@@ -7781,7 +7781,7 @@ export default function App() {
                 throw error;
               }
             }}
-            userId={user?.uid || 'mock-user'}
+            userId={user?.uid || ''}
             customers={customers}
             appointments={appointments}
             companies={companies}
@@ -7803,7 +7803,7 @@ export default function App() {
                 throw error;
               }
             }}
-            userId={user?.uid || 'mock-user'}
+            userId={user?.uid || ''}
           />
         )}
 
@@ -7829,7 +7829,7 @@ export default function App() {
               handleSaveMileage(m);
               setIsNewMileageModalOpen(false);
             }}
-            userId={user?.uid || 'mock-user'}
+            userId={user?.uid || ''}
           />
         )}
 
@@ -7846,7 +7846,7 @@ export default function App() {
               setIsNewClientModalOpen(false);
               setSelectedCustomer(null);
             }}
-            userId={user?.uid || 'mock-user'}
+            userId={user?.uid || ''}
           />
         )}
 
@@ -7855,7 +7855,7 @@ export default function App() {
             isOpen={isProfileModalOpen} 
             onClose={() => setIsProfileModalOpen(false)} 
             profile={businessProfile}
-            userId={user?.uid || 'mock-user'}
+            userId={user?.uid || ''}
             onSave={(updatedProfile) => {
               handleSaveProfile(updatedProfile);
               setIsProfileModalOpen(false);

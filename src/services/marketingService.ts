@@ -40,7 +40,7 @@ export const marketingService = {
   async getSubscribers(userId: string) {
     const q = query(
       collection(db, COLLECTIONS.SUBSCRIBERS), 
-      where('ownerId', '==', userId),
+      where('userId', '==', userId),
       orderBy('createdAt', 'desc')
     );
     const snapshot = await getDocs(q);
@@ -72,7 +72,7 @@ export const marketingService = {
   async getSegments(userId: string) {
     const q = query(
       collection(db, COLLECTIONS.SEGMENTS),
-      where('ownerId', '==', userId),
+      where('userId', '==', userId),
       orderBy('createdAt', 'desc')
     );
     const snapshot = await getDocs(q);
@@ -107,7 +107,7 @@ export const marketingService = {
   async getCampaigns(userId: string) {
     const q = query(
       collection(db, COLLECTIONS.CAMPAIGNS),
-      where('ownerId', '==', userId),
+      where('userId', '==', userId),
       orderBy('createdAt', 'desc')
     );
     const snapshot = await getDocs(q);
@@ -157,7 +157,7 @@ export const marketingService = {
       // 1. Get all segments for this user to filter for the ones we need
       const segmentsQ = query(
         collection(db, COLLECTIONS.SEGMENTS),
-        where('ownerId', '==', userId)
+        where('userId', '==', userId)
       );
       const segmentsSnapshot = await getDocs(segmentsQ);
       const targetSegments = segmentsSnapshot.docs
@@ -169,7 +169,7 @@ export const marketingService = {
       // 2. Get all active subscribers for this user
       const subscribersQ = query(
         collection(db, COLLECTIONS.SUBSCRIBERS),
-        where('ownerId', '==', userId),
+        where('userId', '==', userId),
         where('status', '==', 'active')
       );
       const subscribersSnapshot = await getDocs(subscribersQ);
@@ -220,7 +220,7 @@ export const marketingService = {
         batch.set(queueRef, {
           campaignId,
           subscriberId: subId,
-          ownerId: userId,
+          userId: userId,
           status: 'pending',
           createdAt: now,
           attempts: 0
@@ -244,7 +244,7 @@ export const marketingService = {
   async getTemplates(userId: string) {
     const q = query(
       collection(db, COLLECTIONS.TEMPLATES),
-      where('ownerId', '==', userId),
+      where('userId', '==', userId),
       orderBy('createdAt', 'desc')
     );
     const snapshot = await getDocs(q);
@@ -274,7 +274,7 @@ export const marketingService = {
   async getAutomations(userId: string) {
     const q = query(
       collection(db, COLLECTIONS.AUTOMATIONS),
-      where('ownerId', '==', userId),
+      where('userId', '==', userId),
       orderBy('createdAt', 'desc')
     );
     const snapshot = await getDocs(q);
@@ -299,12 +299,12 @@ export const marketingService = {
     return newAutomation;
   },
 
-  async syncCustomersToSubscribers(ownerId: string, customers: any[]) {
+  async syncCustomersToSubscribers(userId: string, customers: any[]) {
     const batch = writeBatch(db);
     const existingEmails = new Set<string>();
-    
+
     // Get existing subscribers to avoid duplicates
-    const q = query(collection(db, COLLECTIONS.SUBSCRIBERS), where('ownerId', '==', ownerId));
+    const q = query(collection(db, COLLECTIONS.SUBSCRIBERS), where('userId', '==', userId));
     const snapshot = await getDocs(q);
     snapshot.forEach(doc => existingEmails.add(doc.data().email));
 
@@ -316,7 +316,7 @@ export const marketingService = {
         const now = new Date().toISOString();
         const subscriber: Subscriber = {
           id: docRef.id,
-          ownerId,
+          userId,
           email: email,
           firstName: customer.firstName || '',
           lastName: customer.lastName || '',
@@ -363,7 +363,7 @@ export const marketingService = {
     const docRef = doc(db, COLLECTIONS.PREFERENCES, userId);
     await setDoc(docRef, {
       ...preferences,
-      ownerId: userId,
+      userId: userId,
       updatedAt: new Date().toISOString()
     }, { merge: true });
   }

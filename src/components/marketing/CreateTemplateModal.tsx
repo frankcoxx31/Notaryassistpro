@@ -7,10 +7,10 @@ interface CreateTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (template: Omit<MarketingTemplate, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  ownerId: string;
+  userId: string;
 }
 
-const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({ isOpen, onClose, onSave, ownerId }) => {
+const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({ isOpen, onClose, onSave, userId }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -25,7 +25,7 @@ const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({ isOpen, onClo
     try {
       setLoading(true);
       await onSave({
-        ownerId,
+        userId,
         name: formData.name,
         category: formData.category,
         htmlContent: formData.htmlContent,

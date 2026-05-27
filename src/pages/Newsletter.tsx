@@ -3,7 +3,7 @@ import { Mail, Users, Send, CheckCircle2 } from 'lucide-react';
 
 const MOCK_CAMPAIGNS = [
   { id: '1', title: 'Monthly Signer Updates - May', status: 'Sent', subscribers: 245, date: 'May 14, 2026', type: 'Newsletter' },
-  { id: '2', title: 'Why Choose Integrity Closings CLT?', status: 'Sent', subscribers: 198, date: 'April 20, 2026', type: 'Marketing' },
+  { id: '2', title: 'Why Choose a Professional Notary?', status: 'Sent', subscribers: 198, date: 'April 20, 2026', type: 'Marketing' },
   { id: '3', title: 'Understanding Estate Planning & POA Documents', status: 'Draft', subscribers: 0, date: 'Draft', type: 'Educational' }
 ];
 
@@ -84,7 +84,7 @@ const Newsletter = () => {
                 >
                   <option value="monthly">Elegant Slate Theme</option>
                   <option value="compact">Brief Plaintext Email</option>
-                  <option value="formal">Official Integrity Closings CLT Layout</option>
+                  <option value="formal">Official Business Layout</option>
                 </select>
               </div>
             </div>

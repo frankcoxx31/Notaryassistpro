@@ -118,7 +118,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onEnterDemo }) => {
               <FileText className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-white">
-              Integrity Closings CLT
+              NotaryPro
             </h1>
             <p className="text-slate-400 text-sm font-medium">
               Professional Notary Management System
@@ -241,7 +241,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onSignIn, onEnterDemo }) => {
           </div>
 
           <p className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-            Authorized Access Only | Integrity Closings CLT
+            Authorized Access Only | NotaryPro
           </p>
         </motion.div>
       </div>

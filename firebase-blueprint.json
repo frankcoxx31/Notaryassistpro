@@ -220,7 +220,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "ownerId": { "type": "string" },
+        "userId": { "type": "string" },
         "email": { "type": "string" },
         "firstName": { "type": "string" },
         "lastName": { "type": "string" },
@@ -243,7 +243,7 @@
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["id", "ownerId", "email", "firstName", "lastName", "fullName", "status", "createdAt", "updatedAt"]
+      "required": ["id", "userId", "email", "firstName", "lastName", "fullName", "status", "createdAt", "updatedAt"]
     },
     "MarketingCampaign": {
       "title": "MarketingCampaign",
@@ -251,7 +251,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "ownerId": { "type": "string" },
+        "userId": { "type": "string" },
         "name": { "type": "string" },
         "subject": { "type": "string" },
         "templateId": { "type": "string" },
@@ -260,7 +260,7 @@
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["id", "ownerId", "name", "subject", "status", "createdAt", "updatedAt"]
+      "required": ["id", "userId", "name", "subject", "status", "createdAt", "updatedAt"]
     }
   },
   "firestore": {

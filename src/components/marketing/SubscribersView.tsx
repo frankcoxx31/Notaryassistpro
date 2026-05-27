@@ -64,7 +64,7 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
 
     const q = query(
       collection(db, 'subscribers'),
-      where('ownerId', '==', user.uid),
+      where('userId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
 
@@ -86,7 +86,7 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
 
     const q = query(
       collection(db, 'marketingSegments'),
-      where('ownerId', '==', user.uid),
+      where('userId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
 
@@ -520,7 +520,7 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleAddSubscriber}
-        ownerId={user.uid}
+        userId={user.uid}
       />
 
       {editingSubscriber && (

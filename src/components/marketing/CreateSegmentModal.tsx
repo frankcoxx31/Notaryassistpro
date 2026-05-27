@@ -8,7 +8,7 @@ interface CreateSegmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (segment: Omit<MarketingSegment, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  ownerId: string;
+  userId: string;
   availableSubscribers: Subscriber[];
   initialData?: MarketingSegment | null;
 }
@@ -17,7 +17,7 @@ const CreateSegmentModal: React.FC<CreateSegmentModalProps> = ({
   isOpen, 
   onClose, 
   onSave, 
-  ownerId,
+  userId,
   availableSubscribers,
   initialData
 }) => {
@@ -138,7 +138,7 @@ const CreateSegmentModal: React.FC<CreateSegmentModalProps> = ({
       }
 
       await onSave({
-        ownerId,
+        userId,
         name: formData.name,
         description: formData.description,
         isDynamic: formData.isDynamic,
