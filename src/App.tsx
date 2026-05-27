@@ -3381,13 +3381,14 @@ const Sidebar = ({
   );
 };
 
-const Header = ({ toggleSidebar, onNewSigning, onSignOut, user, isDemoMode, onResetDemo }: { 
-  toggleSidebar: () => void; 
-  onNewSigning: () => void; 
-  onSignOut: () => void; 
+const Header = ({ toggleSidebar, onNewSigning, onSignOut, user, isDemoMode, onResetDemo, businessProfile }: {
+  toggleSidebar: () => void;
+  onNewSigning: () => void;
+  onSignOut: () => void;
   user: FirebaseUser | null;
   isDemoMode: boolean;
   onResetDemo: () => void;
+  businessProfile?: BusinessProfile | null;
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const location = useLocation();
@@ -7532,6 +7533,7 @@ export default function App() {
           user={user}
           isDemoMode={isDemoUser}
           onResetDemo={handleResetDemo}
+          businessProfile={businessProfile}
         />
         
         <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
