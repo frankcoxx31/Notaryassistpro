@@ -1624,6 +1624,115 @@ const Reports = ({
           </tbody>
           ${filteredMileage.length > 0 ? `<tfoot><tr><td colspan="2" class="right bold">Total:</td><td class="right bold">${totalMiles.toFixed(1)}</td><td class="right bold">$${totalDeduction.toFixed(2)}</td></tr></tfoot>` : ''}
         </table>`;
+    } else if (activeReport.id === 'tax') {
+      const totalIncome = filteredAppointments.reduce((s, a) => s + a.normalizedFee, 0);
+      const totalExpenses = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
+      const totalMileageDeduction = filteredMileage.reduce((s, m) => s + Number(m.miles), 0) * DEFAULT_MILEAGE_RATE;
+      const totalDeductions = totalExpenses + totalMileageDeduction;
+      const taxableIncome = Math.max(0, totalIncome - totalDeductions);
+
+      summaryHtml = `
+        <div class="summary">
+          <div class="stat"><div class="label">Gross Income</div><div class="value">$${totalIncome.toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Total Deductions</div><div class="value red">($${totalDeductions.toFixed(2)})</div></div>
+          <div class="stat"><div class="label">Taxable Net Income</div><div class="value green">$${taxableIncome.toFixed(2)}</div></div>
+        </div>`;
+
+      const incomeTable = `
+        <h3 style="font-size:14px;font-weight:800;color:#1e3a5f;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.05em;">Income — Signing Fees</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Signing Company</th><th>Fee</th><th>Status</th></tr></thead>
+          <tbody>
+            ${filteredAppointments.map(a => `<tr>
+              <td>${format(parseSafeDateTime(a.date), 'MM/dd/yyyy')}</td>
+              <td>${a.displayClient}</td>
+              <td>${a.signingType || ''}</td>
+              <td>${a.displayCompany}</td>
+              <td class="right">$${a.normalizedFee.toFixed(2)}</td>
+              <td><span class="badge">${a.status}</span></td>
+            </tr>`).join('')}
+            ${filteredAppointments.length === 0 ? '<tr><td colspan="6" class="empty">No income records for this period.</td></tr>' : ''}
+          </tbody>
+          ${filteredAppointments.length > 0 ? `<tfoot><tr><td colspan="4" class="right bold">Gross Total:</td><td class="right bold">$${totalIncome.toFixed(2)}</td><td></td></tr></tfoot>` : ''}
+        </table>`;
+
+      const expenseTable = `
+        <h3 style="font-size:14px;font-weight:800;color:#1e3a5f;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.05em;">Deductible Business Expenses</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
+          <tbody>
+            ${filteredExpenses.map(e => `<tr><td>${format(parseSafeDateTime(e.date),'MM/dd/yyyy')}</td><td>${e.category}</td><td>${e.description}</td><td class="right">$${Number(e.amount).toFixed(2)}</td></tr>`).join('')}
+            ${filteredExpenses.length === 0 ? '<tr><td colspan="4" class="empty">No expense records for this period.</td></tr>' : ''}
+          </tbody>
+          ${filteredExpenses.length > 0 ? `<tfoot><tr><td colspan="3" class="right bold">Total Expenses:</td><td class="right bold">($${totalExpenses.toFixed(2)})</td></tr></tfoot>` : ''}
+        </table>`;
+
+      const mileageTable = `
+        <h3 style="font-size:14px;font-weight:800;color:#1e3a5f;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.05em;">Deductible Mileage (IRS Rate: $${DEFAULT_MILEAGE_RATE}/mi)</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Description</th><th>Miles</th><th>Deduction</th></tr></thead>
+          <tbody>
+            ${filteredMileage.map(m => `<tr><td>${format(parseSafeDateTime(m.date),'MM/dd/yyyy')}</td><td>${m.description}</td><td class="right">${m.miles}</td><td class="right">$${(m.miles * DEFAULT_MILEAGE_RATE).toFixed(2)}</td></tr>`).join('')}
+            ${filteredMileage.length === 0 ? '<tr><td colspan="4" class="empty">No mileage records for this period.</td></tr>' : ''}
+          </tbody>
+          ${filteredMileage.length > 0 ? `<tfoot><tr><td colspan="2" class="right bold">Total Mileage Deduction:</td><td class="right bold">${filteredMileage.reduce((s,m)=>s+m.miles,0).toFixed(1)} mi</td><td class="right bold">($${totalMileageDeduction.toFixed(2)})</td></tr></tfoot>` : ''}
+        </table>`;
+
+      const netBox = `
+        <div style="margin-top:32px;background:#f0fdf4;border:2px solid #bbf7d0;border-radius:12px;padding:28px;text-align:center;">
+          <p style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Estimated Taxable Net Income</p>
+          <p style="font-size:40px;font-weight:900;color:#15803d;">$${taxableIncome.toFixed(2)}</p>
+          <p style="font-size:11px;color:#86efac;margin-top:6px;">Gross Income $${totalIncome.toFixed(2)} − Total Deductions $${totalDeductions.toFixed(2)}</p>
+        </div>`;
+
+      tableHtml = incomeTable + expenseTable + mileageTable + netBox;
+
+    } else if (activeReport.id === 'tax-summary') {
+      const totalIncome = filteredAppointments.reduce((s, a) => s + a.normalizedFee, 0);
+      const totalExpenses = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
+      const totalMileageDeduction = filteredMileage.reduce((s, m) => s + Number(m.miles), 0) * DEFAULT_MILEAGE_RATE;
+      const totalDeductions = totalExpenses + totalMileageDeduction;
+      const taxableIncome = Math.max(0, totalIncome - totalDeductions);
+      const estimatedTax = taxableIncome * 0.153;
+      const quarterlyPayment = estimatedTax / 4;
+
+      summaryHtml = `
+        <div class="summary">
+          <div class="stat"><div class="label">Gross Income</div><div class="value">$${totalIncome.toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Total Deductions</div><div class="value red">($${totalDeductions.toFixed(2)})</div></div>
+          <div class="stat"><div class="label">Net Taxable Income</div><div class="value green">$${taxableIncome.toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Est. SE Tax (15.3%)</div><div class="value amber">$${estimatedTax.toFixed(2)}</div></div>
+        </div>`;
+
+      tableHtml = `
+        <h3 style="font-size:14px;font-weight:800;color:#1e3a5f;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.05em;">Tax Liability Breakdown</h3>
+        <table>
+          <thead><tr><th>Line Item</th><th>Details</th><th class="right">Amount</th></tr></thead>
+          <tbody>
+            <tr><td>Gross Signing Income</td><td>${filteredAppointments.length} signing(s)</td><td class="right">$${totalIncome.toFixed(2)}</td></tr>
+            <tr><td>Business Expense Deductions</td><td>${filteredExpenses.length} expense record(s)</td><td class="right">($${totalExpenses.toFixed(2)})</td></tr>
+            <tr><td>Mileage Deduction (IRS rate $${DEFAULT_MILEAGE_RATE}/mi)</td><td>${filteredMileage.reduce((s,m)=>s+m.miles,0).toFixed(1)} miles</td><td class="right">($${totalMileageDeduction.toFixed(2)})</td></tr>
+          </tbody>
+          <tfoot>
+            <tr><td class="bold">Net Taxable Income</td><td></td><td class="right bold">$${taxableIncome.toFixed(2)}</td></tr>
+            <tr><td class="bold">Self-Employment Tax (15.3%)</td><td>Social Security + Medicare</td><td class="right bold">$${estimatedTax.toFixed(2)}</td></tr>
+          </tfoot>
+        </table>
+
+        <div style="margin-top:32px;background:#1e293b;color:#fff;border-radius:12px;padding:28px;">
+          <p style="font-size:11px;font-weight:800;color:#818cf8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Estimated Quarterly Tax Payment</p>
+          <p style="font-size:40px;font-weight:900;margin-bottom:4px;">$${quarterlyPayment.toFixed(2)}</p>
+          <p style="font-size:12px;color:#94a3b8;">Total annual SE tax of $${estimatedTax.toFixed(2)} ÷ 4 quarters · Filing status: Self-Employed</p>
+        </div>
+
+        <div style="margin-top:24px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:20px;display:flex;gap:14px;">
+          <span style="font-size:20px;flex-shrink:0;">⚠️</span>
+          <div style="font-size:12px;color:#92400e;">
+            <p style="font-weight:800;margin-bottom:4px;">Important Tax Notice</p>
+            <p style="line-height:1.6;opacity:.85;">This summary uses a flat 15.3% rate for estimated self-employment taxes (Social Security and Medicare). It does not account for income tax brackets, credits, or state-specific tax laws. Always verify your figures with a certified tax professional or CPA.</p>
+          </div>
+        </div>`;
+
     } else {
       tableHtml = `<p style="padding:40px;text-align:center;color:#64748b;">Print view for this report type is coming soon. Use Export CSV in the meantime.</p>`;
     }
