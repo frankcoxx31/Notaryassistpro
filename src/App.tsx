@@ -1734,6 +1734,66 @@ const Reports = ({
           </div>
         </div>`;
 
+    } else if (activeReport.id === 'profit-loss') {
+      const totalIncome = filteredAppointments.reduce((s, a) => s + a.normalizedFee, 0);
+      const totalExpenses = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
+      const netProfit = totalIncome - totalExpenses;
+      const isProfit = netProfit >= 0;
+
+      // Expenses grouped by category
+      const expByCategory = filteredExpenses.reduce((acc, e) => {
+        acc[e.category] = (acc[e.category] || 0) + Number(e.amount);
+        return acc;
+      }, {} as Record<string, number>);
+
+      summaryHtml = `
+        <div class="summary">
+          <div class="stat"><div class="label">Total Income</div><div class="value green">$${totalIncome.toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Total Expenses</div><div class="value red">($${totalExpenses.toFixed(2)})</div></div>
+          <div class="stat"><div class="label">Net ${isProfit ? 'Profit' : 'Loss'}</div><div class="value ${isProfit ? 'green' : 'red'}">$${netProfit.toFixed(2)}</div></div>
+        </div>`;
+
+      tableHtml = `
+        <h3 style="font-size:14px;font-weight:800;color:#1e3a5f;margin:0 0 10px;text-transform:uppercase;letter-spacing:.05em;">Income</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Client</th><th>Signing Type</th><th>Company</th><th>Status</th><th>Fee</th></tr></thead>
+          <tbody>
+            ${filteredAppointments.map(a => `<tr>
+              <td>${format(parseSafeDateTime(a.date), 'MM/dd/yyyy')}</td>
+              <td>${a.displayClient}</td>
+              <td>${a.signingType || ''}</td>
+              <td>${a.displayCompany}</td>
+              <td><span class="badge">${a.status}</span></td>
+              <td class="right">$${a.normalizedFee.toFixed(2)}</td>
+            </tr>`).join('')}
+            ${filteredAppointments.length === 0 ? '<tr><td colspan="6" class="empty">No income records for this period.</td></tr>' : ''}
+          </tbody>
+          ${filteredAppointments.length > 0 ? `<tfoot><tr><td colspan="5" class="right bold">Total Income:</td><td class="right bold">$${totalIncome.toFixed(2)}</td></tr></tfoot>` : ''}
+        </table>
+
+        <h3 style="font-size:14px;font-weight:800;color:#1e3a5f;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.05em;">Expenses</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
+          <tbody>
+            ${filteredExpenses.map(e => `<tr>
+              <td>${format(parseSafeDateTime(e.date), 'MM/dd/yyyy')}</td>
+              <td>${e.category}</td>
+              <td>${e.description}</td>
+              <td class="right">$${Number(e.amount).toFixed(2)}</td>
+            </tr>`).join('')}
+            ${filteredExpenses.length === 0 ? '<tr><td colspan="4" class="empty">No expense records for this period.</td></tr>' : ''}
+          </tbody>
+          ${filteredExpenses.length > 0 ? `
+            ${Object.entries(expByCategory).map(([cat, amt]) => `<tr style="background:#f8fafc;"><td colspan="2" class="right" style="color:#64748b;font-size:11px;">${cat}</td><td colspan="2" class="right" style="color:#64748b;font-size:11px;">($${amt.toFixed(2)})</td></tr>`).join('')}
+            <tfoot><tr><td colspan="3" class="right bold">Total Expenses:</td><td class="right bold">($${totalExpenses.toFixed(2)})</td></tr></tfoot>
+          ` : ''}
+        </table>
+
+        <div style="margin-top:32px;background:${isProfit ? '#f0fdf4' : '#fff1f2'};border:2px solid ${isProfit ? '#bbf7d0' : '#fecdd3'};border-radius:12px;padding:24px;display:flex;justify-content:space-between;align-items:center;">
+          <p style="font-size:16px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:.06em;">Net ${isProfit ? 'Profit' : 'Loss'}</p>
+          <p style="font-size:36px;font-weight:900;color:${isProfit ? '#15803d' : '#be123c'};">$${netProfit.toFixed(2)}</p>
+        </div>`;
+
     } else {
       tableHtml = `<p style="padding:40px;text-align:center;color:#64748b;">Print view for this report type is coming soon. Use Export CSV in the meantime.</p>`;
     }
