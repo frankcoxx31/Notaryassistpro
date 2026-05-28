@@ -187,6 +187,7 @@ export interface BusinessProfile {
   state?: string;
   commissionNumber: string;
   commissionExpiration: string;
+  logoUrl?: string;
   licenseImageUrl?: string;
   googleCalendarConnected?: boolean;
   googleCalendarId?: string;

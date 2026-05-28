@@ -31,6 +31,7 @@ export const printInvoice = (appointment: Appointment, profile: BusinessProfile 
   const bizPhone   = profile.phone   || '';
   const bizAddress = profile.address || '';
   const commission = profile.commissionNumber ? `Commission #: ${profile.commissionNumber}` : '';
+  const logoUrl    = profile.logoUrl || '';
 
   const invoiceDate = format(new Date(), 'MMMM d, yyyy');
   const dueDate = appointment.paymentDueDate ? format(new Date(appointment.paymentDueDate), 'MMMM d, yyyy') : format(new Date(), 'MMMM d, yyyy');
@@ -258,8 +259,12 @@ export const printInvoice = (appointment: Appointment, profile: BusinessProfile 
         <div class="invoice-container">
           <div class="header">
             <div>
-              <div class="brand-logo">${bizName}</div>
+              ${logoUrl
+                ? `<img src="${logoUrl}" alt="${bizName}" style="max-height:72px;max-width:200px;object-fit:contain;margin-bottom:10px;display:block;" referrerpolicy="no-referrer" />`
+                : `<div class="brand-logo">${bizName}</div>`
+              }
               <div class="business-info">
+                <strong style="color:#0f172a;font-size:14px;">${bizName}</strong><br>
                 ${bizAddress}<br>
                 ${bizPhone}<br>
                 ${bizEmail}<br>

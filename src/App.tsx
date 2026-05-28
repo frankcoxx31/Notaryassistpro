@@ -76,7 +76,8 @@ import {
   Copy,
   Check,
   Database,
-  CloudLightning
+  CloudLightning,
+  Image as ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -1779,9 +1780,12 @@ const Reports = ({
     <button class="btn-close" onclick="window.close()">✕ Close</button>
   </div>
   <div class="header">
-    <div>
-      <h1>${title}</h1>
-      <p style="font-size:13px;color:#64748b;margin-top:4px;">Period: ${dateRange}</p>
+    <div style="display:flex;align-items:center;gap:16px;">
+      ${businessProfile?.logoUrl ? `<img src="${businessProfile.logoUrl}" alt="${bizName} logo" style="max-height:64px;max-width:160px;object-fit:contain;" referrerpolicy="no-referrer" />` : ''}
+      <div>
+        <h1>${title}</h1>
+        <p style="font-size:13px;color:#64748b;margin-top:4px;">Period: ${dateRange}</p>
+      </div>
     </div>
     <div class="meta">
       <div>${bizName}</div>
@@ -2403,7 +2407,32 @@ const BusinessProfileModal = ({
 }) => {
   const [formData, setFormData] = useState<BusinessProfile>(profile);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+
+    setIsUploadingLogo(true);
+    try {
+      const timestamp = Date.now();
+      const sanitizedName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+      const storagePath = `business-logos/${userId}/${timestamp}-${sanitizedName}`;
+      const storageRef = ref(storage, storagePath);
+
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      setFormData(prev => ({ ...prev, logoUrl: downloadURL }));
+    } catch (error) {
+      console.error("Logo upload error:", error);
+      alert("Failed to upload logo. Please try again.");
+    } finally {
+      setIsUploadingLogo(false);
+      if (logoFileInputRef.current) logoFileInputRef.current.value = '';
+    }
+  };
 
   const handleUploadLicense = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2571,6 +2600,62 @@ const BusinessProfileModal = ({
                     "Connect Calendar"
                   )}
                 </button>
+              </div>
+            </div>
+
+            {/* Company Logo Upload Section */}
+            <div className="md:col-span-2 pt-4 border-t border-slate-100">
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1">Company Logo</h3>
+              <p className="text-xs text-slate-500 mb-4">Appears on generated reports and printed invoices. PNG or JPG recommended, transparent background preferred.</p>
+
+              <div className="flex flex-col md:flex-row gap-6 items-start">
+                <div className="flex-1 space-y-3">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                    onChange={handleUploadLogo}
+                    className="hidden"
+                    ref={logoFileInputRef}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => logoFileInputRef.current?.click()}
+                    disabled={isUploadingLogo}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-sm font-bold hover:bg-amber-100 transition-colors disabled:opacity-50"
+                  >
+                    {isUploadingLogo ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4" />
+                    )}
+                    {isUploadingLogo ? 'Uploading…' : formData.logoUrl ? 'Replace Logo' : 'Upload Logo'}
+                  </button>
+                  {formData.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, logoUrl: '' }))}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-500 hover:text-rose-700 transition-colors"
+                    >
+                      <X className="w-3 h-3" /> Remove logo
+                    </button>
+                  )}
+                </div>
+
+                <div className="w-full md:w-56 h-24 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                  {formData.logoUrl ? (
+                    <img
+                      src={formData.logoUrl}
+                      alt="Company logo preview"
+                      className="max-h-20 max-w-full object-contain p-2"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="text-center p-4">
+                      <ImageIcon className="w-6 h-6 text-slate-300 mx-auto mb-1" />
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Logo Preview</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
