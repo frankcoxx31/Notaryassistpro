@@ -1749,8 +1749,8 @@ const Reports = ({
     .header { border-bottom: 3px solid #1e3a5f; padding-bottom: 16px; margin-bottom: 24px; }
     .header-logo { display: block; max-height: 160px; max-width: 420px; object-fit: contain; margin: 0 auto 20px; }
     .header h1 { font-size: 26px; font-weight: 800; color: #1e3a5f; text-align: center; margin-bottom: 14px; }
-    .header-sub { display: flex; justify-content: space-between; align-items: flex-end; }
-    .header .period { font-size: 13px; color: #64748b; }
+    .header-sub { display: flex; justify-content: space-between; align-items: flex-end; width: 100%; }
+    .header .period { font-size: 13px; color: #64748b; margin-left: 0; padding-left: 0; }
     .header .meta { font-size: 11px; color: #94a3b8; line-height: 1.8; text-align: right; }
     .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
     .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 20px; flex: 1; min-width: 120px; }
