@@ -1746,11 +1746,12 @@ const Reports = ({
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #f8fafc; color: #1e293b; padding: 40px; }
-    .header { border-bottom: 3px solid #1e3a5f; padding-bottom: 20px; margin-bottom: 24px; text-align: center; }
-    .header-logo { display: block; max-height: 120px; max-width: 320px; object-fit: contain; margin: 0 auto 16px; }
-    .header h1 { font-size: 26px; font-weight: 800; color: #1e3a5f; margin-bottom: 4px; }
-    .header .period { font-size: 13px; color: #64748b; margin-bottom: 6px; }
-    .header .meta { font-size: 11px; color: #94a3b8; line-height: 1.8; }
+    .header { border-bottom: 3px solid #1e3a5f; padding-bottom: 16px; margin-bottom: 24px; }
+    .header-logo { display: block; max-height: 160px; max-width: 420px; object-fit: contain; margin: 0 auto 20px; }
+    .header h1 { font-size: 26px; font-weight: 800; color: #1e3a5f; text-align: center; margin-bottom: 14px; }
+    .header-sub { display: flex; justify-content: space-between; align-items: flex-end; }
+    .header .period { font-size: 13px; color: #64748b; }
+    .header .meta { font-size: 11px; color: #94a3b8; line-height: 1.8; text-align: right; }
     .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
     .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 20px; flex: 1; min-width: 120px; }
     .label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
@@ -1784,8 +1785,10 @@ const Reports = ({
   <div class="header">
     ${businessProfile?.logoUrl ? `<img src="${businessProfile.logoUrl}" alt="${bizName} logo" class="header-logo" referrerpolicy="no-referrer" />` : ''}
     <h1>${title}</h1>
-    <p class="period">Period: ${dateRange}</p>
-    <div class="meta">${bizName} &nbsp;·&nbsp; Generated: ${generated}</div>
+    <div class="header-sub">
+      <p class="period">Period: ${dateRange}</p>
+      <div class="meta"><div>${bizName}</div><div>Generated: ${generated}</div></div>
+    </div>
   </div>
   ${summaryHtml}
   ${tableHtml}
