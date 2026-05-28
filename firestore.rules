@@ -119,6 +119,8 @@ service cloud.firestore {
              (!('googleCalendarConnected' in data) || data.googleCalendarConnected is bool) &&
              (!('googleCalendarId' in data) || data.googleCalendarId is string) &&
              (!('googleCalendarTokens' in data) || data.googleCalendarTokens == null || data.googleCalendarTokens is map) &&
+             (!('logoUrl' in data) || data.logoUrl is string) &&
+             (!('licenseImageUrl' in data) || data.licenseImageUrl is string) &&
              (!('updatedAt' in data) || data.updatedAt is string);
     }
 

@@ -2411,27 +2411,70 @@ const BusinessProfileModal = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleUploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !userId) return;
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (PNG, JPG, SVG, etc.).');
+      return;
+    }
 
     setIsUploadingLogo(true);
-    try {
-      const timestamp = Date.now();
-      const sanitizedName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
-      const storagePath = `business-logos/${userId}/${timestamp}-${sanitizedName}`;
-      const storageRef = ref(storage, storagePath);
 
-      await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(storageRef);
-      setFormData(prev => ({ ...prev, logoUrl: downloadURL }));
-    } catch (error) {
-      console.error("Logo upload error:", error);
-      alert("Failed to upload logo. Please try again.");
-    } finally {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const dataUrl = evt.target?.result as string;
+      if (!dataUrl) {
+        alert('Could not read the file. Please try again.');
+        setIsUploadingLogo(false);
+        return;
+      }
+
+      // Resize/compress using a canvas so the Base64 stays small enough for Firestore
+      const img = new Image();
+      img.onload = () => {
+        const MAX_W = 400;
+        const MAX_H = 200;
+        let w = img.width;
+        let h = img.height;
+
+        // Scale down proportionally if needed
+        if (w > MAX_W || h > MAX_H) {
+          const ratio = Math.min(MAX_W / w, MAX_H / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width  = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          alert('Could not process the image. Please try a different file.');
+          setIsUploadingLogo(false);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, w, h);
+        // Use PNG to preserve transparency; quality 0.92 for JPEG-style compression
+        const compressed = canvas.toDataURL('image/png');
+        setFormData(prev => ({ ...prev, logoUrl: compressed }));
+        setIsUploadingLogo(false);
+        if (logoFileInputRef.current) logoFileInputRef.current.value = '';
+      };
+      img.onerror = () => {
+        alert('Could not load the image. Please try a different file.');
+        setIsUploadingLogo(false);
+      };
+      img.src = dataUrl;
+    };
+    reader.onerror = () => {
+      alert('Failed to read the file. Please try again.');
       setIsUploadingLogo(false);
-      if (logoFileInputRef.current) logoFileInputRef.current.value = '';
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleUploadLicense = async (e: React.ChangeEvent<HTMLInputElement>) => {
