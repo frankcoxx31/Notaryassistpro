@@ -260,7 +260,7 @@ export const printInvoice = (appointment: Appointment, profile: BusinessProfile 
           <div class="header">
             <div>
               ${logoUrl
-                ? `<img src="${logoUrl}" alt="${bizName}" style="max-height:72px;max-width:200px;object-fit:contain;margin-bottom:10px;display:block;" referrerpolicy="no-referrer" />`
+                ? `<img src="${logoUrl}" alt="${bizName}" style="max-height:120px;max-width:320px;object-fit:contain;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;" referrerpolicy="no-referrer" />`
                 : `<div class="brand-logo">${bizName}</div>`
               }
               <div class="business-info">
