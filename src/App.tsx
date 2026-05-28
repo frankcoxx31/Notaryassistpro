@@ -1539,6 +1539,159 @@ const Reports = ({
   const companies = Array.from(new Set(filteredAppointments.map(app => app.displayCompany).filter(Boolean)));
   const clients = Array.from(new Set(filteredAppointments.map(app => app.displayClient).filter(Boolean)));
 
+  const handleRunReport = () => {
+    const bizName = businessProfile?.companyName || 'NotaryPro';
+    const title = activeReport.title;
+    const generated = format(new Date(), 'MMMM d, yyyy');
+
+    // ── Build table HTML based on report type ──────────────────────────────
+    let summaryHtml = '';
+    let tableHtml = '';
+
+    if (activeReport.id === 'income' || activeReport.id === 'unpaid') {
+      const data = activeReport.id === 'unpaid'
+        ? filteredAppointments.filter(a => a.status === 'Scheduled' || a.status === 'Completed')
+        : filteredAppointments;
+      const total = data.reduce((s, a) => s + a.normalizedFee, 0);
+      const paid  = data.filter(a => a.status === 'Paid').reduce((s, a) => s + a.normalizedFee, 0);
+      summaryHtml = `
+        <div class="summary">
+          <div class="stat"><div class="label">Total Revenue</div><div class="value">$${total.toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Collected</div><div class="value green">$${paid.toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Outstanding</div><div class="value amber">$${(total - paid).toFixed(2)}</div></div>
+          <div class="stat"><div class="label">Signings</div><div class="value">${data.length}</div></div>
+        </div>`;
+      tableHtml = `
+        <table>
+          <thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Signing Company</th><th>Fee</th><th>Status</th></tr></thead>
+          <tbody>
+            ${data.map(a => `<tr>
+              <td>${format(parseSafeDateTime(a.date), 'MM/dd/yyyy')}</td>
+              <td>${a.displayClient}</td>
+              <td>${a.signingType || ''}</td>
+              <td>${a.displayCompany}</td>
+              <td class="right">$${a.normalizedFee.toFixed(2)}</td>
+              <td><span class="badge">${a.status}</span></td>
+            </tr>`).join('')}
+            ${data.length === 0 ? '<tr><td colspan="6" class="empty">No records found for the selected period.</td></tr>' : ''}
+          </tbody>
+          ${data.length > 0 ? `<tfoot><tr><td colspan="4" class="right bold">Total:</td><td class="right bold">$${total.toFixed(2)}</td><td></td></tr></tfoot>` : ''}
+        </table>`;
+    } else if (activeReport.id === 'signing-type') {
+      const byType: Record<string, { count: number; total: number }> = {};
+      filteredAppointments.forEach(a => {
+        const t = a.signingType || 'Other';
+        if (!byType[t]) byType[t] = { count: 0, total: 0 };
+        byType[t].count++;
+        byType[t].total += a.normalizedFee;
+      });
+      const grandTotal = filteredAppointments.reduce((s, a) => s + a.normalizedFee, 0);
+      tableHtml = `
+        <table>
+          <thead><tr><th>Signing Type</th><th>Count</th><th>Total Revenue</th><th>Avg Fee</th></tr></thead>
+          <tbody>
+            ${Object.entries(byType).sort((a,b) => b[1].total - a[1].total).map(([type, d]) => `<tr>
+              <td>${type}</td><td class="right">${d.count}</td>
+              <td class="right">$${d.total.toFixed(2)}</td>
+              <td class="right">$${(d.total / d.count).toFixed(2)}</td>
+            </tr>`).join('')}
+            ${Object.keys(byType).length === 0 ? '<tr><td colspan="4" class="empty">No records found.</td></tr>' : ''}
+          </tbody>
+          ${Object.keys(byType).length > 0 ? `<tfoot><tr><td class="bold">Total</td><td class="right bold">${filteredAppointments.length}</td><td class="right bold">$${grandTotal.toFixed(2)}</td><td></td></tr></tfoot>` : ''}
+        </table>`;
+    } else if (activeReport.id === 'expenses') {
+      const total = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0);
+      summaryHtml = `<div class="summary"><div class="stat"><div class="label">Total Expenses</div><div class="value red">$${total.toFixed(2)}</div></div><div class="stat"><div class="label">Records</div><div class="value">${filteredExpenses.length}</div></div></div>`;
+      tableHtml = `
+        <table>
+          <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
+          <tbody>
+            ${filteredExpenses.map(e => `<tr><td>${format(parseSafeDateTime(e.date),'MM/dd/yyyy')}</td><td>${e.category}</td><td>${e.description}</td><td class="right">$${Number(e.amount).toFixed(2)}</td></tr>`).join('')}
+            ${filteredExpenses.length === 0 ? '<tr><td colspan="4" class="empty">No expenses found.</td></tr>' : ''}
+          </tbody>
+          ${filteredExpenses.length > 0 ? `<tfoot><tr><td colspan="3" class="right bold">Total:</td><td class="right bold">$${total.toFixed(2)}</td></tr></tfoot>` : ''}
+        </table>`;
+    } else if (activeReport.id === 'mileage') {
+      const totalMiles = filteredMileage.reduce((s, m) => s + m.miles, 0);
+      const totalDeduction = totalMiles * DEFAULT_MILEAGE_RATE;
+      summaryHtml = `<div class="summary"><div class="stat"><div class="label">Total Miles</div><div class="value">${totalMiles.toFixed(1)}</div></div><div class="stat"><div class="label">Deduction</div><div class="value green">$${totalDeduction.toFixed(2)}</div></div></div>`;
+      tableHtml = `
+        <table>
+          <thead><tr><th>Date</th><th>Description</th><th>Miles</th><th>Deduction</th></tr></thead>
+          <tbody>
+            ${filteredMileage.map(m => `<tr><td>${format(parseSafeDateTime(m.date),'MM/dd/yyyy')}</td><td>${m.description}</td><td class="right">${m.miles}</td><td class="right">$${(m.miles * DEFAULT_MILEAGE_RATE).toFixed(2)}</td></tr>`).join('')}
+            ${filteredMileage.length === 0 ? '<tr><td colspan="4" class="empty">No mileage records found.</td></tr>' : ''}
+          </tbody>
+          ${filteredMileage.length > 0 ? `<tfoot><tr><td colspan="2" class="right bold">Total:</td><td class="right bold">${totalMiles.toFixed(1)}</td><td class="right bold">$${totalDeduction.toFixed(2)}</td></tr></tfoot>` : ''}
+        </table>`;
+    } else {
+      tableHtml = `<p style="padding:40px;text-align:center;color:#64748b;">Print view for this report type is coming soon. Use Export CSV in the meantime.</p>`;
+    }
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${title} — ${bizName}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #f8fafc; color: #1e293b; padding: 40px; }
+    .header { border-bottom: 3px solid #1e3a5f; padding-bottom: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .header h1 { font-size: 22px; font-weight: 800; color: #1e3a5f; }
+    .header .meta { font-size: 12px; color: #64748b; text-align: right; line-height: 1.8; }
+    .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 20px; flex: 1; min-width: 120px; }
+    .label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .value { font-size: 20px; font-weight: 900; color: #0f172a; }
+    .value.green { color: #16a34a; }
+    .value.amber { color: #d97706; }
+    .value.red   { color: #dc2626; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    th { background: #1e3a5f; color: #fff; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid #f1f5f9; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    tfoot td { background: #f1f5f9; font-weight: 700; font-size: 12px; }
+    .right { text-align: right; }
+    .bold { font-weight: 800; }
+    .badge { background: #e2e8f0; color: #475569; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; }
+    .empty { text-align: center; color: #94a3b8; padding: 40px; font-size: 13px; }
+    .toolbar { margin-bottom: 24px; display: flex; gap: 10px; }
+    button { padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+    .btn-print { background: #1e3a5f; color: #fff; }
+    .btn-close { background: #e2e8f0; color: #475569; }
+    .footer { margin-top: 32px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+    @media print { .toolbar { display: none; } body { background: white; padding: 20px; } }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn-print" onclick="window.print()">🖨 Print</button>
+    <button class="btn-close" onclick="window.close()">✕ Close</button>
+  </div>
+  <div class="header">
+    <div>
+      <h1>${title}</h1>
+      <p style="font-size:13px;color:#64748b;margin-top:4px;">Period: ${dateRange}</p>
+    </div>
+    <div class="meta">
+      <div>${bizName}</div>
+      <div>Generated: ${generated}</div>
+    </div>
+  </div>
+  ${summaryHtml}
+  ${tableHtml}
+  <div class="footer">Generated by NotaryPro · ${bizName} · ${generated}</div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=1000,height=750,scrollbars=yes');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  };
+
   const renderReportContent = () => {
     if (activeReport.id === 'income') {
       return (
@@ -2106,7 +2259,7 @@ const Reports = ({
           </select>
         </div>
         <div className="flex-1"></div>
-        <button onClick={handleExportCSV} className="mt-4 sm:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        <button onClick={handleRunReport} className="mt-4 sm:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
           Run Report
         </button>
       </div>
