@@ -2041,7 +2041,7 @@ const Reports = ({
           <p className="text-slate-500">{activeReport.description}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm">
+          <button onClick={() => window.print()} className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm">
             <Printer className="w-4 h-4" /> Print
           </button>
           <button 
@@ -2106,7 +2106,7 @@ const Reports = ({
           </select>
         </div>
         <div className="flex-1"></div>
-        <button className="mt-4 sm:mt-0 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        <button onClick={handleExportCSV} className="mt-4 sm:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
           Run Report
         </button>
       </div>
