@@ -250,6 +250,16 @@ const TEMPLATES: Record<string, { subject: (biz: BizData) => string; html: (data
       <div style="color:#475569;line-height:1.7;margin:0 0 16px;">${d.body || ''}</div>
       ${d.customerId ? unsubscribeFooter(d.customerId) : ''}
     `, biz)
+  },
+  newsletter: {
+    subject: (biz) => `Newsletter from ${biz.name}`,
+    html: (d, biz) => baseTemplate(`
+      <h2 style="margin:0 0 8px;color:#1e3a5f;font-size:22px;">📰 Newsletter</h2>
+      <p style="margin:0 0 24px;color:#94a3b8;font-size:13px;text-transform:uppercase;letter-spacing:1px;">From ${biz.name}</p>
+      <div style="color:#475569;line-height:1.8;margin:0 0 16px;">${d.body || ''}</div>
+      ${biz.website ? `<div style="text-align:center;margin:28px 0;"><a href="${biz.website}" style="background:#2563eb;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">Visit Our Website</a></div>` : ''}
+      ${d.customerId ? unsubscribeFooter(d.customerId) : ''}
+    `, biz)
   }
 };
 
@@ -343,7 +353,7 @@ async function startServer() {
     if (!resend) return res.status(503).json({ error: "Email service not configured. Add RESEND_API_KEY." });
 
     const uid = (req as any).user.uid;
-    const { to, toName, customerId, templateId, subject, body, templateData } = req.body;
+    const { to, toName, customerId, templateId, subject, body, templateData, rawHtml } = req.body;
     if (!to) return res.status(400).json({ error: "Recipient email required" });
 
     try {
@@ -352,7 +362,10 @@ async function startServer() {
       let emailSubject = subject;
       let emailHtml = '';
 
-      if (templateId && TEMPLATES[templateId]) {
+      if (rawHtml) {
+        emailSubject = subject || `A Message from ${biz.name}`;
+        emailHtml = body || '';
+      } else if (templateId && TEMPLATES[templateId]) {
         const template = TEMPLATES[templateId];
         emailSubject = subject || template.subject(biz);
         emailHtml = template.html({

@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Send, Mail, ChevronDown } from 'lucide-react';
 import { Customer } from '../types';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 interface EmailModalProps {
   customer: Customer;
   onClose: () => void;
 }
 
-const TEMPLATES = [
+const BUILTIN_TEMPLATES = [
   { id: 'custom', label: 'Custom Message' },
+  { id: 'newsletter', label: 'Newsletter' },
   { id: 'thank_you', label: 'Thank You' },
   { id: 'appointment_reminder', label: 'Appointment Reminder' },
   { id: 'new_service', label: 'New Service Announcement' },
@@ -27,8 +29,19 @@ export default function EmailModal({ customer, onClose }: EmailModalProps) {
   });
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [customTemplates, setCustomTemplates] = useState<{ id: string; name: string; htmlContent: string }[]>([]);
+  const [selectedCustomHtml, setSelectedCustomHtml] = useState('');
 
   const isReminder = templateId === 'appointment_reminder';
+  const isCustomTemplate = templateId.startsWith('custom_tpl_');
+
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    getDocs(query(collection(db, 'marketingTemplates'), where('userId', '==', uid))).then(snap => {
+      setCustomTemplates(snap.docs.map(d => ({ id: d.id, name: (d.data() as any).name, htmlContent: (d.data() as any).htmlContent || '' })));
+    });
+  }, []);
 
   async function handleSend() {
     if (!customer.email) {
@@ -66,10 +79,11 @@ export default function EmailModal({ customer, onClose }: EmailModalProps) {
           to: customer.email,
           toName: customer.fullName,
           customerId: customer.id,
-          templateId: templateId === 'custom' ? null : templateId,
+          templateId: isCustomTemplate ? null : (templateId === 'custom' ? null : templateId),
           subject,
-          body,
-          templateData: isReminder ? reminderData : {}
+          body: isCustomTemplate ? selectedCustomHtml : body,
+          templateData: isReminder ? reminderData : {},
+          rawHtml: isCustomTemplate,
         })
       });
 
@@ -122,15 +136,31 @@ export default function EmailModal({ customer, onClose }: EmailModalProps) {
                 <select
                   value={templateId}
                   onChange={e => {
-                    setTemplateId(e.target.value);
+                    const val = e.target.value;
+                    setTemplateId(val);
                     setSubject('');
                     setBody('');
+                    if (val.startsWith('custom_tpl_')) {
+                      const tpl = customTemplates.find(t => `custom_tpl_${t.id}` === val);
+                      setSelectedCustomHtml(tpl?.htmlContent || '');
+                    } else {
+                      setSelectedCustomHtml('');
+                    }
                   }}
                   className="w-full appearance-none bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-8"
                 >
-                  {TEMPLATES.map(t => (
-                    <option key={t.id} value={t.id}>{t.label}</option>
-                  ))}
+                  <optgroup label="Built-in Templates">
+                    {BUILTIN_TEMPLATES.map(t => (
+                      <option key={t.id} value={t.id}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                  {customTemplates.length > 0 && (
+                    <optgroup label="My Templates">
+                      {customTemplates.map(t => (
+                        <option key={t.id} value={`custom_tpl_${t.id}`}>{t.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
@@ -167,7 +197,13 @@ export default function EmailModal({ customer, onClose }: EmailModalProps) {
               </div>
             )}
 
-            {(templateId === 'custom' || templateId === 'general_outreach' || templateId === 'new_service') && (
+            {isCustomTemplate && (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 text-sm text-blue-700">
+                Custom template selected — HTML will be sent as-is.
+              </div>
+            )}
+
+            {!isCustomTemplate && (templateId === 'custom' || templateId === 'newsletter' || templateId === 'general_outreach' || templateId === 'new_service') && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Message</label>
                 <textarea
