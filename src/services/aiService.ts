@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import Anthropic from "@anthropic-ai/sdk";
 
 export interface AiResearchResult {
   answer: string;
@@ -10,41 +10,37 @@ export interface AiResearchResult {
  * Generates an email template based on a user's prompt.
  */
 export async function generateEmailTemplate(prompt: string): Promise<{ name: string; htmlContent: string; category: string }> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
   if (!apiKey) {
-    throw new Error("AI Designer is not configured. Please add VITE_GEMINI_API_KEY to your environment variables.");
+    throw new Error("AI Designer is not configured. Please add VITE_ANTHROPIC_API_KEY to your environment variables.");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
 
-  const result = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
-    contents: `Generate a professional email template for a Notary Signing Agent business. 
-    User Request: "${prompt}"
-    
-    The template should be responsive, modern, and high-quality HTML.
-    Use placeholders like {{firstName}} for the recipient's first name.
-    
-    Return a JSON object with:
-    1. name: A short, descriptive name for the template.
-    2. htmlContent: The full HTML string for the email.
-    3. category: One of "Marketing", "Transactional", "Follow-up", or "Custom".`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING },
-          htmlContent: { type: Type.STRING },
-          category: { type: Type.STRING }
-        },
-        required: ["name", "htmlContent", "category"]
+  const message = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: `Generate a professional email template for a Notary Signing Agent business.
+User Request: "${prompt}"
+
+The template should be responsive, modern, and high-quality HTML.
+Use placeholders like {{firstName}} for the recipient's first name.
+
+Return ONLY a valid JSON object with no markdown, no code fences, just raw JSON:
+{
+  "name": "A short descriptive name for the template",
+  "htmlContent": "The full HTML string for the email",
+  "category": "One of: Marketing, Transactional, Follow-up, or Custom"
+}`
       }
-    }
+    ]
   });
 
   try {
-    const text = result.text || "";
+    const text = message.content[0].type === 'text' ? message.content[0].text : '';
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
