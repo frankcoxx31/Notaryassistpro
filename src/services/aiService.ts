@@ -10,15 +10,15 @@ export interface AiResearchResult {
  * Generates an email template based on a user's prompt.
  */
 export async function generateEmailTemplate(prompt: string): Promise<{ name: string; htmlContent: string; category: string }> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("AI Designer is not configured. Please add GEMINI_API_KEY to your environment variables.");
+    throw new Error("AI Designer is not configured. Please add VITE_GEMINI_API_KEY to your environment variables.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
 
   const result = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.0-flash",
     contents: `Generate a professional email template for a Notary Signing Agent business. 
     User Request: "${prompt}"
     
