@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Send, Mail, ChevronDown } from 'lucide-react';
 import { Customer } from '../types';
+import { auth } from '../firebase';
 
 interface EmailModalProps {
   customer: Customer;
@@ -36,13 +37,31 @@ export default function EmailModal({ customer, onClose }: EmailModalProps) {
       return;
     }
 
+    let token = '';
+    try {
+      token = await auth.currentUser?.getIdToken() ?? '';
+    } catch {
+      setErrorMsg('Authentication error. Please log in again.');
+      setStatus('error');
+      return;
+    }
+
+    if (!token) {
+      setErrorMsg('Not authenticated. Please log in again.');
+      setStatus('error');
+      return;
+    }
+
     setStatus('sending');
     setErrorMsg('');
 
     try {
       const res = await fetch('/api/email/send-single', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           to: customer.email,
           toName: customer.fullName,
