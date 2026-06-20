@@ -26,8 +26,20 @@ export async function generateEmailTemplate(prompt: string): Promise<{ name: str
         content: `Generate a professional email template for a Notary Signing Agent business.
 User Request: "${prompt}"
 
-The template should be responsive, modern, and high-quality HTML.
-Use placeholders like {{firstName}} for the recipient's first name.
+BUSINESS DETAILS — use these real values directly in the email, do NOT use placeholders for them:
+- Business Name: Integrity Closings CLT
+- Notary Name: Frank Coxx
+- Phone: 980-372-4103
+- Email: fcoxx@integrityclosingsclt.com
+- Website: https://www.integrityclosingsclt.com
+- Booking URL: https://www.integrityclosingsclt.com/book
+- Service Area: Charlotte, NC and surrounding areas (Concord, Gastonia, Monroe, Matthews, Mint Hill, Salisbury, Mooresville)
+
+RULES:
+- Only use {{firstName}} as a placeholder for the recipient's first name
+- Fill in ALL other details using the real business info above
+- Do NOT include unsubscribe links or preference links
+- The template should be responsive, modern, and high-quality HTML
 
 Return ONLY a valid JSON object with no markdown, no code fences, just raw JSON:
 {
