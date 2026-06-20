@@ -95,27 +95,36 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
         category: 'Marketing',
         subjectSuggestion: 'How Did We Do? Please Leave Us a Review!',
         htmlContent: `
-<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;">
-  <h2 style="color:#1e3a5f;font-size:22px;margin:0 0 16px;">How Did We Do?</h2>
-  <p style="color:#475569;line-height:1.7;margin:0 0 16px;">
-    Thank you for choosing us for your notary needs.
-    We hope your experience was smooth and professional.
-  </p>
-  <p style="color:#475569;line-height:1.7;margin:0 0 24px;">
-    We would truly appreciate it if you could take a moment to share your feedback 
-    by leaving us a Google review. Your review helps other clients find us and 
-    helps us continue to improve our services.
-  </p>
-  <div style="text-align:center;margin:32px 0;">
-    <p style="color:#1e3a5f;font-weight:bold;font-size:16px;margin:0 0 16px;">
-      Scan the QR code below to leave your review:
-    </p>
-    <img 
-      src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCADIAMgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKGkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/" alt="QR Code" style="max-width:180px;height:auto;border:1px solid #e2e8f0;border-radius:12px;padding:8px;background:white;" />
+<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
+  <div style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);padding:32px 40px;text-align:center;">
+    <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Integrity Closings CLT</h1>
+    <p style="margin:6px 0 0;color:#93c5fd;font-size:13px;letter-spacing:1px;">PROFESSIONAL NOTARY SERVICES</p>
   </div>
-  <p style="color:#64748b;font-size:12px;line-height:1.5;margin:24px 0 0;text-align:center;border-top:1px solid #f1f5f9;padding-top:16px;">
-    Professional Notary Services
-  </p>
+  <div style="padding:36px 40px;">
+    <h2 style="color:#1e3a5f;font-size:22px;margin:0 0 16px;">How Did We Do, {{firstName}}?</h2>
+    <p style="color:#475569;line-height:1.7;margin:0 0 16px;">
+      Thank you for choosing Integrity Closings CLT for your notary needs.
+      We hope your experience was smooth and professional.
+    </p>
+    <p style="color:#475569;line-height:1.7;margin:0 0 24px;">
+      We would truly appreciate it if you could take a moment to share your feedback
+      by leaving us a Google review. Your review helps other clients find us and
+      helps us continue to improve our services.
+    </p>
+    <div style="text-align:center;margin:32px 0;">
+      <p style="color:#1e3a5f;font-weight:bold;font-size:16px;margin:0 0 16px;">
+        Scan the QR code below to leave your review:
+      </p>
+      <img src="data:image/png;base64,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" alt="Google Review QR Code" style="max-width:180px;height:auto;border:1px solid #e2e8f0;border-radius:12px;padding:8px;background:white;" />
+    </div>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="https://www.integrityclosingsclt.com/booking" style="background:#2563eb;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">Book Again</a>
+    </div>
+  </div>
+  <div style="background:#f8fafc;padding:24px 40px;border-top:1px solid #e2e8f0;text-align:center;">
+    <p style="margin:0;color:#64748b;font-size:12px;">Integrity Closings CLT &bull; Charlotte, NC</p>
+    <p style="margin:6px 0 0;color:#64748b;font-size:12px;">Phone: 980-372-4103 &bull; <a href="https://www.integrityclosingsclt.com" style="color:#2563eb;text-decoration:none;">integrityclosingsclt.com</a></p>
+  </div>
 </div>
 `,
       },
