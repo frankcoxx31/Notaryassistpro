@@ -270,6 +270,10 @@ export const marketingService = {
     await updateDoc(docRef, { ...updates, updatedAt: now });
   },
 
+  async deleteTemplate(id: string) {
+    await deleteDoc(doc(db, COLLECTIONS.TEMPLATES, id));
+  },
+
   // Automations
   async getAutomations(userId: string) {
     const q = query(

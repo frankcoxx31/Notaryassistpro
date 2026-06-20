@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FileText, 
-  Plus, 
-  Layout, 
-  Palette, 
-  Code, 
-  Eye, 
+import {
+  FileText,
+  Plus,
+  Layout,
+  Palette,
+  Code,
+  Eye,
   MoreVertical,
   CheckCircle2,
   Clock,
   Sparkles,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { cn } from '../../lib/utils';
@@ -154,6 +155,12 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
     await fetchData();
   };
 
+  const handleDeleteTemplate = async (id: string) => {
+    if (!confirm('Delete this template? This cannot be undone.')) return;
+    await marketingService.deleteTemplate(id);
+    await fetchData();
+  };
+
   const categories = ['All Templates', 'Marketing', 'Transactional', 'System', 'Custom'];
 
   const filteredTemplates = selectedCategory === 'All Templates' 
@@ -255,8 +262,12 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({ user, autoOpen }) => {
                   <span className={cn("text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border border-current opacity-70 mb-1 inline-block", getStatusColor(tpl.category))}>
                     {tpl.category}
                   </span>
-                  <button className="text-slate-300 hover:text-slate-600">
-                    <MoreVertical className="w-4 h-4" />
+                  <button
+                    onClick={() => handleDeleteTemplate(tpl.id)}
+                    className="text-slate-300 hover:text-red-500 transition-colors"
+                    title="Delete template"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
                 <h3 className="font-bold text-slate-900 text-sm truncate mb-3 leading-tight">{tpl.name}</h3>
