@@ -32,7 +32,7 @@ BUSINESS DETAILS — use these real values directly in the email, do NOT use pla
 - Phone: 980-372-4103
 - Email: fcoxx@integrityclosingsclt.com
 - Website: https://www.integrityclosingsclt.com
-- Booking URL: https://www.integrityclosingsclt.com/book
+- Booking URL: https://www.integrityclosingsclt.com/booking
 - Service Area: Charlotte, NC and surrounding areas (Concord, Gastonia, Monroe, Matthews, Mint Hill, Salisbury, Mooresville)
 
 RULES:
