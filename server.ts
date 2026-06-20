@@ -364,7 +364,8 @@ async function startServer() {
 
       if (rawHtml) {
         emailSubject = subject || `A Message from ${biz.name}`;
-        emailHtml = body || '';
+        const firstName = toName?.split(' ')[0] || 'Valued Client';
+        emailHtml = (body || '').replace(/\{\{firstName\}\}/g, firstName);
       } else if (templateId && TEMPLATES[templateId]) {
         const template = TEMPLATES[templateId];
         emailSubject = subject || template.subject(biz);
