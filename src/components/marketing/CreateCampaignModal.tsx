@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  Send, 
-  Layers, 
-  FileText, 
-  Check, 
-  ChevronRight, 
+import {
+  X,
+  Send,
+  Layers,
+  FileText,
+  Check,
+  ChevronRight,
   ChevronLeft,
   Mail,
   Info,
-  Loader2
+  Loader2,
+  Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from 'firebase/auth';
@@ -41,6 +42,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     selectedSegmentIds: [] as string[],
     selectedTemplateId: ''
   });
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [showScheduler, setShowScheduler] = useState(false);
 
   if (!isOpen) return null;
 
@@ -56,10 +59,10 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     else if (step === 'confirm') setStep('template');
   };
 
-  const handleSubmit = async (sendNow: boolean = false) => {
+  const handleSubmit = async (sendNow: boolean = false, scheduleTime?: string) => {
     try {
       setLoading(true);
-      await onSave(formData, sendNow);
+      await onSave({ ...formData, scheduledAt: scheduleTime || null }, sendNow);
       onClose();
     } catch (error) {
       console.error('Error saving campaign:', error);
@@ -385,6 +388,39 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Scheduler */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <button
+                    onClick={() => setShowScheduler(!showScheduler)}
+                    className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
+                        <Calendar className="w-4 h-4 text-indigo-600" />
+                      </div>
+                      <span className="text-sm font-bold text-slate-700">Schedule for Later</span>
+                    </div>
+                    <ChevronRight className={cn("w-4 h-4 text-slate-400 transition-transform", showScheduler && "rotate-90")} />
+                  </button>
+                  {showScheduler && (
+                    <div className="p-4 bg-white border-t border-slate-100 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Send Date & Time</label>
+                      <input
+                        type="datetime-local"
+                        value={scheduledAt}
+                        onChange={(e) => setScheduledAt(e.target.value)}
+                        min={new Date().toISOString().slice(0, 16)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                      />
+                      {scheduledAt && (
+                        <p className="text-xs text-indigo-600 font-medium">
+                          Will send on {new Date(scheduledAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {new Date(scheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -414,21 +450,32 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
              </button>
              {step === 'confirm' ? (
                 <div className="flex items-center gap-3">
-                  <button 
+                  <button
                     onClick={() => handleSubmit(false)}
                     disabled={loading}
                     className="px-4 py-2 text-slate-500 text-sm font-bold hover:text-slate-700 transition-colors"
                   >
                     Save as Draft
                   </button>
-                  <button 
-                    onClick={() => handleSubmit(true)}
-                    disabled={loading}
-                    className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-50"
-                  >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    Send Now
-                  </button>
+                  {showScheduler && scheduledAt ? (
+                    <button
+                      onClick={() => handleSubmit(false, scheduledAt)}
+                      disabled={loading}
+                      className="flex items-center gap-2 px-6 py-2 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 active:scale-95 disabled:opacity-50"
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+                      Schedule Send
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleSubmit(true)}
+                      disabled={loading}
+                      className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-50"
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      Send Now
+                    </button>
+                  )}
                 </div>
              ) : (
                 <button 
