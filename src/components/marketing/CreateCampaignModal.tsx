@@ -369,9 +369,13 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                        <div>
                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Target Audience</p>
                          <h4 className="text-sm font-bold text-slate-900">
-                           {formData.selectedSegmentIds.length} Segments Selected
+                           {formData.selectedSegmentIds.length} Segment{formData.selectedSegmentIds.length !== 1 ? 's' : ''} Selected
                          </h4>
-                         <p className="text-xs text-indigo-600 font-medium">Approx. {formData.selectedSegmentIds.length * 12} recipients</p>
+                         <p className="text-xs text-indigo-600 font-medium">
+                           {formData.selectedSegmentIds.includes('all-customers')
+                             ? 'All customers'
+                             : `${segments.filter(s => formData.selectedSegmentIds.includes(s.id)).reduce((sum, s) => sum + (s.subscriberCount || 0), 0)} recipients`}
+                         </p>
                        </div>
                     </div>
 
