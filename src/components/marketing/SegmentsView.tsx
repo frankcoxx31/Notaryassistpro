@@ -22,6 +22,7 @@ interface SegmentsViewProps {
 const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
   const [segments, setSegments] = useState<MarketingSegment[]>([]);
   const [subscribers, setSubscribers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
   const [editingSegment, setEditingSegment] = useState<MarketingSegment | null>(null);
@@ -54,7 +55,7 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
     return () => unsubscribe();
   }, [user.uid]);
 
-  // Fetch subscribers (static fetch is fine for modal usage)
+  // Fetch subscribers (for modal usage)
   const fetchSubscribers = async () => {
     try {
       const data = await marketingService.getSubscribers(user.uid);
@@ -63,6 +64,19 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
       console.error('Error fetching subscribers:', error);
     }
   };
+
+  // Fetch customers so segment counts reflect the full CRM
+  useEffect(() => {
+    if (!user.uid) return;
+    const q = query(
+      collection(db, 'customers'),
+      where('userId', '==', user.uid)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, [user.uid]);
 
   useEffect(() => {
     fetchSubscribers();
@@ -99,15 +113,26 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
     }
   };
 
-  // Calculate real-time reach for all segments
+  // Calculate real-time reach — check both customers and subscribers
   const segmentsWithCounts = segments.map(segment => {
     let count = 0;
     if (segment.isDynamic) {
       const rule = (segment.rules && segment.rules[0]) || {};
       const { tags = [], contactTypes = [] } = rule;
-      count = subscribers.filter(sub => {
-        const matchesTags = !tags.length || (sub.tags && tags.some((t: string) => sub.tags.includes(t)));
-        const matchesTypes = !contactTypes.length || contactTypes.includes(sub.contactType);
+      const allPeople = [
+        ...customers.map(c => ({ tags: c.tags || [], contactType: (c.customerType || '').toLowerCase().replace(/\s+/g, '_'), email: c.email })),
+        ...subscribers.map(s => ({ tags: s.tags || [], contactType: s.contactType || '', email: s.email })),
+      ];
+      // Deduplicate by email
+      const seen = new Set<string>();
+      const unique = allPeople.filter(p => {
+        if (seen.has(p.email)) return false;
+        seen.add(p.email);
+        return true;
+      });
+      count = unique.filter(p => {
+        const matchesTags = !tags.length || tags.some((t: string) => p.tags.includes(t));
+        const matchesTypes = !contactTypes.length || contactTypes.includes(p.contactType);
         return matchesTags && matchesTypes;
       }).length;
     } else {
@@ -190,18 +215,12 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
                 {segment.description || 'No description provided.'}
               </p>
 
-              <div className="flex items-center justify-between pt-6 border-t border-slate-50 mt-auto">
-                 <div className="flex -space-x-2">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center">
-                        <span className="text-[8px] font-bold text-slate-400">U{i}</span>
-                      </div>
-                    ))}
-                    <div className="w-7 h-7 rounded-full border-2 border-white bg-indigo-50 flex items-center justify-center">
-                      <span className="text-[8px] font-bold text-indigo-600">+{segment.subscriberCount || 0}</span>
-                    </div>
-                 </div>
-                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Active Reach</span>
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto">
+                <div>
+                  <span className="text-2xl font-black text-indigo-600">{segment.subscriberCount || 0}</span>
+                  <span className="text-xs font-bold text-slate-400 ml-1.5">contacts</span>
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Active Reach</span>
               </div>
             </div>
           ))}
