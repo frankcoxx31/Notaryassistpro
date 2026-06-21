@@ -6578,10 +6578,69 @@ const Appointments = ({
   );
 };
 
-const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer }: { customers: Customer[]; onNewCustomer: () => void; onEditCustomer: (c: Customer) => void; onDeleteCustomer: (id: string) => void }) => {
+const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer, onImportCustomers }: { customers: Customer[]; onNewCustomer: () => void; onEditCustomer: (c: Customer) => void; onDeleteCustomer: (id: string) => void; onImportCustomers: (customers: Customer[]) => void }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<CustomerType | 'All'>('All');
   const [emailModalCustomer, setEmailModalCustomer] = useState<Customer | null>(null);
+  const [isImportingCSV, setIsImportingCSV] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImportingCSV(true);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const text = evt.target?.result as string;
+        const lines = text.split('\n').filter(l => l.trim());
+        const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+        const imported: Customer[] = [];
+        const now = new Date().toISOString();
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].match(/(".*?"|[^,]+|(?<=,)(?=,)|(?<=,)$|^(?=,))/g) || [];
+          const row: Record<string, string> = {};
+          headers.forEach((h, idx) => { row[h] = (cols[idx] || '').replace(/^"|"$/g, '').trim(); });
+          const fullName = row['prospect_full_name'] || row['fullName'] || row['full_name'] || '';
+          const email = row['contact_professions_email'] || row['email'] || '';
+          if (!fullName && !email) continue;
+          const parts = fullName.trim().split(/\s+/);
+          const firstName = parts[0] || '';
+          const lastName = parts.slice(1).join(' ') || '';
+          const id = Math.random().toString(36).substr(2, 9);
+          imported.push({
+            id,
+            userId: '',
+            firstName,
+            lastName,
+            fullName,
+            email,
+            phone: row['contact_mobile_phone'] || row['phone'] || '',
+            address: row['address'] || '',
+            city: row['city'] || 'Charlotte',
+            state: row['state'] || 'NC',
+            zip: row['zip'] || '',
+            customerType: 'Closing Attorney' as CustomerType,
+            notes: [row['prospect_job_title'], row['business_name']].filter(Boolean).join(' at '),
+            tags: ['attorney', 'lead', 'charlotte', 'nc'],
+            preferredContactMethod: 'Email',
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (imported.length === 0) { alert('No valid records found in CSV.'); return; }
+        onImportCustomers(imported);
+        alert(`Successfully imported ${imported.length} customers!`);
+      } catch (err) {
+        alert('Error parsing CSV. Please check the file format.');
+        console.error(err);
+      } finally {
+        setIsImportingCSV(false);
+        if (csvInputRef.current) csvInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const filteredCustomers = customers.filter(c => {
     const matchesSearch = c.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -6598,12 +6657,22 @@ const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer 
           <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
           <p className="text-slate-500">Manage your individual clients and signers.</p>
         </div>
-        <button 
-          onClick={onNewCustomer}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> New Customer
-        </button>
+        <div className="flex items-center gap-2">
+          <input ref={csvInputRef} type="file" accept=".csv" className="hidden" onChange={handleCSVImport} />
+          <button
+            onClick={() => csvInputRef.current?.click()}
+            disabled={isImportingCSV}
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2"
+          >
+            <Upload className="w-4 h-4" /> {isImportingCSV ? 'Importing...' : 'Import CSV'}
+          </button>
+          <button
+            onClick={onNewCustomer}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> New Customer
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4">
@@ -7666,6 +7735,12 @@ export default function App() {
     }
   };
 
+  const handleImportCustomers = async (imported: Customer[]) => {
+    for (const customer of imported) {
+      await handleSaveCustomer({ ...customer, userId: user?.uid || '' });
+    }
+  };
+
   const handleDeleteCustomer = async (id: string) => {
     if (isDemoUser || !user) {
       demoStorage.deleteCustomer(id);
@@ -8094,8 +8169,8 @@ export default function App() {
             <Route 
               path="/customers" 
               element={
-                <Customers 
-                  customers={customers} 
+                <Customers
+                  customers={customers}
                   onNewCustomer={() => {
                     setSelectedCustomer(null);
                     setIsNewClientModalOpen(true);
@@ -8105,6 +8180,7 @@ export default function App() {
                     setIsNewClientModalOpen(true);
                   }}
                   onDeleteCustomer={handleDeleteCustomer}
+                  onImportCustomers={handleImportCustomers}
                 />
               } 
             />
