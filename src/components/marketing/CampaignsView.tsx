@@ -19,7 +19,7 @@ import {
   orderBy, 
   onSnapshot 
 } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { db, auth } from '../../firebase';
 import { User } from 'firebase/auth';
 import { marketingService } from '../../services/marketingService';
 import { MarketingCampaign, MarketingSegment, MarketingTemplate } from '../../types/marketing';
@@ -102,9 +102,13 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
       if (sendNow) {
         const template = templates.find(t => t.id === data.selectedTemplateId);
 
+        const token = await auth.currentUser?.getIdToken() ?? '';
         const res = await fetch('/api/email/send-newsletter', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           body: JSON.stringify({
             recipientGroups: ['all'],
             subject: data.subject,
@@ -144,9 +148,13 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
 
       const template = templates.find(t => t.id === campaign.templateId);
 
+      const token = await auth.currentUser?.getIdToken() ?? '';
       const res = await fetch('/api/email/send-newsletter', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           recipientGroups: ['all'],
           subject: campaign.subject,
