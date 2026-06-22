@@ -40,13 +40,30 @@ const NewCustomerModal = ({ isOpen, onClose, customer, onSave, userId }: NewCust
 
   if (!isOpen) return null;
 
+  const SEGMENT_TAGS = [
+    { tag: 'loan_officer', label: 'Loan Officer' },
+    { tag: 'closing-attorney', label: 'Closing Attorney' },
+    { tag: 'estate-planning-attorney', label: 'Estate Planning' },
+    { tag: 'small-firm', label: 'Small Firm' },
+    { tag: 'large-firm', label: 'Large Firm' },
+  ];
+
+  const currentTags: string[] = (formData.tags as string[]) || [];
+
+  const toggleTag = (tag: string) => {
+    const has = currentTags.includes(tag);
+    const next = has ? currentTags.filter(t => t !== tag) : [...currentTags, tag];
+    setFormData({ ...formData, tags: next });
+  };
+
   const handleSave = () => {
     if (formData.id && formData.firstName && formData.lastName && formData.email && formData.phone) {
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
-      onSave({ 
-        ...formData, 
+      onSave({
+        ...formData,
         fullName,
-        updatedAt: new Date().toISOString() 
+        tags: currentTags,
+        updatedAt: new Date().toISOString()
       } as Customer);
     }
   };
@@ -138,6 +155,30 @@ const NewCustomerModal = ({ isOpen, onClose, customer, onSave, userId }: NewCust
               <option value="Realtor">Realtor</option>
               <option value="Estate Attorney">Estate Attorney</option>
             </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Segment Tags</label>
+            <p className="text-xs text-slate-400 mb-2">Click to tag this customer so they appear in the matching marketing segment.</p>
+            <div className="flex flex-wrap gap-2">
+              {SEGMENT_TAGS.map(({ tag, label }) => {
+                const active = currentTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleTag(tag)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                      active
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-white text-slate-500 border-slate-300 hover:border-indigo-400'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-1">
