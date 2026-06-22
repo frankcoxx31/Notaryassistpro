@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { auth } from "../firebase";
 
 export interface AiResearchResult {
   answer: string;
@@ -8,60 +8,29 @@ export interface AiResearchResult {
 
 /**
  * Generates an email template based on a user's prompt.
+ * Calls the secure server endpoint so the Anthropic API key stays on the
+ * backend (ANTHROPIC_API_KEY) and is never exposed in the browser.
  */
 export async function generateEmailTemplate(prompt: string): Promise<{ name: string; htmlContent: string; category: string }> {
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("AI Designer is not configured. Please add VITE_ANTHROPIC_API_KEY to your environment variables.");
+  const token = await auth.currentUser?.getIdToken() ?? '';
+  if (!token) {
+    throw new Error("You must be signed in to use the AI Designer.");
   }
 
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
-
-  const message = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `Generate a professional email template for a Notary Signing Agent business.
-User Request: "${prompt}"
-
-BUSINESS DETAILS — use these real values directly in the email, do NOT use placeholders for them:
-- Business Name: Integrity Closings CLT
-- Notary Name: Frank Coxx
-- Phone: 980-372-4103
-- Email: fcoxx@integrityclosingsclt.com
-- Website: https://www.integrityclosingsclt.com
-- Booking URL: https://www.integrityclosingsclt.com/booking
-- Service Area: Charlotte, NC and surrounding areas (Concord, Gastonia, Monroe, Matthews, Mint Hill, Salisbury, Mooresville)
-
-RULES:
-- Only use {{firstName}} as a placeholder for the recipient's first name
-- Fill in ALL other details using the real business info above
-- Do NOT include unsubscribe links or preference links
-- The template should be responsive, modern, and high-quality HTML
-
-Return ONLY a valid JSON object with no markdown, no code fences, just raw JSON:
-{
-  "name": "A short descriptive name for the template",
-  "htmlContent": "The full HTML string for the email",
-  "category": "One of: Marketing, Transactional, Follow-up, or Custom"
-}`
-      }
-    ]
+  const res = await fetch('/api/ai/generate-template', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ prompt }),
   });
 
-  try {
-    const text = message.content[0].type === 'text' ? message.content[0].text : '';
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    throw new Error("Could not parse AI response");
-  } catch (error) {
-    console.error("AI Template Generation Error:", error);
-    throw new Error("Failed to generate template structure");
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to generate template structure");
   }
+  return data;
 }
 
 /**

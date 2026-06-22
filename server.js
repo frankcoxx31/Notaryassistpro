@@ -9,6 +9,7 @@ import { google } from "googleapis";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 import { Resend } from "resend";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -70,6 +71,7 @@ if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
   }
 }
 var resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+var anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
 var APP_URL = process.env.APP_URL || "https://www.notaryproapp.com";
 async function getBusinessProfile(uid) {
   if (!adminDb) throw new Error("Database not available");
@@ -511,6 +513,57 @@ async function startServer() {
     } catch (error) {
       console.error("[Email] Unsubscribe error:", error);
       res.status(500).send("Something went wrong. Please try again.");
+    }
+  });
+  app.post("/api/ai/generate-template", verifyFirebaseToken, async (req, res) => {
+    if (!anthropic) return res.status(503).json({ error: "AI Designer is not configured. Add ANTHROPIC_API_KEY." });
+    const uid = req.user.uid;
+    const { prompt } = req.body;
+    if (!prompt || typeof prompt !== "string") {
+      return res.status(400).json({ error: "A prompt is required." });
+    }
+    try {
+      const biz = await getBusinessProfile(uid);
+      const message = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 4096,
+        messages: [
+          {
+            role: "user",
+            content: `Generate a professional email template for a Notary Signing Agent business.
+User Request: "${prompt}"
+
+BUSINESS DETAILS \u2014 use these real values directly in the email, do NOT use placeholders for them:
+- Business Name: ${biz.name}
+- Phone: ${biz.phone || ""}
+- Email: ${biz.email || ""}
+- Website: ${biz.website || ""}
+- Service Area: ${biz.location || "the local area"}
+
+RULES:
+- Only use {{firstName}} as a placeholder for the recipient's first name
+- Fill in ALL other details using the real business info above
+- Do NOT include unsubscribe links or preference links
+- The template should be responsive, modern, and high-quality HTML
+
+Return ONLY a valid JSON object with no markdown, no code fences, just raw JSON:
+{
+  "name": "A short descriptive name for the template",
+  "htmlContent": "The full HTML string for the email",
+  "category": "One of: Marketing, Transactional, Follow-up, or Custom"
+}`
+          }
+        ]
+      });
+      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return res.status(502).json({ error: "Could not parse AI response." });
+      }
+      return res.json(JSON.parse(jsonMatch[0]));
+    } catch (error) {
+      console.error("[AI] Template generation error:", error);
+      return res.status(500).json({ error: error.message || "Failed to generate template." });
     }
   });
   app.post("/api/webhooks/resend", async (req, res) => {
