@@ -85,6 +85,24 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
     fetchSupportData();
   }, [user.uid]);
 
+  // Resolve selected segment ids into the audience filter sent to the backend.
+  // Returns recipientGroups:['all'] when "All Customers" is chosen, otherwise the
+  // collected tags from each segment's rules so only matching customers receive it.
+  const resolveAudience = (segmentIds: string[]): { recipientGroups: string[]; tags: string[] } => {
+    if (!segmentIds || segmentIds.length === 0 || segmentIds.includes('all-customers')) {
+      return { recipientGroups: ['all'], tags: [] };
+    }
+    const tags = new Set<string>();
+    segments
+      .filter(s => segmentIds.includes(s.id))
+      .forEach(s => {
+        const rule = (s.rules && s.rules[0]) || {};
+        (rule.tags || []).forEach((t: string) => tags.add(t));
+        (rule.contactTypes || []).forEach((t: string) => tags.add(t));
+      });
+    return { recipientGroups: ['segment'], tags: Array.from(tags) };
+  };
+
   const handleCreateCampaign = async (data: any, sendNow?: boolean) => {
     try {
       const newCampaign = await marketingService.addCampaign({
@@ -103,6 +121,7 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
         const template = templates.find(t => t.id === data.selectedTemplateId);
 
         const token = await auth.currentUser?.getIdToken() ?? '';
+        const audience = resolveAudience(data.selectedSegmentIds);
         const res = await fetch('/api/email/send-newsletter', {
           method: 'POST',
           headers: {
@@ -110,7 +129,8 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
             'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({
-            recipientGroups: ['all'],
+            recipientGroups: audience.recipientGroups,
+            tags: audience.tags,
             subject: data.subject,
             body: template?.htmlContent || '',
             templateId: null,
@@ -149,6 +169,7 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
       const template = templates.find(t => t.id === campaign.templateId);
 
       const token = await auth.currentUser?.getIdToken() ?? '';
+      const audience = resolveAudience(campaign.segmentIds);
       const res = await fetch('/api/email/send-newsletter', {
         method: 'POST',
         headers: {
@@ -156,7 +177,8 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          recipientGroups: ['all'],
+          recipientGroups: audience.recipientGroups,
+          tags: audience.tags,
           subject: campaign.subject,
           body: template?.htmlContent || '',
           templateId: null,

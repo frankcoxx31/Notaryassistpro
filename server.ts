@@ -430,7 +430,7 @@ async function startServer() {
     if (!adminDb) return res.status(503).json({ error: "Database not configured." });
 
     const uid = (req as any).user.uid;
-    const { templateId, subject, body, templateData, recipientGroups, campaignId } = req.body;
+    const { templateId, subject, body, templateData, recipientGroups, tags, campaignId } = req.body;
 
     if (!recipientGroups || !recipientGroups.length) {
       return res.status(400).json({ error: "recipientGroups is required" });
@@ -445,7 +445,16 @@ async function startServer() {
       customers = customers.filter((c: any) => !c.unsubscribed);
 
       if (!recipientGroups.includes('all')) {
-        customers = customers.filter((c: any) => recipientGroups.includes(c.customerType));
+        // Tag-based segment targeting: a customer matches if any of their tags is
+        // in the requested tag list, or (legacy) their customerType is requested.
+        const wantedTags: string[] = Array.isArray(tags) ? tags : [];
+        const typeToContact = (t: string) => (t || '').toLowerCase().replace(/\s+/g, '_');
+        customers = customers.filter((c: any) => {
+          const cTags: string[] = c.tags || [];
+          const matchesTags = wantedTags.length > 0 && wantedTags.some(t => cTags.includes(t) || typeToContact(c.customerType) === t);
+          const matchesType = recipientGroups.includes(c.customerType);
+          return matchesTags || matchesType;
+        });
       }
 
       customers = customers.filter((c: any) => c.email && c.email.trim() !== '');
