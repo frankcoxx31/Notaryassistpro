@@ -77,7 +77,7 @@ const AIDesignerModal: React.FC<AIDesignerModalProps> = ({ isOpen, onClose, onSa
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-900">Notary AI Designer</h2>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Powered by Gemini AI</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Powered by Claude AI</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
