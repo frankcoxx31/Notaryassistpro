@@ -7,3 +7,6 @@ coverage/
 .env*
 !.env.example
 firebase-applet-config.json
+
+# Generated outreach drafts (contain lead emails)
+scripts/attorney-outreach/_drafts/
