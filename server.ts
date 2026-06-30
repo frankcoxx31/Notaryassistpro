@@ -199,6 +199,115 @@ function unsubscribeFooter(customerId: string): string {
   </p>`;
 }
 
+// ─── AI-personalized attorney outreach helpers ────────────────────────────────
+interface PracticeArea { area: string; docs: string; }
+const PRACTICE_RULES: { match: RegExp; area: string; docs: string }[] = [
+  { match: /estate|elder|trust|probate|wills?/i, area: 'estate planning', docs: 'wills, trusts, powers of attorney, and healthcare directives — including bedside signings at hospitals or care facilities when a client cannot travel' },
+  { match: /famil|divorce|custody|matrimonial|adoption|formation/i, area: 'family law', docs: 'separation agreements, property settlements, and affidavits that need prompt, dependable notarization' },
+  { match: /injur|accident|malpractice|tort|wrongful/i, area: 'personal injury', docs: 'settlement releases, affidavits, and disbursement documents, often on tight deadlines' },
+  { match: /real estate|closing|title|property|mortgage|loan/i, area: 'real estate', docs: 'loan signings and closing packages at the title office, a client’s home, or any preferred location' },
+  { match: /franchise|business|corporate|patent|\bip\b|startup|venture|commercial|securit/i, area: 'business & corporate law', docs: 'entity-formation documents, operating agreements, and contracts that require notarization' },
+  { match: /immigration|visa|citizen/i, area: 'immigration law', docs: 'affidavits, sponsorship forms, and supporting documents that require notarization' },
+];
+const DEFAULT_PRACTICE: PracticeArea = { area: 'legal', docs: 'time-sensitive documents that require a reliable, mobile notary' };
+
+function inferPractice(haystack: string): PracticeArea {
+  for (const r of PRACTICE_RULES) if (r.match.test(haystack)) return { area: r.area, docs: r.docs };
+  return DEFAULT_PRACTICE;
+}
+
+/** Attorney leads store the firm in `notes` as "{title} at {company}". */
+function firmOf(customer: any): string {
+  if (customer.company) return customer.company;
+  const notes: string = customer.notes || '';
+  const idx = notes.indexOf(' at ');
+  return idx >= 0 ? notes.slice(idx + 4).trim() : '';
+}
+
+function escapeHtmlText(s: string): string {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Selects CRM customers for an outreach send (mirrors send-newsletter filtering). */
+async function selectRecipients(uid: string, recipientGroups: string[], tags: string[]): Promise<any[]> {
+  if (!adminDb) throw new Error('Database not available');
+  const snapshot = await adminDb.collection('customers').where('userId', '==', uid).get();
+  let customers = snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+  customers = customers.filter((c: any) => !c.unsubscribed);
+  if (!recipientGroups.includes('all')) {
+    const wantedTags: string[] = Array.isArray(tags) ? tags : [];
+    const typeToContact = (t: string) => (t || '').toLowerCase().replace(/\s+/g, '_');
+    customers = customers.filter((c: any) => {
+      const cTags: string[] = c.tags || [];
+      const matchesTags = wantedTags.length > 0 && wantedTags.some(t => cTags.includes(t) || typeToContact(c.customerType) === t);
+      const matchesType = recipientGroups.includes(c.customerType);
+      return matchesTags || matchesType;
+    });
+  }
+  return customers.filter((c: any) => c.email && c.email.trim() !== '');
+}
+
+/** Calls Claude Haiku to write a personalized intro for one attorney. */
+async function personalizeIntro(customer: any, practice: PracticeArea, biz: BizData): Promise<{ subject: string; paragraphs: string[] }> {
+  if (!anthropic) throw new Error('AI not configured');
+  const firm = firmOf(customer);
+  const prompt = `You are writing the BODY of a short, warm, professional cold-outreach email on behalf of ${biz.name}, a certified mobile notary public serving ${biz.location || 'the local area'}.
+
+Recipient:
+- Name: ${customer.fullName || customer.firstName || ''}
+- Role/notes: ${customer.notes || customer.title || ''}
+- Firm: ${firm}
+- Likely practice area: ${practice.area}
+- Relevant notary work for this practice: ${practice.docs}
+
+Strict requirements:
+- Return ONLY valid JSON: {"subject": string, "paragraphs": [string, string]}
+- Exactly TWO short paragraphs (2-3 sentences each), plain text, no HTML, no markdown.
+- Do NOT include a greeting ("Dear ...") or a sign-off — those are added separately.
+- Reference their ${practice.area} focus naturally and tie it to the documents/situations above.
+- Mention mobile, same-day availability across ${biz.location || 'the area'}.
+- Do NOT invent facts about the firm (no awards, case results, client names, or dates).
+- Tone: courteous, concise, peer-to-peer. No emojis, no buzzwords.
+- Subject line: 5-9 words, specific, no clickbait, no ALL CAPS.`;
+
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const text = message.content[0].type === 'text' ? message.content[0].text : '';
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Could not parse AI response');
+  const obj = JSON.parse(jsonMatch[0]);
+  const paragraphs = Array.isArray(obj.paragraphs) ? obj.paragraphs.map((p: any) => String(p).trim()) : [];
+  if (!obj.subject || paragraphs.length === 0) throw new Error('AI returned unexpected shape');
+  return { subject: String(obj.subject).trim(), paragraphs };
+}
+
+/** Injects a personalized intro into the attorney template HTML. */
+function renderPersonalized(templateHtml: string, customer: any, intro: { paragraphs: string[] }): string {
+  const firstName = (customer.firstName || customer.fullName || '').trim().split(/\s+/)[0] || 'there';
+  const firm = firmOf(customer);
+  const paras = intro.paragraphs.map((p, i) => {
+    const mb = i === intro.paragraphs.length - 1 ? '0' : '20px';
+    return `<p style="margin:0 0 ${mb} 0;font-size:15px;line-height:1.7;color:#374151;">${escapeHtmlText(p)}</p>`;
+  }).join('\n              ');
+  const introBlock =
+`<!-- INTRO -->
+          <tr>
+            <td style="padding:44px 48px 28px 48px;">
+              <p style="margin:0 0 20px 0;font-size:15px;line-height:1.7;color:#374151;">Dear ${escapeHtmlText(firstName)},</p>
+              ${paras}
+            </td>
+          </tr>
+
+          <!-- DIVIDER -->`;
+  let html = templateHtml.replace(/<!-- INTRO -->[\s\S]*?<!-- DIVIDER -->/, introBlock);
+  html = html.replace(/\[First Name\]/g, escapeHtmlText(firstName));
+  html = html.replace(/\[Law Firm Name\]/g, escapeHtmlText(firm));
+  return html;
+}
+
 const TEMPLATES: Record<string, { subject: (biz: BizData) => string; html: (data: any, biz: BizData) => string }> = {
   thank_you: {
     subject: (biz) => `Thank You for Choosing ${biz.name}`,
@@ -560,6 +669,138 @@ async function startServer() {
     } catch (error: any) {
       console.error("[Email] Newsletter error:", error);
       res.status(500).json({ error: error.message || "Failed to send newsletter" });
+    }
+  });
+
+  // ─── AI-personalized outreach: generate drafts (no send) ──────────────────────
+  app.post("/api/email/personalize-outreach", verifyFirebaseToken, async (req, res) => {
+    if (!anthropic) return res.status(503).json({ error: "AI is not configured. Add ANTHROPIC_API_KEY." });
+    if (!adminDb) return res.status(503).json({ error: "Database not configured." });
+
+    const uid = (req as any).user.uid;
+    const { recipientGroups, tags, templateHtml, limit, skip } = req.body;
+    if (!templateHtml || typeof templateHtml !== 'string') {
+      return res.status(400).json({ error: "templateHtml is required" });
+    }
+    if (!recipientGroups || !recipientGroups.length) {
+      return res.status(400).json({ error: "recipientGroups is required" });
+    }
+
+    try {
+      const biz = await getBusinessProfile(uid);
+      let recipients = await selectRecipients(uid, recipientGroups, Array.isArray(tags) ? tags : []);
+
+      const start = Number.isFinite(skip) ? Math.max(0, Number(skip)) : 0;
+      if (start) recipients = recipients.slice(start);
+      if (Number.isFinite(limit) && Number(limit) > 0) recipients = recipients.slice(0, Number(limit));
+
+      if (recipients.length === 0) return res.json({ drafts: [], total: 0 });
+
+      console.log(`[Outreach] Personalizing ${recipients.length} drafts`);
+
+      const drafts: any[] = [];
+      const CONCURRENCY = 5;
+      for (let i = 0; i < recipients.length; i += CONCURRENCY) {
+        const batch = recipients.slice(i, i + CONCURRENCY);
+        const results = await Promise.all(batch.map(async (c: any) => {
+          const firm = firmOf(c);
+          const practice = inferPractice(`${firm} ${c.notes || c.title || ''}`);
+          const fullName = c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email;
+          try {
+            const intro = await personalizeIntro(c, practice, biz);
+            const html = renderPersonalized(templateHtml, c, intro);
+            return { customerId: c.id, fullName, email: c.email, company: firm, practiceArea: practice.area, subject: intro.subject, html };
+          } catch (err: any) {
+            return { customerId: c.id, fullName, email: c.email, company: firm, practiceArea: practice.area, subject: '', html: '', error: err.message };
+          }
+        }));
+        drafts.push(...results);
+      }
+
+      const failed = drafts.filter(d => d.error).length;
+      console.log(`[Outreach] Personalization complete. OK: ${drafts.length - failed}, failed: ${failed}`);
+      res.json({ drafts, total: drafts.length });
+    } catch (error: any) {
+      console.error("[Outreach] Personalize error:", error);
+      res.status(500).json({ error: error.message || "Failed to personalize outreach" });
+    }
+  });
+
+  // ─── AI-personalized outreach: send approved drafts ───────────────────────────
+  app.post("/api/email/send-personalized", verifyFirebaseToken, async (req, res) => {
+    if (!resend) return res.status(503).json({ error: "Email service not configured. Add RESEND_API_KEY." });
+    if (!adminDb) return res.status(503).json({ error: "Database not configured." });
+
+    const uid = (req as any).user.uid;
+    const { drafts, campaignId } = req.body;
+    if (!Array.isArray(drafts) || drafts.length === 0) {
+      return res.status(400).json({ error: "drafts is required" });
+    }
+
+    try {
+      const biz = await getBusinessProfile(uid);
+      const fromEmail = buildFromEmail(biz);
+      const valid = drafts.filter((d: any) => d && d.email && d.html && d.subject);
+
+      const BATCH_SIZE = 20;
+      let sent = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < valid.length; i += BATCH_SIZE) {
+        const batch = valid.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (d: any) => {
+          try {
+            const footer = d.customerId ? unsubscribeFooter(d.customerId) : '';
+            let html = d.html as string;
+            if (footer) {
+              html = html.includes('</body>')
+                ? html.replace('</body>', `<div style="text-align:center;padding:16px 0;">${footer}</div></body>`)
+                : html + `<div style="text-align:center;padding:16px 0;">${footer}</div>`;
+            }
+
+            const sendTags = [];
+            if (d.customerId) sendTags.push({ name: 'subscriber_id', value: d.customerId });
+            if (campaignId) sendTags.push({ name: 'campaign_id', value: campaignId });
+
+            const result = await resend.emails.send({
+              from: fromEmail,
+              to: [d.email],
+              subject: d.subject,
+              html,
+              tags: sendTags.length ? sendTags : undefined,
+            });
+            sent++;
+
+            const emailId = (result as any)?.data?.id || (result as any)?.id;
+            if (adminDb && emailId) {
+              try {
+                await adminDb.collection('emailEvents').add({
+                  userId: uid,
+                  subscriberId: d.customerId || 'unknown',
+                  campaignId: campaignId || 'personalized-outreach',
+                  type: 'sent',
+                  timestamp: new Date().toISOString(),
+                  metadata: { emailId, subject: d.subject, to: [d.email], personalized: true },
+                });
+              } catch (dbErr: any) {
+                console.error("[Outreach] Event log failed:", dbErr.message);
+              }
+            }
+          } catch (err: any) {
+            failed++;
+            errors.push(`${d.email}: ${err.message}`);
+            console.error(`[Outreach] Failed to send to ${d.email}:`, err.message);
+          }
+        }));
+        if (i + BATCH_SIZE < valid.length) await new Promise(r => setTimeout(r, 1000));
+      }
+
+      console.log(`[Outreach] Send complete. Sent: ${sent}, Failed: ${failed}`);
+      res.json({ success: true, sent, failed, errors: errors.slice(0, 10) });
+    } catch (error: any) {
+      console.error("[Outreach] Send error:", error);
+      res.status(500).json({ error: error.message || "Failed to send personalized outreach" });
     }
   });
 

@@ -10,7 +10,8 @@ import {
   Mail,
   Info,
   Loader2,
-  Calendar
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from 'firebase/auth';
@@ -40,7 +41,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     name: '',
     subject: '',
     selectedSegmentIds: [] as string[],
-    selectedTemplateId: ''
+    selectedTemplateId: '',
+    personalize: false
   });
   const [scheduledAt, setScheduledAt] = useState('');
   const [showScheduler, setShowScheduler] = useState(false);
@@ -393,6 +395,33 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                   </div>
                 </div>
 
+                {/* AI Personalization */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, personalize: !formData.personalize })}
+                    className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 text-left">
+                      <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4 text-indigo-600" />
+                      </div>
+                      <div>
+                        <span className="text-sm font-bold text-slate-700 block">Personalize each email with AI</span>
+                        <span className="text-xs text-slate-500">Writes a unique intro per recipient from their firm &amp; practice area</span>
+                      </div>
+                    </div>
+                    <div className={cn("w-11 h-6 rounded-full transition-colors relative shrink-0", formData.personalize ? "bg-indigo-600" : "bg-slate-300")}>
+                      <div className={cn("absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform", formData.personalize ? "translate-x-[22px]" : "translate-x-0.5")} />
+                    </div>
+                  </button>
+                  {formData.personalize && (
+                    <div className="p-4 bg-indigo-50/50 border-t border-slate-100 text-xs text-indigo-700 font-medium">
+                      On "Generate &amp; Review", we'll create a personalized draft for each recipient and open a review screen — nothing sends until you approve.
+                    </div>
+                  )}
+                </div>
+
                 {/* Scheduler */}
                 <div className="border border-slate-200 rounded-2xl overflow-hidden">
                   <button
@@ -476,8 +505,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                       disabled={loading}
                       className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-50"
                     >
-                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                      Send Now
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (formData.personalize ? <Sparkles className="w-4 h-4" /> : <Send className="w-4 h-4" />)}
+                      {formData.personalize ? 'Generate & Review' : 'Send Now'}
                     </button>
                   )}
                 </div>

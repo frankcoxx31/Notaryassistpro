@@ -26,6 +26,7 @@ import { MarketingCampaign, MarketingSegment, MarketingTemplate } from '../../ty
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import CreateCampaignModal from './CreateCampaignModal';
+import PersonalizedReviewModal, { OutreachDraft } from './PersonalizedReviewModal';
 
 interface CampaignsViewProps {
   user: User;
@@ -39,6 +40,9 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(autoOpen || false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [review, setReview] = useState<{ open: boolean; drafts: OutreachDraft[]; campaignId: string | null; campaignName: string }>({
+    open: false, drafts: [], campaignId: null, campaignName: '',
+  });
 
   useEffect(() => {
     if (autoOpen) {
@@ -116,6 +120,26 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
         fromName: user.displayName || user.email?.split('@')[0] || '',
         replyTo: user.email || ''
       });
+
+      // AI-personalized path: generate drafts, then open the review modal (no send yet).
+      if (sendNow && data.personalize) {
+        const template = templates.find(t => t.id === data.selectedTemplateId);
+        const token = await auth.currentUser?.getIdToken() ?? '';
+        const audience = resolveAudience(data.selectedSegmentIds);
+        const res = await fetch('/api/email/personalize-outreach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            recipientGroups: audience.recipientGroups,
+            tags: audience.tags,
+            templateHtml: template?.htmlContent || '',
+          }),
+        });
+        const genResult = await res.json();
+        if (!res.ok) throw new Error(genResult.error || 'Failed to personalize');
+        setReview({ open: true, drafts: genResult.drafts || [], campaignId: newCampaign.id, campaignName: data.name });
+        return;
+      }
 
       if (sendNow) {
         const template = templates.find(t => t.id === data.selectedTemplateId);
@@ -206,6 +230,29 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
     } finally {
       setSendingId(null);
     }
+  };
+
+  // Called by the review modal after the approved personalized emails are sent.
+  const handleReviewSent = async (sentCount: number) => {
+    if (review.campaignId) {
+      try {
+        await marketingService.updateCampaign(review.campaignId, {
+          status: 'sent',
+          sentAt: new Date().toISOString(),
+          metrics: {
+            sentCount,
+            deliveredCount: sentCount,
+            openCount: 0,
+            clickCount: 0,
+            unsubscribeCount: 0,
+            bounceCount: 0,
+          },
+        });
+      } catch (err) {
+        console.error('Error updating campaign after personalized send:', err);
+      }
+    }
+    setReview(r => ({ ...r, open: false }));
   };
 
   const handleDeleteCampaign = async (e: React.MouseEvent, id: string, name: string) => {
@@ -376,6 +423,15 @@ const CampaignsView: React.FC<CampaignsViewProps> = ({ user, autoOpen }) => {
         onSave={handleCreateCampaign}
         segments={segments}
         templates={templates}
+      />
+
+      <PersonalizedReviewModal
+        isOpen={review.open}
+        drafts={review.drafts}
+        campaignId={review.campaignId}
+        campaignName={review.campaignName}
+        onClose={() => setReview(r => ({ ...r, open: false }))}
+        onSent={handleReviewSent}
       />
     </div>
   );
