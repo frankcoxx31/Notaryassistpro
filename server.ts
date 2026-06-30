@@ -367,7 +367,15 @@ async function startServer() {
       if (rawHtml) {
         emailSubject = subject || `A Message from ${biz.name}`;
         const firstName = toName?.split(' ')[0] || 'Valued Client';
-        emailHtml = (body || '').replace(/\{\{firstName\}\}/g, firstName);
+        let processedHtml = (body || '').replace(/\{\{firstName\}\}/g, firstName);
+        const unsubFooter = customerId ? unsubscribeFooter(customerId) : '';
+        // Inject unsubscribe footer before </body> if present, otherwise append
+        if (unsubFooter) {
+          processedHtml = processedHtml.includes('</body>')
+            ? processedHtml.replace('</body>', `<div style="text-align:center;padding:16px 0;">${unsubFooter}</div></body>`)
+            : processedHtml + `<div style="text-align:center;padding:16px 0;">${unsubFooter}</div>`;
+        }
+        emailHtml = processedHtml;
       } else if (templateId && TEMPLATES[templateId]) {
         const template = TEMPLATES[templateId];
         emailSubject = subject || template.subject(biz);

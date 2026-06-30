@@ -147,7 +147,7 @@ service cloud.firestore {
     }
 
     function isMarketingOwner() {
-      return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == resource.data.userId;
+      return request.auth != null && request.auth.uid == resource.data.userId;
     }
 
     // ===============================================================
