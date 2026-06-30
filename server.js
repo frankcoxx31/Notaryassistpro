@@ -776,6 +776,44 @@ Return ONLY a valid JSON object with no markdown, no code fences, just raw JSON:
       return res.status(500).json({ error: error.message || "Failed to generate template." });
     }
   });
+  app.post("/api/ai/notary-research", verifyFirebaseToken, async (req, res) => {
+    if (!genAI) return res.status(503).json({ error: "AI search is not configured. Add GEMINI_API_KEY." });
+    const { query, state } = req.body;
+    if (!query || typeof query !== "string") {
+      return res.status(400).json({ error: "A query is required." });
+    }
+    try {
+      const prompt = `You are a professional notary law researcher.
+The user has a question about notary laws in the state of ${state || "their state"}.
+Question: "${query}"
+
+Please provide:
+1. A clear, concise summary of the law or regulation (2-4 sentences).
+2. At least 2-3 specific citations or source titles that would likely contain this information.
+3. If possible, a likely URL for the official state notary authority for ${state || "the state"}.
+
+IMPORTANT:
+- Clearly state that this is informational research and not legal advice.
+- If you are unsure, state that the user should consult their Secretary of State.
+- Return ONLY valid JSON (no markdown, no code fences) with this structure:
+{"answer":"...","citations":[{"title":"...","url":"..."}],"officialStateLink":"..."}`;
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const result = await model.generateContent(prompt);
+      const text = result.response.text() || "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) return res.json(JSON.parse(jsonMatch[0]));
+      return res.json({
+        answer: text,
+        citations: [
+          { title: "National Notary Association", url: "https://www.nationalnotary.org" },
+          { title: `${state || ""} Secretary of State`, url: "https://google.com/search?q=" + encodeURIComponent(`${state || ""} Secretary of State Notary`) }
+        ]
+      });
+    } catch (error) {
+      console.error("[AI] Notary research error:", error);
+      return res.status(500).json({ error: error.message || "Failed to perform AI research." });
+    }
+  });
   app.post("/api/webhooks/resend", async (req, res) => {
     const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
     if (webhookSecret) {
