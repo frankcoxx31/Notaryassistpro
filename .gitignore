@@ -1,9 +1,7 @@
 node_modules/
 build/
+dist/
 coverage/
-# NOTE: dist/ is intentionally committed so Hostinger's git auto-pull deploys
-# the built frontend (there is no server-side build step). Rebuild + commit
-# dist/ after any frontend change: npm run build
 .DS_Store
 *.log
 .env*
