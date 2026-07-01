@@ -12,6 +12,10 @@ export interface Subscriber {
   fullName: string;
   phone?: string;
   companyName?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
   contactType: ContactType;
   tags: string[];
   serviceInterests: string[];

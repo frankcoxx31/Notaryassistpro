@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, UserPlus, Mail, User, Phone, Tag as TagIcon, Loader2 } from 'lucide-react';
+import { X, UserPlus, Mail, User, Phone, Tag as TagIcon, Loader2, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Subscriber } from '../../types/marketing';
 
@@ -17,6 +17,10 @@ const AddSubscriberModal: React.FC<AddSubscriberModalProps> = ({ isOpen, onClose
     firstName: '',
     lastName: '',
     phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
     contactType: 'General Client',
     tags: ''
   });
@@ -35,6 +39,10 @@ const AddSubscriberModal: React.FC<AddSubscriberModalProps> = ({ isOpen, onClose
         lastName: formData.lastName,
         fullName: `${formData.firstName} ${formData.lastName}`.trim(),
         phone: formData.phone,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        zip: formData.zip,
         contactType: formData.contactType as any,
         status: 'active',
         emailOptIn: true,
@@ -130,7 +138,44 @@ const AddSubscriberModal: React.FC<AddSubscriberModalProps> = ({ isOpen, onClose
             </div>
           </div>
 
-      <div className="space-y-1.5">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mailing Address (Optional — needed to print envelopes)</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                placeholder="123 Main St"
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <input
+                type="text"
+                value={formData.city}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                placeholder="City"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+              <input
+                type="text"
+                value={formData.state}
+                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                placeholder="State"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+              <input
+                type="text"
+                value={formData.zip}
+                onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
+                placeholder="ZIP"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Type</label>
             <select 
               value={formData.contactType}
