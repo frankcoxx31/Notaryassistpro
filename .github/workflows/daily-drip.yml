@@ -23,6 +23,10 @@ on:
         description: 'Actually SEND emails (leave UNCHECKED for a safe dry-run)'
         type: boolean
         default: false
+      only_email:
+        description: 'Test mode: restrict the run to ONLY this email address (optional)'
+        type: string
+        default: ''
 
 jobs:
   drip:
@@ -47,6 +51,7 @@ jobs:
           FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
           APP_URL: ${{ secrets.APP_URL }}
           UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+          ONLY_EMAIL: ${{ inputs.only_email }}
         run: node scripts/drip-sequences/drip-engine.mjs --send --cap 25
 
       - name: Dry run (plan only)
@@ -54,4 +59,5 @@ jobs:
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           FIREBASE_DATABASE_ID: ${{ secrets.FIREBASE_DATABASE_ID }}
+          ONLY_EMAIL: ${{ inputs.only_email }}
         run: node scripts/drip-sequences/drip-engine.mjs

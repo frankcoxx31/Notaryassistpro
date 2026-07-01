@@ -75,6 +75,8 @@ const opt = (n, d) => { const i = args.indexOf(`--${n}`); return i !== -1 && arg
 const DO_SEND = flag('send');
 const CAP = parseInt(opt('cap', '25'), 10);
 const ONLY_SEQ = opt('sequence', '');
+// Restrict the whole run to a single email address (safe self-test).
+const ONLY_EMAIL = (opt('only', process.env.ONLY_EMAIL || '') || '').trim().toLowerCase();
 const NO_ENROLL = flag('no-enroll');
 const FROM = opt('from', process.env.FROM_EMAIL || '');
 const APP_URL = (process.env.APP_URL || 'https://www.notaryproapp.com').replace(/\/$/, '');
@@ -180,9 +182,10 @@ async function main() {
   const seqKeys = ONLY_SEQ ? [ONLY_SEQ] : Object.keys(SEQUENCES);
   for (const k of seqKeys) if (!SEQUENCES[k]) { console.error(`Unknown sequence: ${k}`); process.exit(1); }
 
-  console.log(`\nDrip engine  ·  ${DO_SEND ? `SEND (cap ${CAP})` : 'DRY-RUN (no send)'}  ·  from: ${FROM || '(unset)'}  ·  db: ${useDefault ? 'default' : rawDbId}`);
+  console.log(`\nDrip engine  ·  ${DO_SEND ? `SEND (cap ${CAP})` : 'DRY-RUN (no send)'}  ·  from: ${FROM || '(unset)'}${ONLY_EMAIL ? `  ·  ONLY ${ONLY_EMAIL}` : ''}  ·  db: ${useDefault ? 'default' : rawDbId}`);
 
-  const customers = await getCustomers();
+  let customers = await getCustomers();
+  if (ONLY_EMAIL) customers = customers.filter(c => String(c.email || '').trim().toLowerCase() === ONLY_EMAIL);
   let budget = CAP;
   const plan = [];
 
