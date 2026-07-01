@@ -4,29 +4,51 @@
  * `marketingTemplates` collection, so they appear in the app's Template
  * dropdown (Campaigns + Send Email modal).
  *
- * Run from the repo root:
+ * Run from the repo root (needs GOOGLE_SERVICE_ACCOUNT_JSON in the env):
  *   node scripts/drip-sequences/save-drip-templates.mjs
- * Requires: npm install firebase   (already a dependency of this app)
  *
  * Idempotent — deterministic doc ids, so re-running overwrites/updates.
  */
 
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDKQCNO_aPVzBw_ydGCUiSG3xuJi_S4myg",
-  authDomain: "gen-lang-client-0145482726.firebaseapp.com",
-  projectId: "gen-lang-client-0145482726",
-  storageBucket: "gen-lang-client-0145482726.firebasestorage.app",
-  messagingSenderId: "695597520251",
-  appId: "1:695597520251:web:bcda1b533036f03f5e19de",
-};
 const USER_ID = 'n3I1KimZW6cw3sy0GrXC73yQny62';
-const DB_ID = 'ai-studio-65685a95-d245-4bf3-97e1-8775f84f70ab';
+const DEFAULT_DB_ID = 'ai-studio-65685a95-d245-4bf3-97e1-8775f84f70ab';
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app, DB_ID);
+// Firebase Admin (same credential the app server uses — bypasses security rules).
+function parseServiceAccountJson() {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not set');
+  const attempts = [
+    () => JSON.parse(raw),
+    () => JSON.parse(raw.replace(/\\{/g, '{').replace(/\\}/g, '}')),
+    () => JSON.parse(raw.replace(/\\{/g, '{').replace(/\\}/g, '}').replace(/\\"/g, '"')),
+    () => JSON.parse(raw.replace(/\\([^"\\/bfnrtu])/g, '$1')),
+    () => JSON.parse(JSON.parse(`"${raw.replace(/"/g, '\\"')}"`)),
+  ];
+  for (const a of attempts) { try { return a(); } catch { /* next */ } }
+  throw new Error('Could not parse GOOGLE_SERVICE_ACCOUNT_JSON');
+}
+function fixPrivateKey(key) {
+  if (!key) return key;
+  key = key.replace(/\\n/g, '\n');
+  if (key.includes('-----BEGIN')) {
+    const header = key.match(/-----BEGIN [^-]+-----/)?.[0] || '-----BEGIN PRIVATE KEY-----';
+    const footer = key.match(/-----END [^-]+-----/)?.[0] || '-----END PRIVATE KEY-----';
+    const body = key.replace(/-----BEGIN [^-]+-----/, '').replace(/-----END [^-]+-----/, '').replace(/\s+/g, '');
+    const lines = body.match(/.{1,64}/g)?.join('\n') || body;
+    return `${header}\n${lines}\n${footer}`;
+  }
+  return key;
+}
+
+const serviceAccount = parseServiceAccountJson();
+serviceAccount.private_key = fixPrivateKey(serviceAccount.private_key);
+if (!getApps().length) initializeApp({ credential: cert(serviceAccount) });
+const rawDbId = process.env.FIREBASE_DATABASE_ID || DEFAULT_DB_ID;
+const useDefault = ['', '(default)', 'undefined', 'null'].includes(rawDbId.trim());
+const db = useDefault ? getFirestore() : getFirestore(rawDbId.trim());
 
 const PHONE_TEL = '9803724103';
 const PHONE = '980-372-4103';
@@ -209,7 +231,7 @@ async function run() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      await setDoc(doc(db, 'marketingTemplates', id), template);
+      await db.collection('marketingTemplates').doc(id).set(template);
       console.log(`✓ ${template.name}`);
       n++;
     }

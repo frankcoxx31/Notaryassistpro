@@ -5,43 +5,67 @@
  * whose next email is due, (3) sends up to a daily cap via Resend, and
  * (4) advances each enrollment to the next step. State lives in Firestore
  * `dripEnrollments`; email bodies come from the `marketingTemplates` created
- * by save-drip-templates.mjs. Designed to be run once/day (see the /notary-drip
- * skill or a scheduled Routine).
+ * by save-drip-templates.mjs. Designed to run once/day (see the /notary-drip
+ * skill or the GitHub Actions cron).
+ *
+ * Uses the Firebase Admin SDK (same credential the app server uses), so it
+ * bypasses security rules and works unattended.
  *
  * SAFE BY DEFAULT: dry-run (plans only). Add --send to actually send.
  *
+ * Env required:
+ *   GOOGLE_SERVICE_ACCOUNT_JSON   the app's service-account JSON (full string)
+ *   FIREBASE_DATABASE_ID          optional; defaults to the app's named DB
  * Env required for --send:
- *   RESEND_API_KEY   (same key the app uses)
- *   FROM_EMAIL       e.g. "Frank Coxx <frank@integrityclosingsclt.com>" (verified in Resend)
- *   APP_URL          your deployed app URL (for working unsubscribe links)
- *   UNSUBSCRIBE_SECRET  (same value the app uses, so unsubscribe links validate)
+ *   RESEND_API_KEY, FROM_EMAIL ("Frank Coxx <frank@integrityclosingsclt.com>"),
+ *   APP_URL (for working unsubscribe links), UNSUBSCRIBE_SECRET
  *
  * Usage:
  *   node scripts/drip-sequences/drip-engine.mjs                 # dry-run, all sequences
  *   node scripts/drip-sequences/drip-engine.mjs --sequence real-estate
- *   node scripts/drip-sequences/drip-engine.mjs --send --cap 25 --from "Frank Coxx <frank@integrityclosingsclt.com>"
- *
- * Tagging: a customer is enrolled in a sequence if it carries one of that
- * sequence's tags (or a matching customerType). See SEQUENCES below.
+ *   node scripts/drip-sequences/drip-engine.mjs --send --cap 25
  */
 
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import crypto from 'node:crypto';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDKQCNO_aPVzBw_ydGCUiSG3xuJi_S4myg",
-  authDomain: "gen-lang-client-0145482726.firebaseapp.com",
-  projectId: "gen-lang-client-0145482726",
-  storageBucket: "gen-lang-client-0145482726.firebasestorage.app",
-  messagingSenderId: "695597520251",
-  appId: "1:695597520251:web:bcda1b533036f03f5e19de",
-};
 const USER_ID = 'n3I1KimZW6cw3sy0GrXC73yQny62';
-const DB_ID = 'ai-studio-65685a95-d245-4bf3-97e1-8775f84f70ab';
+const DEFAULT_DB_ID = 'ai-studio-65685a95-d245-4bf3-97e1-8775f84f70ab';
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app, DB_ID);
+// ─── Firebase Admin (mirrors the app server's init) ───────────────────────────
+function parseServiceAccountJson() {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not set');
+  const attempts = [
+    () => JSON.parse(raw),
+    () => JSON.parse(raw.replace(/\\{/g, '{').replace(/\\}/g, '}')),
+    () => JSON.parse(raw.replace(/\\{/g, '{').replace(/\\}/g, '}').replace(/\\"/g, '"')),
+    () => JSON.parse(raw.replace(/\\([^"\\/bfnrtu])/g, '$1')),
+    () => JSON.parse(JSON.parse(`"${raw.replace(/"/g, '\\"')}"`)),
+  ];
+  for (const attempt of attempts) { try { return attempt(); } catch { /* next */ } }
+  throw new Error('Could not parse GOOGLE_SERVICE_ACCOUNT_JSON');
+}
+function fixPrivateKey(key) {
+  if (!key) return key;
+  key = key.replace(/\\n/g, '\n');
+  if (key.includes('-----BEGIN')) {
+    const header = key.match(/-----BEGIN [^-]+-----/)?.[0] || '-----BEGIN PRIVATE KEY-----';
+    const footer = key.match(/-----END [^-]+-----/)?.[0] || '-----END PRIVATE KEY-----';
+    const body = key.replace(/-----BEGIN [^-]+-----/, '').replace(/-----END [^-]+-----/, '').replace(/\s+/g, '');
+    const lines = body.match(/.{1,64}/g)?.join('\n') || body;
+    return `${header}\n${lines}\n${footer}`;
+  }
+  return key;
+}
+
+const serviceAccount = parseServiceAccountJson();
+serviceAccount.private_key = fixPrivateKey(serviceAccount.private_key);
+if (!getApps().length) initializeApp({ credential: cert(serviceAccount) });
+const rawDbId = process.env.FIREBASE_DATABASE_ID || DEFAULT_DB_ID;
+const useDefault = ['', '(default)', 'undefined', 'null'].includes(rawDbId.trim());
+const db = useDefault ? getFirestore() : getFirestore(rawDbId.trim());
 
 // ─── Args / env ───────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -61,13 +85,14 @@ const DELTAS = [0, 4, 7, 10];
 const DAY = 86400000;
 
 const SEQUENCES = {
-  'real-estate':     { prefix: 'drip-real-estate',     tags: ['real-estate', 'realtor', 'title', 'lender'], types: ['Real Estate Agent', 'Title Company', 'Lender', 'Closing Attorney'] },
-  'estate-planning': { prefix: 'drip-estate-planning', tags: ['estate-planning', 'estate', 'elder-law'],     types: ['Estate Planning Attorney'] },
-  'hospital-nursing':{ prefix: 'drip-hospital-nursing',tags: ['hospital', 'nursing-home', 'hospice', 'assisted-living'], types: ['Hospital', 'Nursing Home', 'Assisted Living', 'Hospice'] },
+  'real-estate':      { prefix: 'drip-real-estate',      tags: ['real-estate', 'realtor', 'title', 'lender'], types: ['Real Estate Agent', 'Title Company', 'Lender', 'Closing Attorney'] },
+  'estate-planning':  { prefix: 'drip-estate-planning',  tags: ['estate-planning', 'estate', 'elder-law'],     types: ['Estate Planning Attorney'] },
+  'hospital-nursing': { prefix: 'drip-hospital-nursing', tags: ['hospital', 'nursing-home', 'hospice', 'assisted-living'], types: ['Hospital', 'Nursing Home', 'Assisted Living', 'Hospice'] },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const typeToTag = (t) => (t || '').toLowerCase().replace(/\s+/g, '-');
+const enr_id = (seqKey, custId) => `${seqKey}__${custId}`;
 
 function matchesSequence(customer, cfg) {
   const tags = customer.tags || [];
@@ -76,11 +101,9 @@ function matchesSequence(customer, cfg) {
   if (cfg.tags.includes(typeToTag(customer.customerType))) return true;
   return false;
 }
-
 function firstNameOf(c) {
   return (c.firstName || c.fullName || '').trim().split(/\s+/)[0] || 'there';
 }
-
 function unsubscribeFooter(customerId) {
   if (UNSUB_SECRET) {
     const token = crypto.createHmac('sha256', UNSUB_SECRET).update(customerId).digest('hex');
@@ -89,7 +112,6 @@ function unsubscribeFooter(customerId) {
   }
   return `<div style="text-align:center;padding:16px 0;"><p style="margin:0;font-size:11px;color:#94a3b8;font-family:Arial,sans-serif;">Reply "unsubscribe" to opt out.</p></div>`;
 }
-
 function injectFooter(html, customerId) {
   const footer = unsubscribeFooter(customerId);
   return html.includes('</body>') ? html.replace('</body>', `${footer}</body>`) : html + footer;
@@ -99,22 +121,21 @@ const templateCache = {};
 async function fetchTemplate(prefix, step) {
   const id = `${prefix}-${step}`;
   if (templateCache[id]) return templateCache[id];
-  const snap = await getDoc(doc(db, 'marketingTemplates', id));
-  if (!snap.exists()) throw new Error(`Template ${id} not found — run save-drip-templates.mjs first`);
+  const snap = await db.collection('marketingTemplates').doc(id).get();
+  if (!snap.exists) throw new Error(`Template ${id} not found — run save-drip-templates.mjs first`);
   const d = snap.data();
   templateCache[id] = { html: d.htmlContent || '', subject: d.subjectSuggestion || 'A note from Integrity Closings CLT' };
   return templateCache[id];
 }
 
 async function getCustomers() {
-  const snap = await getDocs(query(collection(db, 'customers'), where('userId', '==', USER_ID)));
+  const snap = await db.collection('customers').where('userId', '==', USER_ID).get();
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .filter(c => c.email && String(c.email).trim() !== '' && !c.unsubscribed);
 }
-
 async function getEnrollments(seqKey) {
-  const snap = await getDocs(query(collection(db, 'dripEnrollments'),
-    where('userId', '==', USER_ID), where('sequence', '==', seqKey)));
+  const snap = await db.collection('dripEnrollments')
+    .where('userId', '==', USER_ID).where('sequence', '==', seqKey).get();
   const map = {};
   snap.docs.forEach(d => { map[d.data().customerId] = { id: d.id, ...d.data() }; });
   return map;
@@ -124,12 +145,11 @@ let resend = null;
 async function getResend() {
   if (resend) return resend;
   if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not set');
-  if (!FROM) throw new Error('--from "Name <email@verified-domain>" (or FROM_EMAIL) is required to send');
+  if (!FROM) throw new Error('FROM_EMAIL (or --from) is required to send');
   const { Resend } = await import('resend');
   resend = new Resend(process.env.RESEND_API_KEY);
   return resend;
 }
-
 async function sendEmail(customer, subject, html) {
   const client = await getResend();
   const result = await client.emails.send({
@@ -137,16 +157,13 @@ async function sendEmail(customer, subject, html) {
     to: [customer.email],
     subject,
     html,
-    tags: [
-      { name: 'subscriber_id', value: customer.id },
-      { name: 'campaign_id', value: 'drip' },
-    ],
+    tags: [{ name: 'subscriber_id', value: customer.id }, { name: 'campaign_id', value: 'drip' }],
   });
   if (result.error) throw new Error(result.error.message || JSON.stringify(result.error));
   const emailId = result.data?.id || 'sent';
   try {
-    await setDoc(doc(collection(db, 'emailEvents')), {
-      userId: USER_ID, subscriberId: customer.id, campaignId: `drip-${subject}`.slice(0, 60),
+    await db.collection('emailEvents').add({
+      userId: USER_ID, subscriberId: customer.id, campaignId: 'drip',
       type: 'sent', timestamp: new Date().toISOString(),
       metadata: { emailId, subject, to: [customer.email], drip: true },
     });
@@ -160,7 +177,7 @@ async function main() {
   const seqKeys = ONLY_SEQ ? [ONLY_SEQ] : Object.keys(SEQUENCES);
   for (const k of seqKeys) if (!SEQUENCES[k]) { console.error(`Unknown sequence: ${k}`); process.exit(1); }
 
-  console.log(`\nDrip engine  ·  ${DO_SEND ? `SEND (cap ${CAP})` : 'DRY-RUN (no send)'}  ·  from: ${FROM || '(unset)'}`);
+  console.log(`\nDrip engine  ·  ${DO_SEND ? `SEND (cap ${CAP})` : 'DRY-RUN (no send)'}  ·  from: ${FROM || '(unset)'}  ·  db: ${useDefault ? 'default' : rawDbId}`);
 
   const customers = await getCustomers();
   let budget = CAP;
@@ -180,8 +197,8 @@ async function main() {
           nextDueAt: new Date(now).toISOString(), lastSentAt: null, status: 'active',
           updatedAt: new Date(now).toISOString(),
         };
-        enrollments[c.id] = { id: `${seqKey}__${c.id}`, ...enr };
-        if (DO_SEND) await setDoc(doc(db, 'dripEnrollments', enr_id(seqKey, c.id)), enr);
+        enrollments[c.id] = { id: enr_id(seqKey, c.id), ...enr };
+        if (DO_SEND) await db.collection('dripEnrollments').doc(enr_id(seqKey, c.id)).set(enr);
       }
     }
 
@@ -198,17 +215,16 @@ async function main() {
       const tpl = await fetchTemplate(cfg.prefix, stepToSend);
       const html = injectFooter(tpl.html.replace(/\{\{firstName\}\}/g, firstNameOf(c)), c.id);
 
-      plan.push({ seq: seqKey, name: c.fullName || c.email, email: c.email, step: stepToSend, subject: tpl.subject });
+      plan.push({ seq: seqKey, name: c.fullName || c.email, step: stepToSend, subject: tpl.subject });
 
       if (DO_SEND) {
         try {
           await sendEmail(c, tpl.subject, html);
-          const nextStep = stepToSend; // = e.step + 1
-          const done = nextStep >= 4;
+          const done = stepToSend >= 4;
           const { id: _omit, ...enrData } = e;
-          await setDoc(doc(db, 'dripEnrollments', enr_id(seqKey, c.id)), {
-            ...enrData, step: nextStep, lastSentAt: new Date(now).toISOString(),
-            nextDueAt: done ? null : new Date(now + DELTAS[nextStep] * DAY).toISOString(),
+          await db.collection('dripEnrollments').doc(enr_id(seqKey, c.id)).set({
+            ...enrData, step: stepToSend, lastSentAt: new Date(now).toISOString(),
+            nextDueAt: done ? null : new Date(now + DELTAS[stepToSend] * DAY).toISOString(),
             status: done ? 'complete' : 'active', updatedAt: new Date(now).toISOString(),
           });
           console.log(`  ✓ [${seqKey} #${stepToSend}] ${c.fullName || c.email}`);
@@ -223,10 +239,8 @@ async function main() {
   }
 
   console.log(`\n${DO_SEND ? 'Sent/advanced' : 'Would send'} ${plan.length} email(s). Cap ${CAP}, remaining budget ${Math.max(0, budget)}.`);
-  if (!DO_SEND) console.log(`Add --send (with RESEND_API_KEY + --from + APP_URL + UNSUBSCRIBE_SECRET) to deliver.`);
+  if (!DO_SEND) console.log('Add --send (with RESEND_API_KEY + FROM_EMAIL + APP_URL + UNSUBSCRIBE_SECRET) to deliver.');
   process.exit(0);
 }
 
-function enr_id(seqKey, custId) { return `${seqKey}__${custId}`; }
-
-main().catch(err => { console.error('\nFatal:', err); process.exit(1); });
+main().catch(err => { console.error('\nFatal:', err.message || err); process.exit(1); });

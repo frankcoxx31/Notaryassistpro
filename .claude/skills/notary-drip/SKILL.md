@@ -21,8 +21,9 @@ Enrollment state lives in Firestore `dripEnrollments`.
   - Real Estate → tag `real-estate` (or customerType Real Estate Agent / Title Company / Lender / Closing Attorney)
   - Estate Planning → tag `estate-planning`
   - Hospital & Nursing Home → tag `hospital` / `nursing-home` / `hospice` / `assisted-living`
-- These env vars available for real sends:
-  `RESEND_API_KEY`, `FROM_EMAIL` (a Resend-verified sender), `APP_URL`, `UNSUBSCRIBE_SECRET`.
+- These env vars available:
+  `GOOGLE_SERVICE_ACCOUNT_JSON` (Firestore access, same as the app) — always required.
+  For real sends also: `RESEND_API_KEY`, `FROM_EMAIL` (a Resend-verified sender), `APP_URL`, `UNSUBSCRIBE_SECRET`.
 
 ## Steps to perform when invoked
 1. **Dry-run first** to show what's due, no sending:

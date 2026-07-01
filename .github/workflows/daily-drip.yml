@@ -4,10 +4,13 @@ name: Daily notary follow-up drip
 # follow-up emails. Stays inert until the repo secrets below are set.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
-#   RESEND_API_KEY      same key the app uses
-#   FROM_EMAIL          e.g. "Frank Coxx <frank@integrityclosingsclt.com>" (Resend-verified)
-#   APP_URL            deployed app URL, for working unsubscribe links
-#   UNSUBSCRIBE_SECRET  same value the app uses
+#   GOOGLE_SERVICE_ACCOUNT_JSON  the app's service-account JSON (full string)
+#   RESEND_API_KEY               same key the app uses
+#   FROM_EMAIL                   "Frank Coxx <frank@integrityclosingsclt.com>" (Resend-verified)
+#   APP_URL                      deployed app URL, for working unsubscribe links
+#   UNSUBSCRIBE_SECRET           same value the app uses
+# Optional:
+#   FIREBASE_DATABASE_ID         only if your Firestore DB id differs from the app default
 #
 # You can also trigger a run by hand from the Actions tab ("Run workflow").
 
@@ -38,6 +41,8 @@ jobs:
       - name: Send due drip emails (capped)
         if: ${{ github.event_name == 'schedule' || inputs.dry_run == false }}
         env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_DATABASE_ID: ${{ secrets.FIREBASE_DATABASE_ID }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
           APP_URL: ${{ secrets.APP_URL }}
@@ -46,4 +51,7 @@ jobs:
 
       - name: Dry run (plan only)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_DATABASE_ID: ${{ secrets.FIREBASE_DATABASE_ID }}
         run: node scripts/drip-sequences/drip-engine.mjs
