@@ -84,22 +84,21 @@ const UNSUB_SECRET = process.env.UNSUBSCRIBE_SECRET || '';
 const DELTAS = [0, 4, 7, 10];
 const DAY = 86400000;
 
+// A contact enrolls in a sequence ONLY if it carries one of that sequence's
+// tags. Tag contacts intentionally in the app — nothing is auto-swept by
+// customerType, so mixed lists (e.g. attorneys) don't land in the wrong drip.
 const SEQUENCES = {
-  'real-estate':      { prefix: 'drip-real-estate',      tags: ['real-estate', 'realtor', 'title', 'lender'], types: ['Real Estate Agent', 'Title Company', 'Lender', 'Closing Attorney'] },
-  'estate-planning':  { prefix: 'drip-estate-planning',  tags: ['estate-planning', 'estate', 'elder-law'],     types: ['Estate Planning Attorney'] },
-  'hospital-nursing': { prefix: 'drip-hospital-nursing', tags: ['hospital', 'nursing-home', 'hospice', 'assisted-living'], types: ['Hospital', 'Nursing Home', 'Assisted Living', 'Hospice'] },
+  'real-estate':      { prefix: 'drip-real-estate',      tags: ['real-estate', 'realtor', 'title', 'lender'] },
+  'estate-planning':  { prefix: 'drip-estate-planning',  tags: ['estate-planning', 'estate', 'elder-law'] },
+  'hospital-nursing': { prefix: 'drip-hospital-nursing', tags: ['hospital', 'nursing-home', 'hospice', 'assisted-living'] },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const typeToTag = (t) => (t || '').toLowerCase().replace(/\s+/g, '-');
 const enr_id = (seqKey, custId) => `${seqKey}__${custId}`;
 
 function matchesSequence(customer, cfg) {
   const tags = customer.tags || [];
-  if (cfg.tags.some(t => tags.includes(t))) return true;
-  if (cfg.types.includes(customer.customerType)) return true;
-  if (cfg.tags.includes(typeToTag(customer.customerType))) return true;
-  return false;
+  return cfg.tags.some(t => tags.includes(t));
 }
 function firstNameOf(c) {
   return (c.firstName || c.fullName || '').trim().split(/\s+/)[0] || 'there';

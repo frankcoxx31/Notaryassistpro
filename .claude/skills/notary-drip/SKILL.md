@@ -17,9 +17,10 @@ Enrollment state lives in Firestore `dripEnrollments`.
 
 ## Before running (one-time)
 - Templates loaded: `node scripts/drip-sequences/save-drip-templates.mjs`
-- Contacts tagged so the engine knows who belongs in each sequence:
-  - Real Estate → tag `real-estate` (or customerType Real Estate Agent / Title Company / Lender / Closing Attorney)
-  - Estate Planning → tag `estate-planning`
+- Contacts tagged so the engine knows who belongs in each sequence (tag-only —
+  nothing is auto-enrolled by customerType):
+  - Real Estate → tag `real-estate` (also `realtor` / `title` / `lender`)
+  - Estate Planning → tag `estate-planning` (also `estate` / `elder-law`)
   - Hospital & Nursing Home → tag `hospital` / `nursing-home` / `hospice` / `assisted-living`
 - These env vars available:
   `GOOGLE_SERVICE_ACCOUNT_JSON` (Firestore access, same as the app) — always required.
