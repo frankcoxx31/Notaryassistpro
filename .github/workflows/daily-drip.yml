@@ -1,0 +1,49 @@
+name: Daily notary follow-up drip
+
+# Runs the drip engine once a day in the cloud, sending up to --cap due
+# follow-up emails. Stays inert until the repo secrets below are set.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   RESEND_API_KEY      same key the app uses
+#   FROM_EMAIL          e.g. "Frank Coxx <frank@integrityclosingsclt.com>" (Resend-verified)
+#   APP_URL            deployed app URL, for working unsubscribe links
+#   UNSUBSCRIBE_SECRET  same value the app uses
+#
+# You can also trigger a run by hand from the Actions tab ("Run workflow").
+
+on:
+  schedule:
+    - cron: '3 13 * * *'   # ~09:03 US Eastern daily (13:03 UTC); off-minute on purpose
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run only (no sending)'
+        type: boolean
+        default: false
+
+jobs:
+  drip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Send due drip emails (capped)
+        if: ${{ github.event_name == 'schedule' || inputs.dry_run == false }}
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          APP_URL: ${{ secrets.APP_URL }}
+          UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+        run: node scripts/drip-sequences/drip-engine.mjs --send --cap 25
+
+      - name: Dry run (plan only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+        run: node scripts/drip-sequences/drip-engine.mjs
