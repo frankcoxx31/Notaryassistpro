@@ -87,9 +87,13 @@ const DAY = 86400000;
 // A contact enrolls in a sequence ONLY if it carries one of that sequence's
 // tags. Tag contacts intentionally in the app — nothing is auto-swept by
 // customerType, so mixed lists (e.g. attorneys) don't land in the wrong drip.
+// Tags match the app's segment-tag buttons (NewCustomerModal SEGMENT_TAGS):
+//   Loan Officer -> loan_officer, Closing Attorney -> closing-attorney,
+//   Estate Planning -> estate-planning-attorney, Hospital / Care Facility -> hospital.
+// Extra generic aliases are kept in case tags are added manually elsewhere.
 const SEQUENCES = {
-  'real-estate':      { prefix: 'drip-real-estate',      tags: ['real-estate', 'realtor', 'title', 'lender'] },
-  'estate-planning':  { prefix: 'drip-estate-planning',  tags: ['estate-planning', 'estate', 'elder-law'] },
+  'real-estate':      { prefix: 'drip-real-estate',      tags: ['closing-attorney', 'loan_officer', 'real-estate', 'realtor', 'title', 'lender'] },
+  'estate-planning':  { prefix: 'drip-estate-planning',  tags: ['estate-planning-attorney', 'estate-planning', 'estate', 'elder-law'] },
   'hospital-nursing': { prefix: 'drip-hospital-nursing', tags: ['hospital', 'nursing-home', 'hospice', 'assisted-living'] },
 };
 

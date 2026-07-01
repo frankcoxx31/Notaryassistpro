@@ -44,6 +44,7 @@ const NewCustomerModal = ({ isOpen, onClose, customer, onSave, userId }: NewCust
     { tag: 'loan_officer', label: 'Loan Officer' },
     { tag: 'closing-attorney', label: 'Closing Attorney' },
     { tag: 'estate-planning-attorney', label: 'Estate Planning' },
+    { tag: 'hospital', label: 'Hospital / Care Facility' },
     { tag: 'small-firm', label: 'Small Firm' },
     { tag: 'large-firm', label: 'Large Firm' },
   ];
