@@ -119,7 +119,7 @@ export function printIntroLetters(contacts: LetterContact[], businessProfile: Bu
   .letterhead { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; border-bottom: 2px solid #1e3a5f; padding-bottom: 20px; margin-bottom: 28px; }
   .logo { max-height: 70px; max-width: 210px; object-fit: contain; }
   .biz-name { font-size: 22px; font-weight: 700; color: #1e3a5f; }
-  .biz-meta { font-size: 22px; font-weight: 400; color: #111827; font-family: Arial, Helvetica, sans-serif; line-height: 1.4; }
+  .biz-meta { font-size: 13px; font-weight: 400; color: #111827; font-family: Arial, Helvetica, sans-serif; line-height: 1.4; }
   .date { margin-bottom: 24px; }
   .recipient { margin-bottom: 24px; }
   .salutation { margin-bottom: 16px; }
