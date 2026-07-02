@@ -46,9 +46,11 @@ export function printIntroLetters(contacts: LetterContact[], businessProfile: Bu
   const senderAddress = businessProfile?.address || '';
   const senderPhone = businessProfile?.phone || '';
   const senderEmail = businessProfile?.email || '';
+  // Prefer the logo as the letterhead's visual identifier; fall back to the
+  // bold business name only when no logo is on file.
   const logo = businessProfile?.logoUrl
     ? `<img src="${businessProfile.logoUrl}" alt="${escapeHtml(bizName)} logo" class="logo" referrerpolicy="no-referrer" />`
-    : '';
+    : `<div class="biz-name">${escapeHtml(bizName)}</div>`;
   const date = todayLong();
 
   const lettersHtml = contacts.map((c, i) => {
@@ -59,7 +61,6 @@ export function printIntroLetters(contacts: LetterContact[], businessProfile: Bu
         <div class="letterhead">
           ${logo}
           <div class="letterhead-text">
-            <div class="biz-name">${escapeHtml(bizName)}</div>
             <div class="biz-meta">${escapeHtml(senderAddress)}</div>
             <div class="biz-meta">${[senderPhone, senderEmail].filter(Boolean).map(escapeHtml).join(' &nbsp;|&nbsp; ')}</div>
           </div>
@@ -116,7 +117,7 @@ export function printIntroLetters(contacts: LetterContact[], businessProfile: Bu
     line-height: 1.6;
   }
   .letterhead { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1e3a5f; padding-bottom: 16px; margin-bottom: 28px; }
-  .logo { max-height: 60px; max-width: 180px; object-fit: contain; }
+  .logo { max-height: 72px; max-width: 240px; object-fit: contain; }
   .biz-name { font-size: 18px; font-weight: 700; color: #1e3a5f; }
   .biz-meta { font-size: 11px; color: #64748b; }
   .date { margin-bottom: 24px; }
