@@ -19,7 +19,8 @@ import {
   X,
   User as UserIcon,
   Phone as PhoneIcon,
-  Printer
+  Printer,
+  FileText
 } from 'lucide-react';
 import {
   collection,
@@ -41,6 +42,7 @@ import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { printEnvelopes } from '../../lib/envelopePrint';
+import { printIntroLetters } from '../../lib/introLetterPrint';
 import AddSubscriberModal from './AddSubscriberModal';
 import EmailModal from '../../components/EmailModal';
 
@@ -118,6 +120,17 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
 
   const handlePrintEnvelope = (sub: Subscriber) => {
     printEnvelopes([{
+      fullName: sub.fullName,
+      companyName: sub.companyName,
+      address: sub.address,
+      city: sub.city,
+      state: sub.state,
+      zip: sub.zip
+    }], businessProfile);
+  };
+
+  const handlePrintLetter = (sub: Subscriber) => {
+    printIntroLetters([{
       fullName: sub.fullName,
       companyName: sub.companyName,
       address: sub.address,
@@ -407,7 +420,7 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
                   <th className="px-3 py-3.5 w-[140px] text-[10px] font-bold uppercase tracking-widest text-slate-400">Type</th>
                   <th className="px-3 py-3.5 w-[160px] text-[10px] font-bold uppercase tracking-widest text-slate-400">Tags</th>
                   <th className="px-3 py-3.5 w-[110px] text-[10px] font-bold uppercase tracking-widest text-slate-400">Joined</th>
-                  <th className="px-3 py-3.5 w-[320px] text-right text-[10px] font-bold uppercase tracking-widest text-slate-400">Actions</th>
+                  <th className="px-3 py-3.5 w-[360px] text-right text-[10px] font-bold uppercase tracking-widest text-slate-400">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -519,6 +532,14 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
                         >
                           <Mail className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                           <span>Send Email</span>
+                        </button>
+
+                        <button
+                          onClick={() => handlePrintLetter(sub)}
+                          className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 rounded-md text-xs font-bold transition-all flex items-center gap-1 shadow-sm whitespace-nowrap shrink-0"
+                          title={sub.address ? 'Print Letter' : 'No mailing address on file'}
+                        >
+                          <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                         </button>
 
                         <button

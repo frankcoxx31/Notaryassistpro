@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, Plus, Search, Loader2, MoreVertical, LayoutGrid, List, Trash2, Printer } from 'lucide-react';
+import { Layers, Plus, Search, Loader2, MoreVertical, LayoutGrid, List, Trash2, Printer, FileText } from 'lucide-react';
 import {
   collection,
   query,
@@ -16,6 +16,7 @@ import { MarketingSegment } from '../../types/marketing';
 import { BusinessProfile } from '../../types';
 import { cn } from '../../lib/utils';
 import { printEnvelopes } from '../../lib/envelopePrint';
+import { printIntroLetters } from '../../lib/introLetterPrint';
 import CreateSegmentModal from './CreateSegmentModal';
 
 interface SegmentsViewProps {
@@ -192,6 +193,11 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
     printEnvelopes(getSegmentMembers(segment), businessProfile);
   };
 
+  const handlePrintLetters = (e: React.MouseEvent, segment: MarketingSegment) => {
+    e.stopPropagation();
+    printIntroLetters(getSegmentMembers(segment), businessProfile);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -240,6 +246,13 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
               className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all cursor-pointer group relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 p-3 flex items-center gap-1">
+                <button
+                  onClick={(e) => handlePrintLetters(e, segment)}
+                  className="p-1.5 text-slate-300 hover:text-indigo-600 transition-colors"
+                  title="Print Letters"
+                >
+                  <FileText className="w-4 h-4" />
+                </button>
                 <button
                   onClick={(e) => handlePrintEnvelopes(e, segment)}
                   className="p-1.5 text-slate-300 hover:text-indigo-600 transition-colors"
