@@ -116,9 +116,9 @@ export function printIntroLetters(contacts: LetterContact[], businessProfile: Bu
     font-size: 13px;
     line-height: 1.6;
   }
-  .letterhead { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1e3a5f; padding-bottom: 16px; margin-bottom: 28px; }
-  .logo { max-height: 72px; max-width: 240px; object-fit: contain; }
-  .biz-name { font-size: 18px; font-weight: 700; color: #1e3a5f; }
+  .letterhead { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; border-bottom: 2px solid #1e3a5f; padding-bottom: 16px; margin-bottom: 28px; }
+  .logo { max-height: 130px; max-width: 380px; object-fit: contain; }
+  .biz-name { font-size: 22px; font-weight: 700; color: #1e3a5f; }
   .biz-meta { font-size: 11px; color: #64748b; }
   .date { margin-bottom: 24px; }
   .recipient { margin-bottom: 24px; }
