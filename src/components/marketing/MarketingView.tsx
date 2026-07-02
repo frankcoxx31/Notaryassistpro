@@ -52,7 +52,7 @@ const MarketingView: React.FC = () => {
   const [user] = useAuthState(auth);
 
   const tabs = [
-    { id: 'subscribers', name: 'Subscribers', icon: Users },
+    { id: 'subscribers', name: 'Mailing List', icon: Users },
     { id: 'segments', name: 'Segments', icon: Layers },
     { id: 'campaigns', name: 'Campaigns', icon: Send },
     { id: 'automations', name: 'Automations', icon: Zap },
