@@ -7565,6 +7565,24 @@ export default function App() {
         }
 
         console.error('[Calendar Sync] Failed:', result.details || result.error || 'Unknown error');
+
+        if (response.status === 401) {
+          const wasConnected = googleSyncStatus !== 'disconnected';
+          setGoogleSyncStatus('disconnected');
+          if (user?.uid) {
+            updateDoc(doc(db, 'profiles', user.uid), {
+              googleCalendarConnected: false,
+              googleSyncEnabled: false,
+              updatedAt: new Date().toISOString()
+            }).catch(e => console.error('Error clearing connection state:', e));
+          }
+          // Only alert once per disconnect, not on every subsequent booking
+          if (wasConnected) {
+            alert('Google Calendar sync has stopped working — your connection expired or was revoked. This booking was saved, but was NOT added to your Google Calendar. Please reconnect Google Calendar in Settings.');
+          }
+        } else {
+          setGoogleSyncStatus('error');
+        }
       } else {
         console.log('[Calendar Sync] Success:', result.status);
         if (result.newTokensData) {
