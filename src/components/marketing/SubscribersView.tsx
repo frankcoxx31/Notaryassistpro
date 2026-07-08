@@ -64,6 +64,9 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
   const [emailModalCustomer, setEmailModalCustomer] = useState<any | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | Subscriber['status']>('all');
+  const [filterContactType, setFilterContactType] = useState<'all' | Subscriber['contactType']>('all');
 
   // Real-time listener for subscribers
   useEffect(() => {
@@ -143,11 +146,50 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
   const handleSync = async () => {
     try {
       setSyncing(true);
-      // Simulate/trigger sync logic
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      // In a real app we'd trigger a sync function or fetch appointments
+      const customersRef = collection(db, 'customers');
+      const q = query(customersRef, where('userId', '==', user.uid));
+      const snapshot = await getDocs(q);
+
+      const existingEmails = new Set(subscribers.map(s => s.email.toLowerCase()));
+      let added = 0;
+      let skipped = 0;
+
+      for (const docSnap of snapshot.docs) {
+        const customer = docSnap.data() as any;
+        const email = (customer.email || '').trim().toLowerCase();
+        if (!email || existingEmails.has(email)) {
+          skipped++;
+          continue;
+        }
+
+        await marketingService.addSubscriber({
+          userId: user.uid,
+          email: customer.email,
+          firstName: customer.firstName || '',
+          lastName: customer.lastName || '',
+          fullName: customer.fullName || `${customer.firstName || ''} ${customer.lastName || ''}`.trim(),
+          phone: customer.phone || '',
+          address: customer.address || '',
+          city: customer.city || '',
+          state: customer.state || '',
+          zip: customer.zip || '',
+          contactType: 'direct client',
+          status: 'active',
+          emailOptIn: true,
+          smsOptIn: false,
+          tags: customer.tags || [],
+          source: 'existing client',
+          preferredFrequency: 'monthly',
+          serviceInterests: []
+        });
+        existingEmails.add(email);
+        added++;
+      }
+
+      alert(`Sync complete: ${added} customer${added === 1 ? '' : 's'} added as subscribers, ${skipped} already up to date or missing an email.`);
     } catch (error) {
       console.error('Error syncing customers:', error);
+      alert('Failed to sync customers. Check the console for details.');
     } finally {
       setSyncing(false);
     }
@@ -239,6 +281,47 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
     }
   };
 
+  const handleBulkAddTags = async () => {
+    const input = window.prompt('Enter tag(s) to add, comma separated:');
+    if (!input) return;
+    const newTags = input.split(',').map(t => t.trim()).filter(t => t !== '');
+    if (newTags.length === 0) return;
+
+    try {
+      const targets = subscribers.filter(s => selectedIds.includes(s.id));
+      await Promise.all(targets.map(sub => {
+        const mergedTags = Array.from(new Set([...(sub.tags || []), ...newTags]));
+        return marketingService.updateSubscriber(sub.id, { tags: mergedTags });
+      }));
+      alert(`Added tag${newTags.length === 1 ? '' : 's'} to ${targets.length} subscriber${targets.length === 1 ? '' : 's'}.`);
+      setSelectedIds([]);
+    } catch (error) {
+      console.error('Error adding tags:', error);
+      alert('Failed to add tags.');
+    }
+  };
+
+  const handleExport = () => {
+    const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Address', 'City', 'State', 'Zip', 'Contact Type', 'Status', 'Tags', 'Joined'];
+    const escapeCsv = (val: string) => `"${(val || '').replace(/"/g, '""')}"`;
+    const rows = filteredSubscribers.map(sub => [
+      sub.firstName, sub.lastName, sub.email, sub.phone || '', sub.address || '',
+      sub.city || '', sub.state || '', sub.zip || '', sub.contactType, sub.status,
+      (sub.tags || []).join('; '), sub.createdAt
+    ].map(escapeCsv).join(','));
+    const csv = [headers.map(escapeCsv).join(','), ...rows].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `subscribers-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredSubscribers.length) {
       setSelectedIds([]);
@@ -253,10 +336,13 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
     );
   };
 
-  const filteredSubscribers = subscribers.filter(sub => 
-    sub.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sub.fullName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredSubscribers = subscribers.filter(sub => {
+    const matchesSearch = sub.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sub.fullName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || sub.status === filterStatus;
+    const matchesContactType = filterContactType === 'all' || sub.contactType === filterContactType;
+    return matchesSearch && matchesStatus && matchesContactType;
+  });
 
   return (
     <div className="space-y-6 relative">
@@ -307,7 +393,10 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
                  </div>
                )}
 
-               <button className="flex items-center gap-2 px-4 py-2 border border-slate-700 hover:bg-slate-800 rounded-lg text-xs font-bold transition-all transition-colors">
+               <button
+                onClick={handleBulkAddTags}
+                className="flex items-center gap-2 px-4 py-2 border border-slate-700 hover:bg-slate-800 rounded-lg text-xs font-bold transition-all transition-colors"
+               >
                  <TagIcon className="w-3.5 h-3.5" />
                  <span>Add Tags</span>
                </button>
@@ -336,10 +425,60 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
             />
           </div>
-          <button className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
-            <Filter className="w-4 h-4" />
-            <span>Filter</span>
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 bg-white border rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm",
+                filterStatus !== 'all' || filterContactType !== 'all' ? "border-indigo-300 text-indigo-600" : "border-slate-200 text-slate-600"
+              )}
+            >
+              <Filter className="w-4 h-4" />
+              <span>Filter</span>
+            </button>
+            {isFilterMenuOpen && (
+              <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-100 p-4 space-y-3 z-[100]">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</label>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as any)}
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="unsubscribed">Unsubscribed</option>
+                    <option value="bounced">Bounced</option>
+                    <option value="suppressed">Suppressed</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Contact Type</label>
+                  <select
+                    value={filterContactType}
+                    onChange={(e) => setFilterContactType(e.target.value as any)}
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="direct client">Direct Client</option>
+                    <option value="title company">Title Company</option>
+                    <option value="attorney">Attorney</option>
+                    <option value="signing service">Signing Service</option>
+                    <option value="hospital">Hospital</option>
+                    <option value="nursing home">Nursing Home</option>
+                    <option value="estate planning">Estate Planning</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() => { setFilterStatus('all'); setFilterContactType('all'); setIsFilterMenuOpen(false); }}
+                  className="w-full text-center px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-2">
@@ -351,7 +490,11 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
             {syncing ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> : <RefreshCw className="w-4 h-4" />}
             <span>{syncing ? 'Syncing...' : 'Sync CRM'}</span>
           </button>
-          <button className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+          <button
+            onClick={handleExport}
+            disabled={filteredSubscribers.length === 0}
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
+          >
             <Download className="w-4 h-4" />
             <span>Export</span>
           </button>
@@ -783,11 +926,6 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({ subscriber, o
                 <option value="hospital">Hospital</option>
                 <option value="nursing home">Nursing Home</option>
                 <option value="estate planning">Estate Planning</option>
-                <option value="Loan Officer">Loan Officer</option>
-                <option value="Closing Attorney">Closing Attorney</option>
-                <option value="Title Processor">Title Processor</option>
-                <option value="Realtor">Realtor</option>
-                <option value="Estate Attorney">Estate Attorney</option>
                 <option value="other">Other</option>
               </select>
             </div>

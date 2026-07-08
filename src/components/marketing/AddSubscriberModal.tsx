@@ -21,7 +21,7 @@ const AddSubscriberModal: React.FC<AddSubscriberModalProps> = ({ isOpen, onClose
     city: '',
     state: '',
     zip: '',
-    contactType: 'General Client',
+    contactType: 'direct client',
     tags: ''
   });
 
