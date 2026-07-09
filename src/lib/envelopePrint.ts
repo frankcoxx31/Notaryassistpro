@@ -78,7 +78,6 @@ export function printEnvelopes(contacts: EnvelopeContact[], businessProfile: Bus
   }
   .return-address { position: absolute; top: 0.5in; left: 0.5in; font-size: 11px; line-height: 1.4; color: #1e293b; }
   .recipient-address { position: absolute; top: 2in; left: 4.5in; font-size: 14px; line-height: 1.5; color: #0f172a; }
-  .recipient-address .attn-line { margin-top: 10px; }
   @media print {
     body { background: #fff; }
     .toolbar { display: none; }
