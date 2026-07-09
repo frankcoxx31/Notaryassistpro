@@ -146,7 +146,8 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
           address: c.address,
           city: c.city,
           state: c.state,
-          zip: c.zip
+          zip: c.zip,
+          attn: c.attn
         })),
         ...subscribers.map(s => ({
           id: s.id,
@@ -158,7 +159,8 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
           address: s.address,
           city: s.city,
           state: s.state,
-          zip: s.zip
+          zip: s.zip,
+          attn: s.attn
         })),
       ];
       // Deduplicate by email — but a blank email isn't a real identity key,

@@ -128,7 +128,8 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
       address: sub.address,
       city: sub.city,
       state: sub.state,
-      zip: sub.zip
+      zip: sub.zip,
+      attn: (sub as any).attn
     }], businessProfile);
   };
 

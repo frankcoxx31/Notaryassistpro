@@ -7,6 +7,7 @@ export interface EnvelopeContact {
   city?: string;
   state?: string;
   zip?: string;
+  attn?: string;
 }
 
 const escapeHtml = (str: string) =>
@@ -33,6 +34,8 @@ export function printEnvelopes(contacts: EnvelopeContact[], businessProfile: Bus
     const recipientCompany = m.companyName ? `<div>${escapeHtml(m.companyName)}</div>` : '';
     const line2 = escapeHtml(m.address || '');
     const line3 = escapeHtml(`${m.city}, ${m.state} ${m.zip || ''}`.trim());
+    // Optional attention line, printed on its own line beneath the address.
+    const attnLine = m.attn ? `<div class="attn-line">${escapeHtml(m.attn)}</div>` : '';
     return `
       <div class="envelope">
         <div class="return-address">
@@ -44,6 +47,7 @@ export function printEnvelopes(contacts: EnvelopeContact[], businessProfile: Bus
           ${recipientCompany}
           <div>${line2}</div>
           <div>${line3}</div>
+          ${attnLine}
         </div>
       </div>`;
   }).join('');
@@ -74,6 +78,7 @@ export function printEnvelopes(contacts: EnvelopeContact[], businessProfile: Bus
   }
   .return-address { position: absolute; top: 0.5in; left: 0.5in; font-size: 11px; line-height: 1.4; color: #1e293b; }
   .recipient-address { position: absolute; top: 2in; left: 4.5in; font-size: 14px; line-height: 1.5; color: #0f172a; }
+  .recipient-address .attn-line { margin-top: 10px; }
   @media print {
     body { background: #fff; }
     .toolbar { display: none; }
