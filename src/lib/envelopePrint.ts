@@ -76,8 +76,8 @@ export function printEnvelopes(contacts: EnvelopeContact[], businessProfile: Bus
     margin: 24px auto;
     box-shadow: 0 1px 6px rgba(0,0,0,.12);
   }
-  .return-address { position: absolute; top: 0.5in; left: 0.5in; font-size: 11px; line-height: 1.4; color: #1e293b; }
-  .recipient-address { position: absolute; top: 2in; left: 4.5in; font-size: 14px; line-height: 1.5; color: #0f172a; }
+  .return-address { position: absolute; top: 0.5in; left: 0.5in; font-size: 11px; line-height: 1.4; color: #000; font-weight: 700; }
+  .recipient-address { position: absolute; top: 2in; left: 4.5in; font-size: 14px; line-height: 1.5; color: #000; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @media print {
     body { background: #fff; }
     .toolbar { display: none; }
