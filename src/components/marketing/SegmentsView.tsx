@@ -278,7 +278,7 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
                 <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-indigo-200 group-hover:-translate-y-1">
                   <Layers className="w-6 h-6" />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-lg truncate">{segment.name}</h3>
                   <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{segment.isDynamic ? 'Dynamic Segment' : 'Static Segment'}</p>
                 </div>
