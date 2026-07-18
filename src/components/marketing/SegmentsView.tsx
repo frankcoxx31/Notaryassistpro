@@ -247,7 +247,7 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
               onClick={() => handleEditSegment(segment)}
               className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all cursor-pointer group relative overflow-hidden"
             >
-              <div className="absolute top-0 right-0 p-3 flex items-center gap-1">
+              <div className="flex items-center justify-end gap-1 mb-3 -mr-1.5">
                 <button
                   onClick={(e) => handlePrintLetters(e, segment)}
                   className="p-1.5 text-slate-300 hover:text-indigo-600 transition-colors"
@@ -269,17 +269,17 @@ const SegmentsView: React.FC<SegmentsViewProps> = ({ user, autoOpen }) => {
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
-                <button className="text-slate-300 hover:text-slate-600 transition-colors">
+                <button className="p-1.5 text-slate-300 hover:text-slate-600 transition-colors">
                   <MoreVertical className="w-4 h-4" />
                 </button>
               </div>
-              
+
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-indigo-200 group-hover:-translate-y-1">
                   <Layers className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-lg truncate pr-6">{segment.name}</h3>
+                  <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-lg truncate">{segment.name}</h3>
                   <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{segment.isDynamic ? 'Dynamic Segment' : 'Static Segment'}</p>
                 </div>
               </div>
