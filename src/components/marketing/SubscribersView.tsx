@@ -69,7 +69,13 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
   const [filterStatus, setFilterStatus] = useState<'all' | Subscriber['status']>('all');
   const [filterContactType, setFilterContactType] = useState<'all' | Subscriber['contactType']>('all');
   const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const showImportResult = (type: 'success' | 'error', message: string) => {
+    setImportResult({ type, message });
+    setTimeout(() => setImportResult(null), 8000);
+  };
 
   // Real-time listener for subscribers
   useEffect(() => {
@@ -376,7 +382,7 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
       setImporting(true);
       const text = await file.text();
       const rows = parseCSV(text);
-      if (rows.length < 2) { alert('CSV appears to be empty.'); return; }
+      if (rows.length < 2) { showImportResult('error', 'CSV appears to be empty.'); return; }
 
       const header = rows[0].map(h => h.trim());
       const idx = (name: string) => header.indexOf(name);
@@ -384,7 +390,7 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
         iState = idx('State'), iZip = idx('ZIP'), iType = idx('Type'),
         iRole = idx('DefaultContactRole'), iPhone = idx('Phone'), iEmail = idx('Email');
 
-      if (iName === -1) { alert('CSV is missing a "FacilityName" column.'); return; }
+      if (iName === -1) { showImportResult('error', 'CSV is missing a "FacilityName" column.'); return; }
 
       const existingNames = new Set(
         subscribers.map(s => (s.companyName || s.fullName || '').trim().toLowerCase()).filter(Boolean)
@@ -428,10 +434,10 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
         added++;
       }
 
-      alert(`Imported ${added} new contact${added === 1 ? '' : 's'}${skipped ? `, skipped ${skipped} already in your list` : ''}. Hospitals/nursing homes/hospice join "Healthcare Facilities (Mail)"; Elder Law firms join "Estate Planning Attorneys" — check Marketing → Segments.`);
+      showImportResult('success', `Imported ${added} new contact${added === 1 ? '' : 's'}${skipped ? `, skipped ${skipped} already in your list` : ''}. Hospitals/nursing homes/hospice join "Healthcare Facilities (Mail)"; Elder Law firms join "Estate Planning Attorneys" — check Marketing → Segments.`);
     } catch (error) {
       console.error('Error importing CSV:', error);
-      alert('Failed to import CSV. See console for details.');
+      showImportResult('error', 'Failed to import CSV. See console for details.');
     } finally {
       setImporting(false);
     }
@@ -461,6 +467,34 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
 
   return (
     <div className="space-y-6 relative">
+      {/* Import CSV result banner */}
+      <AnimatePresence>
+        {importResult && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className={cn(
+              "flex items-center justify-between gap-4 px-4 py-3 rounded-xl border text-sm font-semibold",
+              importResult.type === 'success'
+                ? "bg-emerald-50 border-emerald-100 text-emerald-700"
+                : "bg-rose-50 border-rose-100 text-rose-700"
+            )}
+          >
+            <div className="flex items-center gap-2">
+              {importResult.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
+              <span>{importResult.message}</span>
+            </div>
+            <button
+              onClick={() => setImportResult(null)}
+              className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Bulk Action Bar */}
       <AnimatePresence>
         {selectedIds.length > 0 && (
