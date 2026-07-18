@@ -20,7 +20,8 @@ import {
   User as UserIcon,
   Phone as PhoneIcon,
   Printer,
-  FileText
+  FileText,
+  Upload
 } from 'lucide-react';
 import {
   collection,
@@ -67,6 +68,8 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | Subscriber['status']>('all');
   const [filterContactType, setFilterContactType] = useState<'all' | Subscriber['contactType']>('all');
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Real-time listener for subscribers
   useEffect(() => {
@@ -129,7 +132,7 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
       city: sub.city,
       state: sub.state,
       zip: sub.zip,
-      attn: (sub as any).attn
+      attn: sub.attn
     }], businessProfile);
   };
 
@@ -323,6 +326,117 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
     URL.revokeObjectURL(url);
   };
 
+  // Matches the app's existing "healthcare-facility" / "estate-planning-attorney" tag
+  // conventions (seg-healthcare-facilities, seg-estate-planning dynamic segments) so
+  // imported contacts join those segments automatically.
+  const CSV_TYPE_CONFIG: Record<string, { contactType: Subscriber['contactType']; typeTag: string; segmentTag: string; noun: string }> = {
+    'Assisted Living': { contactType: 'nursing home', typeTag: 'nursing-home', segmentTag: 'healthcare-facility', noun: 'Nursing home / assisted living' },
+    'Hospital': { contactType: 'hospital', typeTag: 'hospital', segmentTag: 'healthcare-facility', noun: 'Hospital' },
+    'Hospice': { contactType: 'other', typeTag: 'hospice', segmentTag: 'healthcare-facility', noun: 'Hospice' },
+    'Elder Law': { contactType: 'estate planning', typeTag: 'elder-law', segmentTag: 'estate-planning-attorney', noun: 'Elder law attorney' }
+  };
+
+  const parseCSV = (text: string): string[][] => {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else { inQuotes = false; }
+        } else {
+          field += c;
+        }
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
+        row.push(field); field = '';
+      } else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); field = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      } else {
+        field += c;
+      }
+    }
+    if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+    return rows;
+  };
+
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    try {
+      setImporting(true);
+      const text = await file.text();
+      const rows = parseCSV(text);
+      if (rows.length < 2) { alert('CSV appears to be empty.'); return; }
+
+      const header = rows[0].map(h => h.trim());
+      const idx = (name: string) => header.indexOf(name);
+      const iName = idx('FacilityName'), iStreet = idx('Street'), iCity = idx('City'),
+        iState = idx('State'), iZip = idx('ZIP'), iType = idx('Type'),
+        iRole = idx('DefaultContactRole'), iPhone = idx('Phone'), iEmail = idx('Email');
+
+      if (iName === -1) { alert('CSV is missing a "FacilityName" column.'); return; }
+
+      const existingNames = new Set(
+        subscribers.map(s => (s.companyName || s.fullName || '').trim().toLowerCase()).filter(Boolean)
+      );
+
+      let added = 0, skipped = 0;
+      for (const r of rows.slice(1)) {
+        const name = (r[iName] || '').trim();
+        if (!name) continue;
+        if (existingNames.has(name.toLowerCase())) { skipped++; continue; }
+
+        const email = (iEmail !== -1 ? r[iEmail] : '').trim();
+        const type = (iType !== -1 ? r[iType] : '').trim();
+        const role = (iRole !== -1 ? r[iRole] : '').trim();
+        const config = CSV_TYPE_CONFIG[type];
+
+        await marketingService.addSubscriber({
+          userId: user.uid,
+          email,
+          firstName: name,
+          lastName: '',
+          fullName: name,
+          phone: (iPhone !== -1 ? r[iPhone] : '') || '',
+          companyName: '',
+          address: iStreet !== -1 ? r[iStreet] : '',
+          attn: role ? `Attn: ${role}` : '',
+          city: iCity !== -1 ? r[iCity] : '',
+          state: iState !== -1 ? r[iState] : '',
+          zip: iZip !== -1 ? r[iZip] : '',
+          contactType: config?.contactType || 'other',
+          status: 'active',
+          source: 'imported',
+          preferredFrequency: 'monthly',
+          emailOptIn: !!email,
+          smsOptIn: false,
+          tags: config ? ['mail-campaign', config.segmentTag, config.typeTag] : ['mail-campaign'],
+          serviceInterests: [],
+          notes: config ? `${config.noun} — physical mail campaign.` : ''
+        });
+        existingNames.add(name.toLowerCase());
+        added++;
+      }
+
+      alert(`Imported ${added} new contact${added === 1 ? '' : 's'}${skipped ? `, skipped ${skipped} already in your list` : ''}. Hospitals/nursing homes/hospice join "Healthcare Facilities (Mail)"; Elder Law firms join "Estate Planning Attorneys" — check Marketing → Segments.`);
+    } catch (error) {
+      console.error('Error importing CSV:', error);
+      alert('Failed to import CSV. See console for details.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredSubscribers.length) {
       setSelectedIds([]);
@@ -499,7 +613,23 @@ const SubscribersView: React.FC<SubscribersViewProps> = ({ user, autoOpen }) => 
             <Download className="w-4 h-4" />
             <span>Export</span>
           </button>
-          <button 
+          <input
+            type="file"
+            accept=".csv"
+            ref={fileInputRef}
+            onChange={handleImportCSV}
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            title="Import mail-only contacts from a CSV"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 shadow-sm"
+          >
+            {importing ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> : <Upload className="w-4 h-4" />}
+            <span>{importing ? 'Importing...' : 'Import CSV'}</span>
+          </button>
+          <button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95 whitespace-nowrap"
           >

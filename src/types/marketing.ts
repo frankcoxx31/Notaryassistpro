@@ -13,6 +13,7 @@ export interface Subscriber {
   phone?: string;
   companyName?: string;
   address?: string;
+  attn?: string;
   city?: string;
   state?: string;
   zip?: string;
