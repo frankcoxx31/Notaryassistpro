@@ -11,6 +11,360 @@ import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import { Resend } from "resend";
+
+// src/lib/consentTemplates.ts
+var BASE_ACKNOWLEDGEMENTS = [
+  {
+    key: "notAnAttorney",
+    label: "I understand the notary public is not an attorney and cannot give legal advice, prepare legal documents, or explain the contents or effect of any document.",
+    required: true
+  },
+  {
+    key: "validId",
+    label: "I will present valid, unexpired, government-issued photo identification at the appointment, and I understand the notarization cannot proceed without it.",
+    required: true
+  },
+  {
+    key: "willingAndAware",
+    label: "I am signing willingly, of my own free will, and I am aware of the nature of the documents being notarized.",
+    required: true
+  },
+  {
+    key: "journalRecord",
+    label: "I consent to the notary recording this notarial act in their official journal, including my name, the type of document, the identification presented, and the date and time.",
+    required: true
+  },
+  {
+    key: "feesUnderstood",
+    label: "I have reviewed the fees listed above and I understand travel fees are separate from statutory notarial fees.",
+    required: true
+  }
+];
+var COMMON_FIELDS = [
+  { key: "clientName", label: "Client / Signer Name", type: "text", required: true, prefillFrom: "fullName" },
+  { key: "clientEmail", label: "Client Email", type: "text", required: true, prefillFrom: "email" },
+  { key: "clientPhone", label: "Client Phone", type: "text", prefillFrom: "phone" },
+  { key: "appointmentDate", label: "Appointment Date", type: "date", required: true },
+  { key: "appointmentTime", label: "Appointment Time", type: "time", required: true },
+  { key: "appointmentLocation", label: "Appointment Location", type: "textarea", required: true, placeholder: "Street, city, state, ZIP", prefillFrom: "address" },
+  { key: "notarialFee", label: "Notarial Fee (per act)", type: "currency", required: true, help: "North Carolina caps most acknowledgments at $10.00 per principal signature." },
+  { key: "actCount", label: "Estimated Notarial Acts", type: "number" },
+  { key: "travelFee", label: "Travel / Convenience Fee", type: "currency", help: "Must be disclosed and agreed to in advance, separately from the notarial fee." }
+];
+var BASE_CLAUSES = [
+  {
+    heading: "Scope of Service",
+    body: "{{business.name}} is a commissioned notary public providing notarial services only. The notary will verify the identity of each signer, confirm each signer is signing willingly and is aware of the contents of the document, witness the signature, and complete the notarial certificate. The notary does not draft, select, review, correct, or explain documents."
+  },
+  {
+    heading: "Not Legal or Financial Advice",
+    body: "The notary is not an attorney licensed to practice law and may not give legal advice about your documents, accept fees for legal advice, or recommend how you should sign. If you need your documents explained, please consult a licensed attorney before the appointment."
+  },
+  {
+    heading: "Fees",
+    body: "The notarial fee is {{notarialFee}} per notarial act, with approximately {{actCount}} act(s) anticipated. A travel/convenience fee of {{travelFee}} applies to this appointment. Travel fees are charged for the time and expense of traveling to you and are separate from, and clearly distinguishable from, the statutory notarial fee. Fees are due at the time of service unless other arrangements are made in writing."
+  },
+  {
+    heading: "Identification Required",
+    body: "Every signer must present valid, unexpired, government-issued photo identification at the appointment. Acceptable forms include a driver license, state-issued identification card, United States passport, or military identification. Without acceptable identification, the notary is required to refuse the notarization, and the travel fee remains payable."
+  },
+  {
+    heading: "Right to Refuse a Notarization",
+    body: "The notary must refuse to perform a notarial act if the signer cannot be properly identified, appears confused or unaware of the nature of the transaction, appears to be signing under duress or undue influence, or if the document is incomplete or blank. A refusal on these grounds is required by law and is not a reflection on the signer."
+  },
+  {
+    heading: "Journal and Recordkeeping",
+    body: "The notary maintains a journal of notarial acts as required by law. Entries include the date and time of the act, the type of act, the type of document, the name and address of each signer, and the type of identification relied upon. Journal entries are retained for the period required by state law and are released only as the law permits or requires."
+  },
+  {
+    heading: "Cancellation and Rescheduling",
+    body: "Please give as much notice as possible if you need to cancel or reschedule. If the notary travels to the appointment location and the signing cannot be completed \u2014 for example, because a signer is unavailable, identification is missing, or documents have not arrived \u2014 the agreed travel fee remains payable."
+  },
+  {
+    heading: "Privacy of Your Information",
+    body: "Information collected for this appointment is used to schedule the appointment, complete and record the notarial act, and bill for services. It is not sold. It is disclosed only to complete the transaction you have requested, or where required by law."
+  },
+  {
+    heading: "Consent to Do Business Electronically",
+    body: "By signing electronically below, you agree that your electronic signature is the legal equivalent of your handwritten signature on this consent form, that you intend it to be binding, and that this record may be delivered and retained electronically. You may request a paper copy of this form at no charge, and you may withdraw consent to electronic delivery at any time, by contacting {{business.name}}{{business.emailSuffix}}. Withdrawing consent does not affect the validity of records already signed. To view and retain this record you need a device with an internet connection, a current web browser, and the ability to receive email and open PDF files."
+  },
+  {
+    heading: "Scope of This Consent",
+    body: "This form is a consent and disclosure for notarial services. It is not the document being notarized, and signing it does not notarize anything. It does not create an attorney-client relationship and is not a substitute for legal advice."
+  }
+];
+var CONSENT_TEMPLATES = [
+  {
+    id: "real-estate",
+    name: "Real Estate / Loan Signing",
+    description: "Closings, refinances, HELOCs, and seller packages handled as a signing agent.",
+    segment: "Real Estate",
+    documentTitle: "Client Consent & Disclosure \u2014 Real Estate Loan Signing",
+    fields: [
+      ...COMMON_FIELDS,
+      { key: "propertyAddress", label: "Property Address", type: "textarea", required: true, prefillFrom: "propertyAddress" },
+      { key: "transactionType", label: "Transaction Type", type: "select", required: true, options: ["Purchase", "Refinance", "HELOC", "Seller Package", "Reverse Mortgage", "Loan Modification", "Other"] },
+      { key: "lenderName", label: "Lender", type: "text" },
+      { key: "titleCompany", label: "Title / Escrow Company", type: "text" },
+      { key: "escrowNumber", label: "Loan / Escrow Number", type: "text" },
+      { key: "coSignerName", label: "Co-Signer Name", type: "text", prefillFrom: "spouseName", help: "Every signer must be present with their own valid ID." },
+      { key: "docReturnMethod", label: "Document Return Method", type: "select", options: ["Prepaid overnight label", "Drop at shipping location", "Scan-back then ship", "Hand delivery", "Other"] }
+    ],
+    clauses: [
+      {
+        heading: "Nature of This Appointment",
+        body: "This appointment is a {{transactionType}} signing for the property at {{propertyAddress}}, arranged through {{titleCompany}} for {{lenderName}} under loan/escrow number {{escrowNumber}}. The notary acts as a signing agent: presenting your closing package, directing you to each signature, date, and initial line, notarizing the documents that require it, and returning the executed package."
+      },
+      {
+        heading: "The Notary Cannot Explain Your Loan",
+        body: "The notary cannot advise you on your interest rate, payment amount, closing costs, prepayment penalties, escrow amounts, or any other term of your loan, and cannot tell you whether you should sign. Questions about loan terms must be directed to your lender, loan officer, escrow officer, or attorney. If a term does not look correct to you, stop and call them before signing \u2014 do not rely on the notary."
+      },
+      {
+        heading: "All Signers Must Be Present",
+        body: "Every person signing the package \u2014 including {{coSignerName}} where listed \u2014 must be physically present at the appointment with their own valid, unexpired, government-issued photo identification. The notary cannot notarize for an absent signer, cannot accept a signature made in advance, and cannot allow one signer to sign on behalf of another without properly executed and presented authority."
+      },
+      {
+        heading: "Document Handling and Return",
+        body: "Your executed package will be returned by: {{docReturnMethod}}. The notary handles your package as confidential, keeps it secure from the time it is printed to the time it is returned, and does not retain copies of your loan documents beyond what is required for the journal entry."
+      },
+      {
+        heading: "Incomplete or Late Packages",
+        body: "If the signing cannot be completed because documents have not arrived, arrive incomplete, contain errors requiring lender correction, or a signer is unavailable or unidentifiable, the appointment will be rescheduled and the agreed travel fee remains payable for the trip made."
+      },
+      ...BASE_CLAUSES
+    ],
+    acknowledgements: [
+      ...BASE_ACKNOWLEDGEMENTS,
+      {
+        key: "lenderQuestions",
+        label: "I understand that all questions about my loan terms, closing costs, and figures must go to my lender, escrow officer, or attorney \u2014 not the notary.",
+        required: true
+      },
+      {
+        key: "allSignersPresent",
+        label: "All signers listed on the documents will be present at the appointment with their own valid photo ID.",
+        required: true
+      }
+    ]
+  },
+  {
+    id: "estate-planning",
+    name: "Estate Planning Documents",
+    description: "Wills, trusts, powers of attorney, healthcare directives, and deeds.",
+    segment: "Estate Planning",
+    documentTitle: "Client Consent & Disclosure \u2014 Estate Planning Document Signing",
+    fields: [
+      ...COMMON_FIELDS,
+      { key: "documentTypes", label: "Documents to Be Notarized", type: "textarea", required: true, placeholder: "e.g. Revocable living trust, pour-over will, durable power of attorney, healthcare power of attorney, living will" },
+      { key: "attorneyName", label: "Drafting Attorney / Firm", type: "text", help: "Leave blank if the client prepared the documents without counsel." },
+      { key: "witnessesNeeded", label: "Witnesses Required", type: "select", required: true, options: ["None", "One (1)", "Two (2)"] },
+      { key: "witnessesProvidedBy", label: "Witnesses Provided By", type: "select", options: ["Client", "Notary (arranged in advance)", "Attorney office", "Not applicable"] },
+      { key: "principalName", label: "Principal / Grantor Name", type: "text", prefillFrom: "fullName" }
+    ],
+    clauses: [
+      {
+        heading: "Nature of This Appointment",
+        body: "This appointment is to notarize estate planning documents for {{principalName}}, specifically: {{documentTypes}}. Where a drafting attorney is involved ({{attorneyName}}), the notary works only within the signing instructions that attorney provides."
+      },
+      {
+        heading: "The Notary Did Not Prepare These Documents",
+        body: "The notary did not draft, select, or review your estate planning documents and cannot tell you whether they accomplish what you intend, whether a will or a trust is right for you, how your property will pass, or what tax consequences may follow. Those are legal questions for a licensed attorney. If your documents were prepared without an attorney, please understand that the notary is not able to check them for you."
+      },
+      {
+        heading: "Witnesses",
+        body: "This signing requires: {{witnessesNeeded}} witness(es), to be provided by {{witnessesProvidedBy}}. Witnesses must be adults, must be present for the entire signing, and generally should be disinterested \u2014 that is, not named as a beneficiary, fiduciary, or heir, and not a spouse of one. The notary cannot serve as a witness to a document they are also notarizing."
+      },
+      {
+        heading: "Capacity and Free Will",
+        body: "The notary must be satisfied that the principal appears aware of what they are signing and is acting of their own free will, without duress or undue influence. If the principal appears confused, cannot communicate their intent, or appears to be directed by another person present, the notary is required to decline the notarization. Determining legal capacity is a matter for a physician and an attorney, not the notary, and the notary makes no determination of legal capacity."
+      },
+      {
+        heading: "Third Parties Present",
+        body: "Family members and caregivers may be present for comfort, but the principal must answer for themselves and sign for themselves. The notary may ask others to step back or step out of the room briefly to confirm the principal is signing freely."
+      },
+      {
+        heading: "Original Documents",
+        body: "Estate planning documents are usually valid only as executed originals. The notary does not retain your originals and does not keep copies of the documents beyond the journal entry. Store your originals safely and tell your executor, trustee, or agent where to find them."
+      },
+      ...BASE_CLAUSES
+    ],
+    acknowledgements: [
+      ...BASE_ACKNOWLEDGEMENTS,
+      {
+        key: "attorneyQuestions",
+        label: "I understand the notary did not prepare these documents and cannot advise me on whether they accomplish my wishes; those questions go to a licensed attorney.",
+        required: true
+      },
+      {
+        key: "witnessesArranged",
+        label: "I understand the witness requirement stated above and who is responsible for providing witnesses.",
+        required: true
+      },
+      {
+        key: "noUndueInfluence",
+        label: "I am signing free of pressure from any family member, caregiver, or other person, and the decisions in these documents are my own.",
+        required: true
+      }
+    ]
+  },
+  {
+    id: "hospital-facility",
+    name: "Hospital / Nursing Home Signing",
+    description: "Bedside signings at hospitals, rehabilitation centers, hospice, and care facilities.",
+    segment: "Hospital & Nursing Home",
+    documentTitle: "Client Consent & Disclosure \u2014 Hospital / Care Facility Signing",
+    fields: [
+      ...COMMON_FIELDS,
+      { key: "facilityName", label: "Facility Name", type: "text", required: true },
+      { key: "facilityAddress", label: "Facility Address", type: "textarea", required: true },
+      { key: "roomNumber", label: "Room / Unit Number", type: "text" },
+      { key: "signerName", label: "Patient / Signer Name", type: "text", required: true },
+      { key: "requestedBy", label: "Appointment Requested By", type: "text", required: true, prefillFrom: "fullName", help: "Person arranging the appointment, if not the patient." },
+      { key: "requestorRelationship", label: "Relationship to Signer", type: "text", placeholder: "e.g. daughter, attorney, case manager" },
+      { key: "documentTypes", label: "Documents to Be Notarized", type: "textarea", required: true },
+      { key: "witnessesNeeded", label: "Witnesses Required", type: "select", required: true, options: ["None", "One (1)", "Two (2)"] },
+      { key: "witnessSource", label: "Witnesses Provided By", type: "select", options: ["Family", "Facility staff", "Notary (arranged in advance)", "Not applicable"] }
+    ],
+    clauses: [
+      {
+        heading: "Nature of This Appointment",
+        body: "This is a bedside notarization for {{signerName}} at {{facilityName}}, {{facilityAddress}}, room {{roomNumber}}. The appointment was requested by {{requestedBy}} ({{requestorRelationship}}). The documents to be notarized are: {{documentTypes}}."
+      },
+      {
+        heading: "The Signer Must Be Awake, Aware, and Able to Communicate",
+        body: "The notary must speak directly with the signer. The signer must be awake and responsive, must be able to communicate that they understand they are signing a document and what kind of document it is, and must be able to indicate their intent without being coached. Sedation, pain medication, confusion, or fatigue may make notarization impossible at that moment. If so, the notary will suggest returning at a better time of day."
+      },
+      {
+        heading: "No Determination of Medical or Legal Capacity",
+        body: "The notary is not a physician and is not an attorney. The notary makes no determination of the signer's medical or legal capacity. The notary only observes whether the signer appears aware of the nature of the act and is acting willingly at that moment. If the signer's capacity is in question, obtain a physician's assessment and consult an attorney before scheduling."
+      },
+      {
+        heading: "Signing Free of Influence",
+        body: "The signer must sign of their own free will. The notary may ask family members, caregivers, or facility staff to step away from the bedside so the notary can speak with the signer privately. If it appears the signer is being pressured or directed, or that someone else is answering for them, the notary is required to decline. This protection exists for the signer's benefit."
+      },
+      {
+        heading: "If the Signer Cannot Sign by Hand",
+        body: "A signer physically unable to sign may be able to make a mark, or to direct another person to sign their name in their presence and at their direction, with witnesses. This depends on the document and state law, and the requirements must be confirmed before the appointment. Please raise this in advance so it does not delay the signing."
+      },
+      {
+        heading: "Witnesses",
+        body: "This signing requires {{witnessesNeeded}} witness(es), provided by {{witnessSource}}. Please note that many facilities restrict their staff from acting as witnesses, and staff are typically unavailable on short notice. Confirm witnesses in advance. Witnesses should be disinterested \u2014 not a beneficiary, agent, or heir under the document."
+      },
+      {
+        heading: "Facility Access and Timing",
+        body: "Access depends entirely on the facility. Visiting hours, infection-control precautions, isolation status, staff availability, and the signer's treatment schedule can all delay or prevent the appointment. Please clear the visit with the facility and the care team in advance. If the notary arrives and cannot gain access or the signer is not available, the travel fee remains payable."
+      },
+      {
+        heading: "Health Information",
+        body: "The notary does not request or record medical information and will not document a diagnosis or treatment in the journal. The journal records only what the law requires: the act performed, the document type, the signer's name and address, the identification relied upon, and the date, time, and location."
+      },
+      ...BASE_CLAUSES
+    ],
+    acknowledgements: [
+      ...BASE_ACKNOWLEDGEMENTS,
+      {
+        key: "signerAware",
+        label: "The signer is expected to be awake, responsive, and able to communicate at the scheduled time, and I understand the notary must decline if they are not.",
+        required: true
+      },
+      {
+        key: "noCapacityJudgment",
+        label: "I understand the notary makes no determination of medical or legal capacity and that a physician or attorney should be consulted if capacity is in question.",
+        required: true
+      },
+      {
+        key: "facilityAccess",
+        label: "I have confirmed, or will confirm, that the facility permits this visit at the scheduled time, and I understand the travel fee applies if access is denied.",
+        required: true
+      },
+      {
+        key: "witnessesConfirmed",
+        label: "I understand the witness requirement above and that facility staff often cannot serve as witnesses.",
+        required: true
+      }
+    ]
+  }
+];
+function getConsentTemplate(id) {
+  return CONSENT_TEMPLATES.find((t) => t.id === id);
+}
+function escapeHtml(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+var CURRENCY_FIELDS = /* @__PURE__ */ new Set(["notarialFee", "travelFee"]);
+function formatFieldValue(key, raw) {
+  const value = (raw ?? "").trim();
+  if (!value) return CURRENCY_FIELDS.has(key) ? "$0.00" : "not specified";
+  if (CURRENCY_FIELDS.has(key)) {
+    const num = Number(value.replace(/[^0-9.\-]/g, ""));
+    return Number.isFinite(num) ? `$${num.toFixed(2)}` : value;
+  }
+  if (key === "appointmentDate") {
+    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      return `${months[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
+    }
+  }
+  return value;
+}
+function interpolate(text, fields, business) {
+  return text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, token) => {
+    if (token.startsWith("business.")) {
+      const prop = token.slice("business.".length);
+      if (prop === "emailSuffix") return business.email ? ` at ${business.email}` : "";
+      const val = business[prop];
+      return String(val ?? "");
+    }
+    return formatFieldValue(token, fields[token]);
+  });
+}
+function renderConsentDocument(opts) {
+  const { template, fields, business } = opts;
+  const summaryRows = [
+    ["Client / Signer", formatFieldValue("clientName", fields.clientName)],
+    ["Appointment", `${formatFieldValue("appointmentDate", fields.appointmentDate)} at ${formatFieldValue("appointmentTime", fields.appointmentTime)}`],
+    ["Location", formatFieldValue("appointmentLocation", fields.appointmentLocation)],
+    ["Notarial Fee", formatFieldValue("notarialFee", fields.notarialFee)],
+    ["Travel Fee", formatFieldValue("travelFee", fields.travelFee)],
+    ["Notary", business.name]
+  ];
+  if (business.commissionNumber) {
+    summaryRows.push(["Commission Number", business.commissionNumber]);
+  }
+  if (business.commissionExpiration) {
+    summaryRows.push(["Commission Expires", business.commissionExpiration]);
+  }
+  const summary = summaryRows.map(
+    ([label, value]) => `
+      <tr>
+        <th style="text-align:left;padding:8px 16px 8px 0;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;vertical-align:top;white-space:nowrap;">${escapeHtml(label)}</th>
+        <td style="padding:8px 0;color:#0f172a;font-size:14px;vertical-align:top;">${escapeHtml(value)}</td>
+      </tr>`
+  ).join("");
+  const clauses = template.clauses.map(
+    (c, i) => `
+    <section style="margin:0 0 22px;">
+      <h3 style="margin:0 0 6px;font-size:14px;font-weight:700;color:#1e3a5f;">${i + 1}. ${escapeHtml(c.heading)}</h3>
+      <p style="margin:0;font-size:14px;line-height:1.75;color:#334155;">${escapeHtml(interpolate(c.body, fields, business))}</p>
+    </section>`
+  ).join("");
+  return `
+<article style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#0f172a;">
+  <header style="border-bottom:2px solid #1e3a5f;padding-bottom:16px;margin-bottom:20px;">
+    <h1 style="margin:0 0 4px;font-size:20px;font-weight:800;color:#1e3a5f;">${escapeHtml(template.documentTitle)}</h1>
+    <p style="margin:0;font-size:13px;color:#64748b;">${escapeHtml(business.name)}${business.location ? " &bull; " + escapeHtml(business.location) : ""}${business.phone ? " &bull; " + escapeHtml(business.phone) : ""}</p>
+  </header>
+
+  <table style="border-collapse:collapse;width:100%;margin:0 0 24px;background:#f8fafc;border-radius:10px;padding:8px;">
+    ${summary}
+  </table>
+
+  ${clauses}
+</article>`.trim();
+}
+
+// server.ts
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth as getAdminAuth } from "firebase-admin/auth";
@@ -151,6 +505,34 @@ function unsubscribeFooter(customerId) {
     Don't want to receive these emails?
     <a href="${APP_URL}/api/email/unsubscribe/${customerId}?token=${token}" style="color:#94a3b8;">Unsubscribe</a>
   </p>`;
+}
+var CONSENT_SECRET = process.env.CONSENT_SECRET || process.env.UNSUBSCRIBE_SECRET || "";
+var CONSENT_LINK_DAYS = Number(process.env.CONSENT_LINK_DAYS || 30);
+function signConsentToken(formId, expiresAt) {
+  if (!CONSENT_SECRET) {
+    console.warn("[Consent] CONSENT_SECRET/UNSUBSCRIBE_SECRET is not set \u2014 signing links are NOT secure.");
+    return "unsigned";
+  }
+  return crypto.createHmac("sha256", CONSENT_SECRET).update(`${formId}:${expiresAt}`).digest("hex");
+}
+function verifyConsentToken(formId, expiresAt, token) {
+  if (!CONSENT_SECRET) return true;
+  if (!expiresAt || !token) return false;
+  const expected = crypto.createHmac("sha256", CONSENT_SECRET).update(`${formId}:${expiresAt}`).digest("hex");
+  try {
+    return token.length === expected.length && crypto.timingSafeEqual(Buffer.from(token, "hex"), Buffer.from(expected, "hex"));
+  } catch {
+    return false;
+  }
+}
+function buildSigningUrl(formId, expiresAt) {
+  const token = signConsentToken(formId, expiresAt);
+  return `${APP_URL}/sign/${formId}?token=${token}&exp=${encodeURIComponent(expiresAt)}`;
+}
+function clientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  const raw = Array.isArray(fwd) ? fwd[0] : fwd || "";
+  return (raw.split(",")[0] || req.socket.remoteAddress || "").trim();
 }
 var PRACTICE_RULES = [
   { match: /estate|elder|trust|probate|wills?/i, area: "estate planning", docs: "wills, trusts, powers of attorney, and healthcare directives \u2014 including bedside signings at hospitals or care facilities when a client cannot travel" },
@@ -723,6 +1105,530 @@ async function startServer() {
     } catch (error) {
       console.error("[Email] Unsubscribe error:", error);
       res.status(500).send("Something went wrong. Please try again.");
+    }
+  });
+  const CONSENT_COLLECTION = "consentForms";
+  function publicConsentView(id, d) {
+    return {
+      id,
+      status: d.status,
+      templateId: d.templateId,
+      templateName: d.templateName,
+      documentTitle: d.documentTitle,
+      clientName: d.clientName,
+      clientEmail: d.clientEmail,
+      renderedHtml: d.renderedHtml,
+      acknowledgementList: d.acknowledgementList || [],
+      businessName: d.businessName,
+      businessEmail: d.businessEmail,
+      businessPhone: d.businessPhone,
+      expiresAt: d.expiresAt,
+      signedAt: d.signedAt || null,
+      signature: d.signature ? { typedName: d.signature.typedName, signedAt: d.signature.signedAt } : null
+    };
+  }
+  function consentEmailBody(opts) {
+    const firstName = (opts.clientName || "").trim().split(/\s+/)[0] || "there";
+    const expires = new Date(opts.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    return `
+      <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#374151;">Hi ${escapeHtml(firstName)},</p>
+      <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#374151;">
+        Before your appointment, please review and sign the <strong>${escapeHtml(opts.templateName)}</strong> consent and disclosure form.
+        It explains what I can and cannot do as a notary, the fees, and what to bring. It takes about two minutes.
+      </p>
+      ${opts.note ? `<p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#374151;">${escapeHtml(opts.note)}</p>` : ""}
+      <p style="margin:0 0 26px;text-align:center;">
+        <a href="${opts.signingUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;">Review &amp; Sign</a>
+      </p>
+      <p style="margin:0 0 18px;font-size:13px;line-height:1.7;color:#64748b;">
+        This link is unique to you and expires on ${escapeHtml(expires)}. If the button does not work, copy and paste this address into your browser:<br/>
+        <span style="word-break:break-all;color:#2563eb;">${opts.signingUrl}</span>
+      </p>
+      <p style="margin:0;font-size:15px;line-height:1.7;color:#374151;">
+        Thank you,<br/>${escapeHtml(opts.biz.name)}${opts.biz.phone ? "<br/>" + escapeHtml(opts.biz.phone) : ""}
+      </p>`;
+  }
+  app.post("/api/consent/forms", verifyFirebaseToken, async (req, res) => {
+    if (!adminDb) return res.status(503).json({ error: "Database not available" });
+    const uid = req.user.uid;
+    const { templateId, customerId, fields } = req.body || {};
+    const template = getConsentTemplate(templateId);
+    if (!template) return res.status(400).json({ error: "Unknown consent template" });
+    const values = {};
+    for (const f of template.fields) {
+      const v = (fields || {})[f.key];
+      values[f.key] = v == null ? "" : String(v).slice(0, 2e3);
+    }
+    const missing = template.fields.filter((f) => f.required && !values[f.key].trim()).map((f) => f.label);
+    if (missing.length) return res.status(400).json({ error: `Missing required field(s): ${missing.join(", ")}` });
+    const clientEmail = (values.clientEmail || "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clientEmail)) {
+      return res.status(400).json({ error: "A valid client email is required" });
+    }
+    try {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const ref = adminDb.collection(CONSENT_COLLECTION).doc();
+      const doc = {
+        id: ref.id,
+        userId: uid,
+        customerId: customerId || null,
+        templateId: template.id,
+        templateName: template.name,
+        documentTitle: template.documentTitle,
+        status: "draft",
+        clientName: values.clientName || "",
+        clientEmail,
+        fields: values,
+        acknowledgementList: template.acknowledgements,
+        audit: [{ event: "created", at: now, ip: clientIp(req) }],
+        createdAt: now,
+        updatedAt: now
+      };
+      await ref.set(doc);
+      res.json({ success: true, form: doc });
+    } catch (error) {
+      console.error("[Consent] Create failed:", error);
+      res.status(500).json({ error: error.message || "Could not create consent form" });
+    }
+  });
+  app.put("/api/consent/forms/:id", verifyFirebaseToken, async (req, res) => {
+    if (!adminDb) return res.status(503).json({ error: "Database not available" });
+    const uid = req.user.uid;
+    const { fields } = req.body || {};
+    try {
+      const ref = adminDb.collection(CONSENT_COLLECTION).doc(String(req.params.id));
+      const snap = await ref.get();
+      const d = snap.data();
+      if (!snap.exists || !d || d.userId !== uid) return res.status(404).json({ error: "Form not found" });
+      if (d.status === "signed") return res.status(409).json({ error: "A signed form cannot be edited" });
+      const template = getConsentTemplate(d.templateId);
+      if (!template) return res.status(400).json({ error: "Unknown consent template" });
+      const values = { ...d.fields || {} };
+      for (const f of template.fields) {
+        if (fields && fields[f.key] != null) values[f.key] = String(fields[f.key]).slice(0, 2e3);
+      }
+      await ref.update({
+        fields: values,
+        clientName: values.clientName || d.clientName,
+        clientEmail: (values.clientEmail || d.clientEmail || "").trim(),
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Consent] Update failed:", error);
+      res.status(500).json({ error: error.message || "Could not update consent form" });
+    }
+  });
+  app.post("/api/consent/forms/:id/send", verifyFirebaseToken, async (req, res) => {
+    if (!adminDb) return res.status(503).json({ error: "Database not available" });
+    if (!resend) return res.status(503).json({ error: "Email service not configured. Add RESEND_API_KEY." });
+    const uid = req.user.uid;
+    const note = typeof req.body?.note === "string" ? req.body.note.slice(0, 500) : "";
+    try {
+      const ref = adminDb.collection(CONSENT_COLLECTION).doc(String(req.params.id));
+      const snap = await ref.get();
+      const d = snap.data();
+      if (!snap.exists || !d || d.userId !== uid) return res.status(404).json({ error: "Form not found" });
+      if (d.status === "signed") return res.status(409).json({ error: "This form has already been signed" });
+      const template = getConsentTemplate(d.templateId);
+      if (!template) return res.status(400).json({ error: "Unknown consent template" });
+      const biz = await getBusinessProfile(uid);
+      const profileSnap = await adminDb.collection("profiles").doc(uid).get();
+      const profile = profileSnap.data() || {};
+      const renderedHtml = renderConsentDocument({
+        template,
+        fields: d.fields || {},
+        business: {
+          name: biz.name,
+          email: biz.email,
+          phone: biz.phone,
+          location: biz.location,
+          website: biz.website,
+          commissionNumber: profile.commissionNumber || "",
+          commissionExpiration: profile.commissionExpiration || ""
+        }
+      });
+      const now = /* @__PURE__ */ new Date();
+      const expiresAt = new Date(now.getTime() + CONSENT_LINK_DAYS * 864e5).toISOString();
+      const signingUrl = buildSigningUrl(ref.id, expiresAt);
+      const wasSent = d.status === "sent" || d.status === "viewed";
+      const { data, error } = await resend.emails.send({
+        from: buildFromEmail(biz),
+        to: d.clientEmail,
+        replyTo: biz.email || void 0,
+        subject: `Please review and sign: ${template.name} consent form`,
+        html: baseTemplate(
+          consentEmailBody({
+            clientName: d.clientName,
+            biz,
+            templateName: template.name,
+            signingUrl,
+            expiresAt,
+            note
+          }),
+          biz
+        )
+      });
+      if (error) throw new Error(error.message || "Resend rejected the message");
+      await ref.update({
+        status: "sent",
+        renderedHtml,
+        businessName: biz.name,
+        businessEmail: biz.email,
+        businessPhone: biz.phone,
+        acknowledgementList: template.acknowledgements,
+        expiresAt,
+        sentAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        audit: [
+          ...d.audit || [],
+          { event: wasSent ? "resent" : "sent", at: now.toISOString(), detail: `Emailed to ${d.clientEmail}`, ip: clientIp(req) }
+        ]
+      });
+      console.log(`[Consent] Form ${ref.id} sent to ${d.clientEmail} (${data?.id || "no id"})`);
+      res.json({ success: true, signingUrl, expiresAt });
+    } catch (error) {
+      console.error("[Consent] Send failed:", error);
+      res.status(500).json({ error: error.message || "Could not send consent form" });
+    }
+  });
+  app.post("/api/consent/forms/:id/void", verifyFirebaseToken, async (req, res) => {
+    if (!adminDb) return res.status(503).json({ error: "Database not available" });
+    const uid = req.user.uid;
+    try {
+      const ref = adminDb.collection(CONSENT_COLLECTION).doc(String(req.params.id));
+      const snap = await ref.get();
+      const d = snap.data();
+      if (!snap.exists || !d || d.userId !== uid) return res.status(404).json({ error: "Form not found" });
+      if (d.status === "signed") return res.status(409).json({ error: "A signed form cannot be voided" });
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      await ref.update({
+        status: "voided",
+        updatedAt: now,
+        audit: [...d.audit || [], { event: "voided", at: now, ip: clientIp(req) }]
+      });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Consent] Void failed:", error);
+      res.status(500).json({ error: error.message || "Could not void consent form" });
+    }
+  });
+  app.get("/api/public/consent/:id", async (req, res) => {
+    if (!adminDb) return res.status(503).json({ error: "Service unavailable" });
+    const token = typeof req.query.token === "string" ? req.query.token : "";
+    const exp = typeof req.query.exp === "string" ? req.query.exp : "";
+    try {
+      const ref = adminDb.collection(CONSENT_COLLECTION).doc(String(req.params.id));
+      const snap = await ref.get();
+      const d = snap.data();
+      if (!snap.exists || !d) return res.status(404).json({ error: "This form is no longer available." });
+      if (!verifyConsentToken(String(req.params.id), exp, token)) {
+        console.warn(`[Consent] Invalid token for form ${String(req.params.id)}`);
+        return res.status(404).json({ error: "This link is invalid." });
+      }
+      if (d.expiresAt !== exp) return res.status(404).json({ error: "This link is no longer valid." });
+      if (new Date(exp).getTime() < Date.now()) return res.status(410).json({ error: "This link has expired. Please ask for a new one." });
+      if (d.status === "voided") return res.status(410).json({ error: "This form was cancelled. Please ask for a new one." });
+      if (d.status === "draft") return res.status(404).json({ error: "This form is not ready yet." });
+      if (d.status === "sent") {
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        await ref.update({
+          status: "viewed",
+          viewedAt: now,
+          updatedAt: now,
+          audit: [...d.audit || [], { event: "viewed", at: now, ip: clientIp(req), userAgent: req.get("user-agent") || "" }]
+        });
+        d.status = "viewed";
+      }
+      res.json({ form: publicConsentView(String(req.params.id), d) });
+    } catch (error) {
+      console.error("[Consent] Public fetch failed:", error);
+      res.status(500).json({ error: "Something went wrong. Please try again." });
+    }
+  });
+  app.post("/api/public/consent/:id/sign", async (req, res) => {
+    if (!adminDb) return res.status(503).json({ error: "Service unavailable" });
+    const { token, exp, typedName, drawnPng, agreedToElectronic, intentAcknowledged, acknowledgements } = req.body || {};
+    if (!agreedToElectronic || !intentAcknowledged) {
+      return res.status(400).json({ error: "Both consent boxes must be checked before signing." });
+    }
+    const name = String(typedName || "").trim();
+    if (name.length < 2) return res.status(400).json({ error: "Please type your full legal name." });
+    const png = typeof drawnPng === "string" && drawnPng.startsWith("data:image/png;base64,") ? drawnPng : "";
+    if (png.length > 4e5) return res.status(413).json({ error: "Signature image is too large." });
+    try {
+      const ref = adminDb.collection(CONSENT_COLLECTION).doc(String(req.params.id));
+      const snap = await ref.get();
+      const d = snap.data();
+      if (!snap.exists || !d) return res.status(404).json({ error: "This form is no longer available." });
+      if (!verifyConsentToken(String(req.params.id), String(exp || ""), String(token || ""))) {
+        return res.status(404).json({ error: "This link is invalid." });
+      }
+      if (d.expiresAt !== exp) return res.status(404).json({ error: "This link is no longer valid." });
+      if (new Date(String(exp)).getTime() < Date.now()) return res.status(410).json({ error: "This link has expired." });
+      if (d.status === "signed") return res.status(409).json({ error: "This form has already been signed." });
+      if (d.status === "voided") return res.status(410).json({ error: "This form was cancelled." });
+      const required = (d.acknowledgementList || []).filter((a) => a.required);
+      const checked = acknowledgements || {};
+      const unchecked = required.filter((a) => !checked[a.key]);
+      if (unchecked.length) {
+        return res.status(400).json({ error: "Please check every required acknowledgement before signing." });
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const ip = clientIp(req);
+      const userAgent = req.get("user-agent") || "";
+      const signature = { typedName: name, drawnPng: png, signedAt: now, ip, userAgent };
+      await ref.update({
+        status: "signed",
+        signature,
+        signedAt: now,
+        agreedToElectronic: true,
+        intentAcknowledged: true,
+        acknowledgements: checked,
+        updatedAt: now,
+        audit: [...d.audit || [], { event: "signed", at: now, ip, userAgent, detail: `Signed as "${name}"` }]
+      });
+      if (resend) {
+        try {
+          const biz = {
+            name: d.businessName || "NotaryPro",
+            email: d.businessEmail || "",
+            phone: d.businessPhone || "",
+            website: "",
+            location: ""
+          };
+          const copyHtml = buildSignedCopyHtml(d, signature, biz);
+          const from = buildFromEmail(biz);
+          await resend.emails.send({
+            from,
+            to: d.clientEmail,
+            replyTo: biz.email || void 0,
+            subject: `Signed copy \u2014 ${d.templateName} consent form`,
+            html: copyHtml
+          });
+          if (biz.email) {
+            await resend.emails.send({
+              from,
+              to: biz.email,
+              subject: `${d.clientName || d.clientEmail} signed the ${d.templateName} consent form`,
+              html: copyHtml
+            });
+          }
+        } catch (mailErr) {
+          console.error("[Consent] Signed-copy email failed:", mailErr.message);
+        }
+      }
+      console.log(`[Consent] Form ${String(req.params.id)} signed by ${name}`);
+      res.json({ success: true, signedAt: now });
+    } catch (error) {
+      console.error("[Consent] Sign failed:", error);
+      res.status(500).json({ error: "Something went wrong. Please try again." });
+    }
+  });
+  app.post("/api/public/consent/:id/decline", async (req, res) => {
+    if (!adminDb) return res.status(503).json({ error: "Service unavailable" });
+    const { token, exp, reason } = req.body || {};
+    try {
+      const ref = adminDb.collection(CONSENT_COLLECTION).doc(String(req.params.id));
+      const snap = await ref.get();
+      const d = snap.data();
+      if (!snap.exists || !d) return res.status(404).json({ error: "This form is no longer available." });
+      if (!verifyConsentToken(String(req.params.id), String(exp || ""), String(token || "")) || d.expiresAt !== exp) {
+        return res.status(404).json({ error: "This link is invalid." });
+      }
+      if (d.status === "signed") return res.status(409).json({ error: "This form has already been signed." });
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      await ref.update({
+        status: "declined",
+        declineReason: String(reason || "").slice(0, 1e3),
+        updatedAt: now,
+        audit: [...d.audit || [], { event: "declined", at: now, ip: clientIp(req), userAgent: req.get("user-agent") || "" }]
+      });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Consent] Decline failed:", error);
+      res.status(500).json({ error: "Something went wrong. Please try again." });
+    }
+  });
+  function buildSignedCopyHtml(d, signature, biz) {
+    const acks = (d.acknowledgementList || []).map((a) => `<li style="margin:0 0 8px;font-size:13px;line-height:1.6;color:#334155;">${(d.acknowledgements || {})[a.key] ? "&#10003;" : "&#9744;"} ${escapeHtml(a.label)}</li>`).join("");
+    const audit = (d.audit || []).map((e) => `<tr>
+        <td style="padding:4px 12px 4px 0;font-size:11px;color:#64748b;">${escapeHtml(new Date(e.at).toLocaleString("en-US"))}</td>
+        <td style="padding:4px 12px 4px 0;font-size:11px;color:#0f172a;text-transform:capitalize;">${escapeHtml(e.event)}</td>
+        <td style="padding:4px 0;font-size:11px;color:#64748b;">${escapeHtml(e.ip || "")}</td>
+      </tr>`).join("");
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeHtml(d.documentTitle || "Consent Form")}</title></head>
+<body style="margin:0;padding:24px;background:#f1f5f9;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <div style="max-width:720px;margin:0 auto;background:#ffffff;border-radius:12px;padding:36px 40px;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    ${d.renderedHtml || ""}
+    <section style="margin:28px 0 0;">
+      <h3 style="margin:0 0 10px;font-size:14px;font-weight:700;color:#1e3a5f;">Acknowledgements</h3>
+      <ul style="margin:0;padding:0 0 0 4px;list-style:none;">${acks}</ul>
+    </section>
+    <section style="margin:28px 0 0;padding:20px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+      <h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:#1e3a5f;">Electronic Signature</h3>
+      <p style="margin:0 0 10px;font-size:13px;line-height:1.7;color:#334155;">
+        The signer consented to do business electronically and indicated intent to sign.
+      </p>
+      ${signature.drawnPng ? `<img src="${signature.drawnPng}" alt="Signature" style="max-width:320px;display:block;margin:0 0 10px;border-bottom:1px solid #94a3b8;"/>` : ""}
+      <p style="margin:0;font-size:18px;font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#0f172a;">${escapeHtml(signature.typedName)}</p>
+      <p style="margin:6px 0 0;font-size:12px;color:#64748b;">
+        Signed ${escapeHtml(new Date(signature.signedAt).toLocaleString("en-US"))}
+        ${signature.ip ? " &bull; IP " + escapeHtml(signature.ip) : ""}
+      </p>
+      <p style="margin:8px 0 0;font-size:11px;color:#94a3b8;word-break:break-all;">Device: ${escapeHtml(signature.userAgent || "unknown")}</p>
+      <p style="margin:8px 0 0;font-size:11px;color:#94a3b8;">Record ID: ${escapeHtml(d.id || "")}</p>
+    </section>
+    <section style="margin:24px 0 0;">
+      <h3 style="margin:0 0 8px;font-size:13px;font-weight:700;color:#1e3a5f;">Audit Trail</h3>
+      <table style="border-collapse:collapse;">${audit}</table>
+    </section>
+    <p style="margin:24px 0 0;font-size:12px;color:#64748b;">
+      Keep this email as your copy of the executed form. To request a paper copy at no charge, reply to this message${biz.email ? " or write to " + escapeHtml(biz.email) : ""}.
+    </p>
+  </div>
+</body></html>`;
+  }
+  const INTAKE_OWNER_UID = process.env.PUBLIC_INTAKE_UID || "";
+  const INTAKE_ORIGINS = (process.env.INTAKE_ALLOWED_ORIGINS || "").split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
+  const intakeHits = /* @__PURE__ */ new Map();
+  function applyIntakeCors(req, res) {
+    const origin = (req.get("origin") || "").replace(/\/$/, "");
+    if (origin && INTAKE_ORIGINS.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    }
+  }
+  app.options("/api/public/intake", (req, res) => {
+    applyIntakeCors(req, res);
+    res.sendStatus(204);
+  });
+  app.post("/api/public/intake", async (req, res) => {
+    applyIntakeCors(req, res);
+    if (!adminDb) return res.status(503).json({ error: "Service unavailable" });
+    const {
+      fullName,
+      email,
+      phone,
+      serviceType,
+      preferredDate,
+      location,
+      message,
+      consentToContact,
+      ownerId,
+      company
+    } = req.body || {};
+    if (typeof company === "string" && company.trim()) {
+      console.log("[Intake] Honeypot triggered, silently discarded");
+      return res.json({ success: true });
+    }
+    const ip = clientIp(req) || "unknown";
+    const now = Date.now();
+    const recent = (intakeHits.get(ip) || []).filter((t) => now - t < 36e5);
+    if (recent.length >= 5) return res.status(429).json({ error: "Too many submissions. Please try again later." });
+    recent.push(now);
+    intakeHits.set(ip, recent);
+    const name = String(fullName || "").trim().slice(0, 200);
+    const mail = String(email || "").trim().toLowerCase().slice(0, 200);
+    if (!name) return res.status(400).json({ error: "Your name is required." });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return res.status(400).json({ error: "A valid email address is required." });
+    if (!consentToContact) return res.status(400).json({ error: "Please agree to be contacted about your request." });
+    const uid = String(ownerId || INTAKE_OWNER_UID || "").trim();
+    if (!uid) {
+      console.error("[Intake] No PUBLIC_INTAKE_UID configured and no ownerId supplied");
+      return res.status(503).json({ error: "Intake is not configured yet." });
+    }
+    try {
+      const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+      const parts = name.split(/\s+/);
+      const lead = {
+        userId: uid,
+        fullName: name,
+        email: mail,
+        phone: String(phone || "").trim().slice(0, 40),
+        serviceType: String(serviceType || "").trim().slice(0, 100),
+        preferredDate: String(preferredDate || "").trim().slice(0, 40),
+        location: String(location || "").trim().slice(0, 300),
+        message: String(message || "").trim().slice(0, 2e3),
+        consentToContact: true,
+        source: "website",
+        ip,
+        userAgent: (req.get("user-agent") || "").slice(0, 400),
+        createdAt: nowIso
+      };
+      const existing = await adminDb.collection("customers").where("userId", "==", uid).where("email", "==", mail).limit(1).get();
+      let customerId;
+      if (!existing.empty) {
+        customerId = existing.docs[0].id;
+        await existing.docs[0].ref.update({
+          phone: lead.phone || existing.docs[0].data().phone || "",
+          notes: [existing.docs[0].data().notes, `Website request ${nowIso.slice(0, 10)}: ${lead.serviceType} \u2014 ${lead.message}`].filter(Boolean).join("\n"),
+          updatedAt: nowIso
+        });
+      } else {
+        const customerRef = adminDb.collection("customers").doc();
+        customerId = customerRef.id;
+        await customerRef.set({
+          id: customerRef.id,
+          userId: uid,
+          firstName: parts[0] || name,
+          lastName: parts.slice(1).join(" "),
+          fullName: name,
+          email: mail,
+          phone: lead.phone,
+          address: lead.location,
+          city: "",
+          state: "",
+          zip: "",
+          customerType: "General Client",
+          preferredContactMethod: "Email",
+          tags: ["website-lead"],
+          notes: [
+            lead.serviceType && `Service requested: ${lead.serviceType}`,
+            lead.preferredDate && `Preferred date: ${lead.preferredDate}`,
+            lead.message
+          ].filter(Boolean).join("\n"),
+          createdAt: nowIso,
+          updatedAt: nowIso
+        });
+      }
+      const leadRef = adminDb.collection("websiteLeads").doc();
+      await leadRef.set({ ...lead, id: leadRef.id, customerId });
+      if (resend) {
+        try {
+          const biz = await getBusinessProfile(uid);
+          if (biz.email) {
+            await resend.emails.send({
+              from: buildFromEmail(biz),
+              to: biz.email,
+              replyTo: mail,
+              subject: `New website request \u2014 ${name}`,
+              html: baseTemplate(`
+                <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#374151;">A new request came in through your website.</p>
+                <table style="border-collapse:collapse;font-size:14px;color:#334155;">
+                  <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Name</td><td>${escapeHtml(name)}</td></tr>
+                  <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Email</td><td>${escapeHtml(mail)}</td></tr>
+                  <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Phone</td><td>${escapeHtml(lead.phone)}</td></tr>
+                  <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Service</td><td>${escapeHtml(lead.serviceType)}</td></tr>
+                  <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Preferred date</td><td>${escapeHtml(lead.preferredDate)}</td></tr>
+                  <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Location</td><td>${escapeHtml(lead.location)}</td></tr>
+                </table>
+                <p style="margin:18px 0 0;font-size:14px;line-height:1.7;color:#334155;white-space:pre-wrap;">${escapeHtml(lead.message)}</p>
+                <p style="margin:18px 0 0;font-size:13px;color:#64748b;">They are already in your CRM. Open Consent Forms to send them a consent and disclosure form.</p>
+              `, biz)
+            });
+          }
+        } catch (mailErr) {
+          console.error("[Intake] Notification email failed:", mailErr.message);
+        }
+      }
+      console.log(`[Intake] Website lead ${leadRef.id} -> customer ${customerId}`);
+      res.json({ success: true, customerId });
+    } catch (error) {
+      console.error("[Intake] Failed:", error);
+      res.status(500).json({ error: "Something went wrong. Please try again." });
     }
   });
   app.post("/api/ai/generate-template", verifyFirebaseToken, async (req, res) => {

@@ -66,6 +66,7 @@ import {
   Save,
   ShieldCheck,
   Scan,
+  FileSignature,
   Navigation,
   CreditCard,
   Activity,
@@ -144,6 +145,10 @@ import Newsletter from './pages/Newsletter';
 import EmailModal from './components/EmailModal';
 import LawsLookup from './components/LawsLookup';
 import MarketingView from './components/marketing/MarketingView';
+import ConsentFormsView from './components/consent/ConsentFormsView';
+import ConsentFormModal from './components/consent/ConsentFormModal';
+import PublicSignPage from './components/consent/PublicSignPage';
+import PublicIntakePage from './components/consent/PublicIntakePage';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -3628,6 +3633,7 @@ const Sidebar = ({
     { name: 'Marketing', icon: Mail, path: '/marketing' },
     { name: 'Calendar', icon: Calendar, path: '/calendar' },
     { name: 'Customers', icon: Users, path: '/customers' },
+    { name: 'Consent Forms', icon: FileSignature, path: '/consent' },
     { name: 'Signing Companies', icon: Building2, path: '/companies' },
     { 
       name: 'Expenses', 
@@ -6577,7 +6583,7 @@ const Appointments = ({
   );
 };
 
-const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer, onImportCustomers }: { customers: Customer[]; onNewCustomer: () => void; onEditCustomer: (c: Customer) => void; onDeleteCustomer: (id: string) => void; onImportCustomers: (customers: Customer[]) => void }) => {
+const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer, onImportCustomers, onSendConsent }: { customers: Customer[]; onNewCustomer: () => void; onEditCustomer: (c: Customer) => void; onDeleteCustomer: (id: string) => void; onImportCustomers: (customers: Customer[]) => void; onSendConsent: (c: Customer) => void }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<CustomerType | 'All'>('All');
   const [emailModalCustomer, setEmailModalCustomer] = useState<Customer | null>(null);
@@ -6719,6 +6725,13 @@ const Customers = ({ customers, onNewCustomer, onEditCustomer, onDeleteCustomer,
                 >
                   <Mail className="w-3.5 h-3.5" />
                   Send Email
+                </button>
+                <button
+                  onClick={() => onSendConsent(customer)}
+                  className="p-2 hover:bg-indigo-50 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                  title="Send consent form"
+                >
+                  <FileSignature className="w-4 h-4" />
                 </button>
                 <button 
                   onClick={() => onEditCustomer(customer)}
@@ -6943,7 +6956,10 @@ export default function App() {
   const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<SigningCompany | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  
+  /** Customer whose consent form is being built, or null when the modal is closed. */
+  const [consentCustomer, setConsentCustomer] = useState<Customer | null>(null);
+  const [consentBanner, setConsentBanner] = useState('');
+
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isDemoUser, setIsDemoUser] = useState(demoStorage.isDemoMode());
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -8200,6 +8216,7 @@ export default function App() {
                   }}
                   onDeleteCustomer={handleDeleteCustomer}
                   onImportCustomers={handleImportCustomers}
+                  onSendConsent={(c) => setConsentCustomer(c)}
                 />
               } 
             />
@@ -8215,6 +8232,16 @@ export default function App() {
               } 
             />
             <Route path="/marketing" element={<MarketingView />} />
+            <Route
+              path="/consent"
+              element={
+                <ConsentFormsView
+                  userId={user?.uid || ''}
+                  customers={customers}
+                  businessProfile={businessProfile}
+                />
+              }
+            />
             <Route path="/newsletter" element={<Newsletter />} />
             <Route 
               path="/mileage" 
@@ -8395,8 +8422,30 @@ export default function App() {
           />
         )}
 
+        {consentBanner && (
+          <div className="fixed bottom-6 right-6 z-[60] flex items-start gap-2 max-w-sm px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-lg">
+            <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>{consentBanner}</span>
+          </div>
+        )}
+
+        {consentCustomer && (
+          <ConsentFormModal
+            isOpen={!!consentCustomer}
+            onClose={() => setConsentCustomer(null)}
+            customer={consentCustomer}
+            customers={customers}
+            businessProfile={businessProfile}
+            onSent={(msg) => {
+              setConsentBanner(msg);
+              setConsentCustomer(null);
+              window.setTimeout(() => setConsentBanner(''), 6000);
+            }}
+          />
+        )}
+
         {isProfileModalOpen && (
-          <BusinessProfileModal 
+          <BusinessProfileModal
             isOpen={isProfileModalOpen} 
             onClose={() => setIsProfileModalOpen(false)} 
             profile={businessProfile}
@@ -8416,7 +8465,12 @@ export default function App() {
   return (
     <Routes>
       <Route path="/features" element={<LandingPage />} />
-      
+
+      {/* Public, unauthenticated pages. Clients reach these from an emailed
+          link or the marketing site, so they must sit outside the auth gate. */}
+      <Route path="/sign/:formId" element={<PublicSignPage />} />
+      <Route path="/intake" element={<PublicIntakePage />} />
+
       <Route path="/login" element={
         isAuthenticated ? (
           <Navigate to="/" replace />

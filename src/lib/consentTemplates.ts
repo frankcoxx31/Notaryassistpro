@@ -1,0 +1,460 @@
+/**
+ * Consent form templates + renderer.
+ *
+ * This module is shared by the browser (form builder, signing page) and the
+ * server (email + frozen document render), so it must stay free of React,
+ * DOM and Node-only imports.
+ *
+ * The three templates mirror the outreach drip segments: real estate,
+ * estate planning, and hospital / nursing home.
+ */
+
+import type {
+  ConsentTemplate,
+  ConsentTemplateId,
+  ConsentAcknowledgement,
+} from '../types/consent';
+
+/** Acknowledgements every template carries — these are what make the signature hold up. */
+const BASE_ACKNOWLEDGEMENTS: ConsentAcknowledgement[] = [
+  {
+    key: 'notAnAttorney',
+    label:
+      'I understand the notary public is not an attorney and cannot give legal advice, prepare legal documents, or explain the contents or effect of any document.',
+    required: true,
+  },
+  {
+    key: 'validId',
+    label:
+      'I will present valid, unexpired, government-issued photo identification at the appointment, and I understand the notarization cannot proceed without it.',
+    required: true,
+  },
+  {
+    key: 'willingAndAware',
+    label:
+      'I am signing willingly, of my own free will, and I am aware of the nature of the documents being notarized.',
+    required: true,
+  },
+  {
+    key: 'journalRecord',
+    label:
+      'I consent to the notary recording this notarial act in their official journal, including my name, the type of document, the identification presented, and the date and time.',
+    required: true,
+  },
+  {
+    key: 'feesUnderstood',
+    label:
+      'I have reviewed the fees listed above and I understand travel fees are separate from statutory notarial fees.',
+    required: true,
+  },
+];
+
+const COMMON_FIELDS = [
+  { key: 'clientName',       label: 'Client / Signer Name', type: 'text' as const,     required: true,  prefillFrom: 'fullName' as const },
+  { key: 'clientEmail',      label: 'Client Email',         type: 'text' as const,     required: true,  prefillFrom: 'email' as const },
+  { key: 'clientPhone',      label: 'Client Phone',         type: 'text' as const,     prefillFrom: 'phone' as const },
+  { key: 'appointmentDate',  label: 'Appointment Date',     type: 'date' as const,     required: true },
+  { key: 'appointmentTime',  label: 'Appointment Time',     type: 'time' as const,     required: true },
+  { key: 'appointmentLocation', label: 'Appointment Location', type: 'textarea' as const, required: true, placeholder: 'Street, city, state, ZIP', prefillFrom: 'address' as const },
+  { key: 'notarialFee',      label: 'Notarial Fee (per act)', type: 'currency' as const, required: true, help: 'North Carolina caps most acknowledgments at $10.00 per principal signature.' },
+  { key: 'actCount',         label: 'Estimated Notarial Acts', type: 'number' as const },
+  { key: 'travelFee',        label: 'Travel / Convenience Fee', type: 'currency' as const, help: 'Must be disclosed and agreed to in advance, separately from the notarial fee.' },
+];
+
+/** Clauses appended to every template, after the template-specific ones. */
+const BASE_CLAUSES = [
+  {
+    heading: 'Scope of Service',
+    body:
+      '{{business.name}} is a commissioned notary public providing notarial services only. The notary will verify the identity of each signer, confirm each signer is signing willingly and is aware of the contents of the document, witness the signature, and complete the notarial certificate. The notary does not draft, select, review, correct, or explain documents.',
+  },
+  {
+    heading: 'Not Legal or Financial Advice',
+    body:
+      'The notary is not an attorney licensed to practice law and may not give legal advice about your documents, accept fees for legal advice, or recommend how you should sign. If you need your documents explained, please consult a licensed attorney before the appointment.',
+  },
+  {
+    heading: 'Fees',
+    body:
+      'The notarial fee is {{notarialFee}} per notarial act, with approximately {{actCount}} act(s) anticipated. A travel/convenience fee of {{travelFee}} applies to this appointment. Travel fees are charged for the time and expense of traveling to you and are separate from, and clearly distinguishable from, the statutory notarial fee. Fees are due at the time of service unless other arrangements are made in writing.',
+  },
+  {
+    heading: 'Identification Required',
+    body:
+      'Every signer must present valid, unexpired, government-issued photo identification at the appointment. Acceptable forms include a driver license, state-issued identification card, United States passport, or military identification. Without acceptable identification, the notary is required to refuse the notarization, and the travel fee remains payable.',
+  },
+  {
+    heading: 'Right to Refuse a Notarization',
+    body:
+      'The notary must refuse to perform a notarial act if the signer cannot be properly identified, appears confused or unaware of the nature of the transaction, appears to be signing under duress or undue influence, or if the document is incomplete or blank. A refusal on these grounds is required by law and is not a reflection on the signer.',
+  },
+  {
+    heading: 'Journal and Recordkeeping',
+    body:
+      'The notary maintains a journal of notarial acts as required by law. Entries include the date and time of the act, the type of act, the type of document, the name and address of each signer, and the type of identification relied upon. Journal entries are retained for the period required by state law and are released only as the law permits or requires.',
+  },
+  {
+    heading: 'Cancellation and Rescheduling',
+    body:
+      'Please give as much notice as possible if you need to cancel or reschedule. If the notary travels to the appointment location and the signing cannot be completed — for example, because a signer is unavailable, identification is missing, or documents have not arrived — the agreed travel fee remains payable.',
+  },
+  {
+    heading: 'Privacy of Your Information',
+    body:
+      'Information collected for this appointment is used to schedule the appointment, complete and record the notarial act, and bill for services. It is not sold. It is disclosed only to complete the transaction you have requested, or where required by law.',
+  },
+  {
+    heading: 'Consent to Do Business Electronically',
+    body:
+      'By signing electronically below, you agree that your electronic signature is the legal equivalent of your handwritten signature on this consent form, that you intend it to be binding, and that this record may be delivered and retained electronically. You may request a paper copy of this form at no charge, and you may withdraw consent to electronic delivery at any time, by contacting {{business.name}}{{business.emailSuffix}}. Withdrawing consent does not affect the validity of records already signed. To view and retain this record you need a device with an internet connection, a current web browser, and the ability to receive email and open PDF files.',
+  },
+  {
+    heading: 'Scope of This Consent',
+    body:
+      'This form is a consent and disclosure for notarial services. It is not the document being notarized, and signing it does not notarize anything. It does not create an attorney-client relationship and is not a substitute for legal advice.',
+  },
+];
+
+export const CONSENT_TEMPLATES: ConsentTemplate[] = [
+  {
+    id: 'real-estate',
+    name: 'Real Estate / Loan Signing',
+    description: 'Closings, refinances, HELOCs, and seller packages handled as a signing agent.',
+    segment: 'Real Estate',
+    documentTitle: 'Client Consent & Disclosure — Real Estate Loan Signing',
+    fields: [
+      ...COMMON_FIELDS,
+      { key: 'propertyAddress', label: 'Property Address',   type: 'textarea', required: true, prefillFrom: 'propertyAddress' },
+      { key: 'transactionType', label: 'Transaction Type',   type: 'select', required: true, options: ['Purchase', 'Refinance', 'HELOC', 'Seller Package', 'Reverse Mortgage', 'Loan Modification', 'Other'] },
+      { key: 'lenderName',      label: 'Lender',             type: 'text' },
+      { key: 'titleCompany',    label: 'Title / Escrow Company', type: 'text' },
+      { key: 'escrowNumber',    label: 'Loan / Escrow Number', type: 'text' },
+      { key: 'coSignerName',    label: 'Co-Signer Name',     type: 'text', prefillFrom: 'spouseName', help: 'Every signer must be present with their own valid ID.' },
+      { key: 'docReturnMethod', label: 'Document Return Method', type: 'select', options: ['Prepaid overnight label', 'Drop at shipping location', 'Scan-back then ship', 'Hand delivery', 'Other'] },
+    ],
+    clauses: [
+      {
+        heading: 'Nature of This Appointment',
+        body:
+          'This appointment is a {{transactionType}} signing for the property at {{propertyAddress}}, arranged through {{titleCompany}} for {{lenderName}} under loan/escrow number {{escrowNumber}}. The notary acts as a signing agent: presenting your closing package, directing you to each signature, date, and initial line, notarizing the documents that require it, and returning the executed package.',
+      },
+      {
+        heading: 'The Notary Cannot Explain Your Loan',
+        body:
+          'The notary cannot advise you on your interest rate, payment amount, closing costs, prepayment penalties, escrow amounts, or any other term of your loan, and cannot tell you whether you should sign. Questions about loan terms must be directed to your lender, loan officer, escrow officer, or attorney. If a term does not look correct to you, stop and call them before signing — do not rely on the notary.',
+      },
+      {
+        heading: 'All Signers Must Be Present',
+        body:
+          'Every person signing the package — including {{coSignerName}} where listed — must be physically present at the appointment with their own valid, unexpired, government-issued photo identification. The notary cannot notarize for an absent signer, cannot accept a signature made in advance, and cannot allow one signer to sign on behalf of another without properly executed and presented authority.',
+      },
+      {
+        heading: 'Document Handling and Return',
+        body:
+          'Your executed package will be returned by: {{docReturnMethod}}. The notary handles your package as confidential, keeps it secure from the time it is printed to the time it is returned, and does not retain copies of your loan documents beyond what is required for the journal entry.',
+      },
+      {
+        heading: 'Incomplete or Late Packages',
+        body:
+          'If the signing cannot be completed because documents have not arrived, arrive incomplete, contain errors requiring lender correction, or a signer is unavailable or unidentifiable, the appointment will be rescheduled and the agreed travel fee remains payable for the trip made.',
+      },
+      ...BASE_CLAUSES,
+    ],
+    acknowledgements: [
+      ...BASE_ACKNOWLEDGEMENTS,
+      {
+        key: 'lenderQuestions',
+        label:
+          'I understand that all questions about my loan terms, closing costs, and figures must go to my lender, escrow officer, or attorney — not the notary.',
+        required: true,
+      },
+      {
+        key: 'allSignersPresent',
+        label: 'All signers listed on the documents will be present at the appointment with their own valid photo ID.',
+        required: true,
+      },
+    ],
+  },
+
+  {
+    id: 'estate-planning',
+    name: 'Estate Planning Documents',
+    description: 'Wills, trusts, powers of attorney, healthcare directives, and deeds.',
+    segment: 'Estate Planning',
+    documentTitle: 'Client Consent & Disclosure — Estate Planning Document Signing',
+    fields: [
+      ...COMMON_FIELDS,
+      { key: 'documentTypes',    label: 'Documents to Be Notarized', type: 'textarea', required: true, placeholder: 'e.g. Revocable living trust, pour-over will, durable power of attorney, healthcare power of attorney, living will' },
+      { key: 'attorneyName',     label: 'Drafting Attorney / Firm',  type: 'text', help: 'Leave blank if the client prepared the documents without counsel.' },
+      { key: 'witnessesNeeded',  label: 'Witnesses Required',        type: 'select', required: true, options: ['None', 'One (1)', 'Two (2)'] },
+      { key: 'witnessesProvidedBy', label: 'Witnesses Provided By',  type: 'select', options: ['Client', 'Notary (arranged in advance)', 'Attorney office', 'Not applicable'] },
+      { key: 'principalName',    label: 'Principal / Grantor Name',  type: 'text', prefillFrom: 'fullName' },
+    ],
+    clauses: [
+      {
+        heading: 'Nature of This Appointment',
+        body:
+          'This appointment is to notarize estate planning documents for {{principalName}}, specifically: {{documentTypes}}. Where a drafting attorney is involved ({{attorneyName}}), the notary works only within the signing instructions that attorney provides.',
+      },
+      {
+        heading: 'The Notary Did Not Prepare These Documents',
+        body:
+          'The notary did not draft, select, or review your estate planning documents and cannot tell you whether they accomplish what you intend, whether a will or a trust is right for you, how your property will pass, or what tax consequences may follow. Those are legal questions for a licensed attorney. If your documents were prepared without an attorney, please understand that the notary is not able to check them for you.',
+      },
+      {
+        heading: 'Witnesses',
+        body:
+          'This signing requires: {{witnessesNeeded}} witness(es), to be provided by {{witnessesProvidedBy}}. Witnesses must be adults, must be present for the entire signing, and generally should be disinterested — that is, not named as a beneficiary, fiduciary, or heir, and not a spouse of one. The notary cannot serve as a witness to a document they are also notarizing.',
+      },
+      {
+        heading: 'Capacity and Free Will',
+        body:
+          'The notary must be satisfied that the principal appears aware of what they are signing and is acting of their own free will, without duress or undue influence. If the principal appears confused, cannot communicate their intent, or appears to be directed by another person present, the notary is required to decline the notarization. Determining legal capacity is a matter for a physician and an attorney, not the notary, and the notary makes no determination of legal capacity.',
+      },
+      {
+        heading: 'Third Parties Present',
+        body:
+          'Family members and caregivers may be present for comfort, but the principal must answer for themselves and sign for themselves. The notary may ask others to step back or step out of the room briefly to confirm the principal is signing freely.',
+      },
+      {
+        heading: 'Original Documents',
+        body:
+          'Estate planning documents are usually valid only as executed originals. The notary does not retain your originals and does not keep copies of the documents beyond the journal entry. Store your originals safely and tell your executor, trustee, or agent where to find them.',
+      },
+      ...BASE_CLAUSES,
+    ],
+    acknowledgements: [
+      ...BASE_ACKNOWLEDGEMENTS,
+      {
+        key: 'attorneyQuestions',
+        label:
+          'I understand the notary did not prepare these documents and cannot advise me on whether they accomplish my wishes; those questions go to a licensed attorney.',
+        required: true,
+      },
+      {
+        key: 'witnessesArranged',
+        label: 'I understand the witness requirement stated above and who is responsible for providing witnesses.',
+        required: true,
+      },
+      {
+        key: 'noUndueInfluence',
+        label:
+          'I am signing free of pressure from any family member, caregiver, or other person, and the decisions in these documents are my own.',
+        required: true,
+      },
+    ],
+  },
+
+  {
+    id: 'hospital-facility',
+    name: 'Hospital / Nursing Home Signing',
+    description: 'Bedside signings at hospitals, rehabilitation centers, hospice, and care facilities.',
+    segment: 'Hospital & Nursing Home',
+    documentTitle: 'Client Consent & Disclosure — Hospital / Care Facility Signing',
+    fields: [
+      ...COMMON_FIELDS,
+      { key: 'facilityName',      label: 'Facility Name',          type: 'text', required: true },
+      { key: 'facilityAddress',   label: 'Facility Address',       type: 'textarea', required: true },
+      { key: 'roomNumber',        label: 'Room / Unit Number',     type: 'text' },
+      { key: 'signerName',        label: 'Patient / Signer Name',  type: 'text', required: true },
+      { key: 'requestedBy',       label: 'Appointment Requested By', type: 'text', required: true, prefillFrom: 'fullName', help: 'Person arranging the appointment, if not the patient.' },
+      { key: 'requestorRelationship', label: 'Relationship to Signer', type: 'text', placeholder: 'e.g. daughter, attorney, case manager' },
+      { key: 'documentTypes',     label: 'Documents to Be Notarized', type: 'textarea', required: true },
+      { key: 'witnessesNeeded',   label: 'Witnesses Required',     type: 'select', required: true, options: ['None', 'One (1)', 'Two (2)'] },
+      { key: 'witnessSource',     label: 'Witnesses Provided By',  type: 'select', options: ['Family', 'Facility staff', 'Notary (arranged in advance)', 'Not applicable'] },
+    ],
+    clauses: [
+      {
+        heading: 'Nature of This Appointment',
+        body:
+          'This is a bedside notarization for {{signerName}} at {{facilityName}}, {{facilityAddress}}, room {{roomNumber}}. The appointment was requested by {{requestedBy}} ({{requestorRelationship}}). The documents to be notarized are: {{documentTypes}}.',
+      },
+      {
+        heading: 'The Signer Must Be Awake, Aware, and Able to Communicate',
+        body:
+          'The notary must speak directly with the signer. The signer must be awake and responsive, must be able to communicate that they understand they are signing a document and what kind of document it is, and must be able to indicate their intent without being coached. Sedation, pain medication, confusion, or fatigue may make notarization impossible at that moment. If so, the notary will suggest returning at a better time of day.',
+      },
+      {
+        heading: 'No Determination of Medical or Legal Capacity',
+        body:
+          'The notary is not a physician and is not an attorney. The notary makes no determination of the signer\'s medical or legal capacity. The notary only observes whether the signer appears aware of the nature of the act and is acting willingly at that moment. If the signer\'s capacity is in question, obtain a physician\'s assessment and consult an attorney before scheduling.',
+      },
+      {
+        heading: 'Signing Free of Influence',
+        body:
+          'The signer must sign of their own free will. The notary may ask family members, caregivers, or facility staff to step away from the bedside so the notary can speak with the signer privately. If it appears the signer is being pressured or directed, or that someone else is answering for them, the notary is required to decline. This protection exists for the signer\'s benefit.',
+      },
+      {
+        heading: 'If the Signer Cannot Sign by Hand',
+        body:
+          'A signer physically unable to sign may be able to make a mark, or to direct another person to sign their name in their presence and at their direction, with witnesses. This depends on the document and state law, and the requirements must be confirmed before the appointment. Please raise this in advance so it does not delay the signing.',
+      },
+      {
+        heading: 'Witnesses',
+        body:
+          'This signing requires {{witnessesNeeded}} witness(es), provided by {{witnessSource}}. Please note that many facilities restrict their staff from acting as witnesses, and staff are typically unavailable on short notice. Confirm witnesses in advance. Witnesses should be disinterested — not a beneficiary, agent, or heir under the document.',
+      },
+      {
+        heading: 'Facility Access and Timing',
+        body:
+          'Access depends entirely on the facility. Visiting hours, infection-control precautions, isolation status, staff availability, and the signer\'s treatment schedule can all delay or prevent the appointment. Please clear the visit with the facility and the care team in advance. If the notary arrives and cannot gain access or the signer is not available, the travel fee remains payable.',
+      },
+      {
+        heading: 'Health Information',
+        body:
+          'The notary does not request or record medical information and will not document a diagnosis or treatment in the journal. The journal records only what the law requires: the act performed, the document type, the signer\'s name and address, the identification relied upon, and the date, time, and location.',
+      },
+      ...BASE_CLAUSES,
+    ],
+    acknowledgements: [
+      ...BASE_ACKNOWLEDGEMENTS,
+      {
+        key: 'signerAware',
+        label:
+          'The signer is expected to be awake, responsive, and able to communicate at the scheduled time, and I understand the notary must decline if they are not.',
+        required: true,
+      },
+      {
+        key: 'noCapacityJudgment',
+        label:
+          'I understand the notary makes no determination of medical or legal capacity and that a physician or attorney should be consulted if capacity is in question.',
+        required: true,
+      },
+      {
+        key: 'facilityAccess',
+        label:
+          'I have confirmed, or will confirm, that the facility permits this visit at the scheduled time, and I understand the travel fee applies if access is denied.',
+        required: true,
+      },
+      {
+        key: 'witnessesConfirmed',
+        label: 'I understand the witness requirement above and that facility staff often cannot serve as witnesses.',
+        required: true,
+      },
+    ],
+  },
+];
+
+export function getConsentTemplate(id: ConsentTemplateId | string): ConsentTemplate | undefined {
+  return CONSENT_TEMPLATES.find(t => t.id === id);
+}
+
+export interface RenderBusiness {
+  name: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  website?: string;
+  commissionNumber?: string;
+  commissionExpiration?: string;
+}
+
+export function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+const CURRENCY_FIELDS = new Set(['notarialFee', 'travelFee']);
+
+/** Formats a stored field value for display; empty values become a neutral placeholder. */
+export function formatFieldValue(key: string, raw: string | undefined): string {
+  const value = (raw ?? '').trim();
+  if (!value) return CURRENCY_FIELDS.has(key) ? '$0.00' : 'not specified';
+  if (CURRENCY_FIELDS.has(key)) {
+    const num = Number(value.replace(/[^0-9.\-]/g, ''));
+    return Number.isFinite(num) ? `$${num.toFixed(2)}` : value;
+  }
+  if (key === 'appointmentDate') {
+    // Render as a plain, unambiguous date without pulling in a date library.
+    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      return `${months[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
+    }
+  }
+  return value;
+}
+
+/** Replaces {{fieldKey}} and {{business.x}} tokens in clause text. */
+export function interpolate(
+  text: string,
+  fields: Record<string, string>,
+  business: RenderBusiness,
+): string {
+  return text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, token: string) => {
+    if (token.startsWith('business.')) {
+      const prop = token.slice('business.'.length);
+      if (prop === 'emailSuffix') return business.email ? ` at ${business.email}` : '';
+      const val = (business as any)[prop];
+      return String(val ?? '');
+    }
+    return formatFieldValue(token, fields[token]);
+  });
+}
+
+/**
+ * Renders the consent document body as standalone HTML.
+ *
+ * The output is frozen onto the form when it is sent, so the signer's
+ * signature is tied to the exact words they saw — editing the template later
+ * cannot retroactively change a signed record.
+ */
+export function renderConsentDocument(opts: {
+  template: ConsentTemplate;
+  fields: Record<string, string>;
+  business: RenderBusiness;
+}): string {
+  const { template, fields, business } = opts;
+
+  const summaryRows: Array<[string, string]> = [
+    ['Client / Signer', formatFieldValue('clientName', fields.clientName)],
+    ['Appointment', `${formatFieldValue('appointmentDate', fields.appointmentDate)} at ${formatFieldValue('appointmentTime', fields.appointmentTime)}`],
+    ['Location', formatFieldValue('appointmentLocation', fields.appointmentLocation)],
+    ['Notarial Fee', formatFieldValue('notarialFee', fields.notarialFee)],
+    ['Travel Fee', formatFieldValue('travelFee', fields.travelFee)],
+    ['Notary', business.name],
+  ];
+  if (business.commissionNumber) {
+    summaryRows.push(['Commission Number', business.commissionNumber]);
+  }
+  if (business.commissionExpiration) {
+    summaryRows.push(['Commission Expires', business.commissionExpiration]);
+  }
+
+  const summary = summaryRows
+    .map(
+      ([label, value]) => `
+      <tr>
+        <th style="text-align:left;padding:8px 16px 8px 0;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;vertical-align:top;white-space:nowrap;">${escapeHtml(label)}</th>
+        <td style="padding:8px 0;color:#0f172a;font-size:14px;vertical-align:top;">${escapeHtml(value)}</td>
+      </tr>`,
+    )
+    .join('');
+
+  const clauses = template.clauses
+    .map(
+      (c, i) => `
+    <section style="margin:0 0 22px;">
+      <h3 style="margin:0 0 6px;font-size:14px;font-weight:700;color:#1e3a5f;">${i + 1}. ${escapeHtml(c.heading)}</h3>
+      <p style="margin:0;font-size:14px;line-height:1.75;color:#334155;">${escapeHtml(interpolate(c.body, fields, business))}</p>
+    </section>`,
+    )
+    .join('');
+
+  return `
+<article style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#0f172a;">
+  <header style="border-bottom:2px solid #1e3a5f;padding-bottom:16px;margin-bottom:20px;">
+    <h1 style="margin:0 0 4px;font-size:20px;font-weight:800;color:#1e3a5f;">${escapeHtml(template.documentTitle)}</h1>
+    <p style="margin:0;font-size:13px;color:#64748b;">${escapeHtml(business.name)}${business.location ? ' &bull; ' + escapeHtml(business.location) : ''}${business.phone ? ' &bull; ' + escapeHtml(business.phone) : ''}</p>
+  </header>
+
+  <table style="border-collapse:collapse;width:100%;margin:0 0 24px;background:#f8fafc;border-radius:10px;padding:8px;">
+    ${summary}
+  </table>
+
+  ${clauses}
+</article>`.trim();
+}

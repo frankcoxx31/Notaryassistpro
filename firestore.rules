@@ -27,6 +27,15 @@ service cloud.firestore {
     //
     // Collection: recentSearches
     // Fields: id, userId, query, state, topic, searchedAt
+    //
+    // Collection: consentForms  (server-written only)
+    // Fields: id, userId, customerId, templateId, templateName, status, clientName, clientEmail,
+    //         fields, acknowledgementList, acknowledgements, renderedHtml, signature, expiresAt,
+    //         sentAt, viewedAt, signedAt, audit, createdAt, updatedAt
+    //
+    // Collection: websiteLeads  (server-written only)
+    // Fields: id, userId, fullName, email, phone, serviceType, preferredDate, location, message,
+    //         consentToContact, source, ip, userAgent, customerId, createdAt
     // ===============================================================
 
     // ===============================================================
@@ -272,6 +281,25 @@ service cloud.firestore {
       allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated() && isValidIdvRecord(request.resource.data);
       allow update: if isDocOwner() && isValidIdvRecord(request.resource.data) && uidNotModified();
+    }
+
+    // Consent forms are read-only from the browser. Every write — create, send,
+    // sign, void — goes through the server's Admin SDK, which is also how the
+    // unauthenticated signer is able to sign without any client credentials.
+    // Client writes are denied so a signed record cannot be altered after the fact.
+    match /consentForms/{formId} {
+      allow get: if isDocOwner();
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Website intake leads. Created server-side only; the notary can read and
+    // clear them from the CRM.
+    match /websiteLeads/{leadId} {
+      allow get: if isDocOwner();
+      allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create, update: if false;
+      allow delete: if isDocOwner();
     }
   }
 }
