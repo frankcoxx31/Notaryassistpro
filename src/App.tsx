@@ -5127,13 +5127,12 @@ const Appointments = ({
   // Sort appointments by combined date and time in descending order (newest at the top)
   const sortedAppointments = useMemo(() => {
     return filteredAppointments
-      .map(app => {
-        if (app.sortableDateTime) return app;
-        return {
-          ...app,
-          sortableDateTime: parseSafeDateTime(app.date, app.time).toISOString()
-        };
-      })
+      .map(app => ({
+        // Always derive from date/time — a stored sortableDateTime can be stale
+        // if the appointment was rescheduled before it was kept in sync.
+        ...app,
+        sortableDateTime: parseSafeDateTime(app.date, app.time).toISOString()
+      }))
       .sort((a, b) => {
         let valA: any;
         let valB: any;
@@ -5499,8 +5498,8 @@ const Appointments = ({
     
     // Sort by date/time ascending for entry numbers
     const sortedForExport = [...appointments].sort((a, b) => {
-      const dateA = a.sortableDateTime || parseSafeDateTime(a.date, a.time).toISOString();
-      const dateB = b.sortableDateTime || parseSafeDateTime(b.date, b.time).toISOString();
+      const dateA = parseSafeDateTime(a.date, a.time).toISOString();
+      const dateB = parseSafeDateTime(b.date, b.time).toISOString();
       return dateA.localeCompare(dateB);
     });
 
@@ -7616,9 +7615,11 @@ export default function App() {
       const appData = sanitizeData({ 
         ...app, 
         userId: user.uid,
-        sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
+        // Recompute every save: reusing the stored value made rescheduled
+        // appointments keep their old date/time.
+        sortableDateTime: parseSafeDateTime(app.date, app.time).toISOString()
       });
-      
+
       console.log('Sanitized Appointment Data Payload:', JSON.stringify(appData, null, 2));
       
       const docRef = doc(db, 'appointments', app.id);
@@ -7842,9 +7843,9 @@ export default function App() {
         const appData = sanitizeData({ 
           ...app, 
           userId: user.uid,
-          sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
+          sortableDateTime: parseSafeDateTime(app.date, app.time).toISOString()
         });
-        
+
         const docRef = doc(db, 'appointments', app.id);
         console.log(`[Import] Adding to batch: ${app.id} (${app.clientName || app.customerName})`);
         batch.set(docRef, appData);
@@ -7879,7 +7880,7 @@ export default function App() {
           const appData = sanitizeData({ 
             ...app, 
             userId: user.uid,
-            sortableDateTime: app.sortableDateTime || parseSafeDateTime(app.date, app.time).toISOString()
+            sortableDateTime: parseSafeDateTime(app.date, app.time).toISOString()
           });
           batch.set(doc(db, 'appointments', app.id), appData);
         });
