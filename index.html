@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NotaryPro</title>
+    <!-- Script faces for the signature picker on the consent signing page.
+         The chosen style is rasterised to a PNG when the client signs, so the
+         executed copy renders identically in email clients that ignore fonts. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Great+Vibes&family=Homemade+Apple&family=Sacramento&family=Caveat:wght@600&display=swap"
+      rel="stylesheet"
+    />
     <script>
       // Suppress Vite websocket connection errors which are benign in this environment
       window.addEventListener('unhandledrejection', function(event) {

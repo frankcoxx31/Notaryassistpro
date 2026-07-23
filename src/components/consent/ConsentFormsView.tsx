@@ -78,7 +78,14 @@ const ConsentDetail: React.FC<{ form: ConsentForm; onClose: () => void }> = ({ f
               {form.signature.drawnPng && (
                 <img src={form.signature.drawnPng} alt="Signature" className="max-w-[280px] border-b border-slate-400 mb-3" />
               )}
-              <p className="text-xl font-serif italic text-slate-900">{form.signature.typedName}</p>
+              <p className="text-sm text-slate-700">
+                Printed name: <span className="font-semibold">{form.signature.typedName}</span>
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {form.signature.mode === 'draw'
+                  ? 'Drawn by the signer'
+                  : `Adopted from the offered styles${form.signature.fontId ? ` (${form.signature.fontId})` : ''}`}
+              </p>
               <p className="text-xs text-slate-500 mt-1.5">
                 Signed {formatDate(form.signature.signedAt)}
                 {form.signature.ip && ` · IP ${form.signature.ip}`}

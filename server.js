@@ -503,6 +503,16 @@ function renderConsentDocument(opts) {
 </article>`.trim();
 }
 
+// src/lib/signatureFonts.ts
+var SIGNATURE_FONTS = [
+  { id: "dancing", label: "Flowing", family: "'Dancing Script', cursive", scale: 1 },
+  { id: "greatvibes", label: "Formal", family: "'Great Vibes', cursive", scale: 1.05 },
+  { id: "homemade", label: "Handwritten", family: "'Homemade Apple', cursive", scale: 0.78 },
+  { id: "sacramento", label: "Classic", family: "'Sacramento', cursive", scale: 1.05 },
+  { id: "caveat", label: "Casual", family: "'Caveat', cursive", scale: 1.05 }
+];
+var SIGNATURE_FONT_IDS = SIGNATURE_FONTS.map((f) => f.id);
+
 // server.ts
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -1487,7 +1497,17 @@ async function startServer() {
   });
   app.post("/api/public/consent/:id/sign", async (req, res) => {
     if (!adminDb) return res.status(503).json({ error: "Service unavailable" });
-    const { token, exp, typedName, drawnPng, agreedToElectronic, intentAcknowledged, acknowledgements } = req.body || {};
+    const {
+      token,
+      exp,
+      typedName,
+      drawnPng,
+      agreedToElectronic,
+      intentAcknowledged,
+      acknowledgements,
+      signatureFontId,
+      signatureMode
+    } = req.body || {};
     if (!agreedToElectronic || !intentAcknowledged) {
       return res.status(400).json({ error: "Both consent boxes must be checked before signing." });
     }
@@ -1516,7 +1536,9 @@ async function startServer() {
       const now = (/* @__PURE__ */ new Date()).toISOString();
       const ip = clientIp(req);
       const userAgent = req.get("user-agent") || "";
-      const signature = { typedName: name, drawnPng: png, signedAt: now, ip, userAgent };
+      const fontId = SIGNATURE_FONT_IDS.includes(String(signatureFontId || "")) ? String(signatureFontId) : "";
+      const mode = signatureMode === "draw" ? "draw" : "type";
+      const signature = { typedName: name, drawnPng: png, fontId, mode, signedAt: now, ip, userAgent };
       await ref.update({
         status: "signed",
         signature,
@@ -1610,7 +1632,8 @@ async function startServer() {
         The signer consented to do business electronically and indicated intent to sign.
       </p>
       ${signature.drawnPng ? `<img src="${signature.drawnPng}" alt="Signature" style="max-width:320px;display:block;margin:0 0 10px;border-bottom:1px solid #94a3b8;"/>` : ""}
-      <p style="margin:0;font-size:18px;font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#0f172a;">${escapeHtml(signature.typedName)}</p>
+      <p style="margin:0;font-size:13px;color:#475569;">Printed name: <strong>${escapeHtml(signature.typedName)}</strong></p>
+      <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">${signature.mode === "draw" ? "Signature drawn by the signer." : "Signature adopted by the signer from the offered styles."}</p>
       <p style="margin:6px 0 0;font-size:12px;color:#64748b;">
         Signed ${escapeHtml(new Date(signature.signedAt).toLocaleString("en-US"))}
         ${signature.ip ? " &bull; IP " + escapeHtml(signature.ip) : ""}

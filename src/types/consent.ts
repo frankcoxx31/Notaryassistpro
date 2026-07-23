@@ -69,8 +69,15 @@ export interface ConsentAuditEntry {
 export interface ConsentSignature {
   /** Typed legal name, as entered by the signer. */
   typedName: string;
-  /** Optional drawn signature, stored as a base64 PNG data URL. */
+  /**
+   * The adopted mark as a base64 PNG — either drawn by hand, or the typed name
+   * rasterised in the script face the client chose.
+   */
   drawnPng?: string;
+  /** Which script face was adopted, when the signature was typed. */
+  fontId?: string;
+  /** How the client signed: picked a style, or drew it. */
+  mode?: 'type' | 'draw';
   signedAt: string;
   ip?: string;
   userAgent?: string;

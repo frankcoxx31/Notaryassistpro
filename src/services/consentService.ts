@@ -81,6 +81,8 @@ export const publicConsentApi = {
     exp: string;
     typedName: string;
     drawnPng?: string;
+    signatureFontId?: string;
+    signatureMode?: 'type' | 'draw';
     agreedToElectronic: boolean;
     intentAcknowledged: boolean;
     acknowledgements: Record<string, boolean>;

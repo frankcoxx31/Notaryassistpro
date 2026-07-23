@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, AlertCircle, Loader2, ShieldCheck, FileSignature } from 'lucide-react';
 import { publicConsentApi } from '../../services/consentService';
 import SignaturePad from './SignaturePad';
+import { SIGNATURE_FONTS, renderTypedSignature } from '../../lib/signatureFonts';
 
 interface PublicForm {
   id: string;
@@ -40,6 +41,8 @@ export const PublicSignPage: React.FC = () => {
   const [intentAcknowledged, setIntentAcknowledged] = useState(false);
   const [typedName, setTypedName] = useState('');
   const [drawnPng, setDrawnPng] = useState<string | null>(null);
+  const [mode, setMode] = useState<'type' | 'draw'>('type');
+  const [fontId, setFontId] = useState(SIGNATURE_FONTS[0].id);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -63,18 +66,29 @@ export const PublicSignPage: React.FC = () => {
 
   const requiredAcks = (form?.acknowledgementList || []).filter(a => a.required);
   const allAcksChecked = requiredAcks.every(a => acks[a.key]);
-  const canSign = allAcksChecked && agreedToElectronic && intentAcknowledged && typedName.trim().length >= 2;
+  // In draw mode an empty pad would submit a name with no mark, so require ink.
+  const hasMark = mode === 'type' || !!drawnPng;
+  const canSign =
+    allAcksChecked && agreedToElectronic && intentAcknowledged && typedName.trim().length >= 2 && hasMark;
 
   const submit = async () => {
     if (!canSign) return;
     setSubmitting(true);
     setSubmitError('');
     try {
+      // A typed signature is rasterised here so the stored mark is the face the
+      // client actually adopted, not a font name the email client will ignore.
+      const image = mode === 'draw'
+        ? drawnPng || undefined
+        : await renderTypedSignature(typedName.trim(), fontId);
+
       await publicConsentApi.sign(formId, {
         token,
         exp,
         typedName: typedName.trim(),
-        drawnPng: drawnPng || undefined,
+        drawnPng: image,
+        signatureFontId: mode === 'type' ? fontId : undefined,
+        signatureMode: mode,
         agreedToElectronic,
         intentAcknowledged,
         acknowledgements: acks,
@@ -201,16 +215,76 @@ export const PublicSignPage: React.FC = () => {
               value={typedName}
               onChange={e => setTypedName(e.target.value)}
               autoComplete="name"
-              className="mt-1.5 w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-serif italic focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="mt-1.5 w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </label>
 
-          <div className="mb-6">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Draw your signature (optional)</span>
-            <div className="mt-1.5">
-              <SignaturePad onChange={setDrawnPng} disabled={submitting} />
-            </div>
+          <div className="flex gap-2 mb-4">
+            {(['type', 'draw'] as const).map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                  mode === m
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {m === 'type' ? 'Choose a style' : 'Draw it myself'}
+              </button>
+            ))}
           </div>
+
+          {mode === 'type' ? (
+            <div className="mb-6">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Pick the signature you want to adopt
+              </span>
+              <div className="mt-2 space-y-2">
+                {SIGNATURE_FONTS.map(f => {
+                  const selected = fontId === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setFontId(f.id)}
+                      className={`w-full flex items-center justify-between gap-4 px-5 py-3 rounded-xl border-2 text-left transition-all ${
+                        selected
+                          ? 'border-indigo-600 bg-indigo-50/60'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <span
+                        className="text-2xl sm:text-3xl text-slate-900 truncate"
+                        style={{ fontFamily: f.family }}
+                      >
+                        {typedName.trim() || 'Your name'}
+                      </span>
+                      <span className="shrink-0 flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{f.label}</span>
+                        <span
+                          className={`w-4 h-4 rounded-full border-2 ${
+                            selected ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'
+                          }`}
+                        />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+                The style you pick is adopted as your signature and appears on your signed copy.
+              </p>
+            </div>
+          ) : (
+            <div className="mb-6">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Draw your signature</span>
+              <div className="mt-1.5">
+                <SignaturePad onChange={setDrawnPng} disabled={submitting} />
+              </div>
+            </div>
+          )}
 
           {submitError && (
             <div className="flex items-start gap-2 mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-700">
@@ -229,7 +303,9 @@ export const PublicSignPage: React.FC = () => {
           </button>
           {!canSign && (
             <p className="text-xs text-slate-400 text-center mt-3">
-              Check every required box and type your name to enable signing.
+              {mode === 'draw' && !drawnPng && typedName.trim().length >= 2 && allAcksChecked
+                ? 'Draw your signature above to enable signing.'
+                : 'Check every required box and type your name to enable signing.'}
             </p>
           )}
         </div>

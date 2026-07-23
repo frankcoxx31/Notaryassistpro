@@ -15,6 +15,7 @@ import {
   renderConsentDocument,
   escapeHtml as escapeConsentHtml,
 } from "./src/lib/consentTemplates";
+import { SIGNATURE_FONT_IDS } from "./src/lib/signatureFonts";
 
 dotenv.config();
 
@@ -1214,7 +1215,10 @@ async function startServer() {
    */
   app.post("/api/public/consent/:id/sign", async (req, res) => {
     if (!adminDb) return res.status(503).json({ error: "Service unavailable" });
-    const { token, exp, typedName, drawnPng, agreedToElectronic, intentAcknowledged, acknowledgements } = req.body || {};
+    const {
+      token, exp, typedName, drawnPng, agreedToElectronic, intentAcknowledged,
+      acknowledgements, signatureFontId, signatureMode,
+    } = req.body || {};
 
     if (!agreedToElectronic || !intentAcknowledged) {
       return res.status(400).json({ error: "Both consent boxes must be checked before signing." });
@@ -1248,7 +1252,11 @@ async function startServer() {
       const now = new Date().toISOString();
       const ip = clientIp(req);
       const userAgent = req.get('user-agent') || '';
-      const signature = { typedName: name, drawnPng: png, signedAt: now, ip, userAgent };
+      // Only ids the picker actually offers are stored, so a tampered payload
+      // cannot put arbitrary text into the signature record.
+      const fontId = SIGNATURE_FONT_IDS.includes(String(signatureFontId || '')) ? String(signatureFontId) : '';
+      const mode = signatureMode === 'draw' ? 'draw' : 'type';
+      const signature = { typedName: name, drawnPng: png, fontId, mode, signedAt: now, ip, userAgent };
 
       await ref.update({
         status: 'signed',
@@ -1359,7 +1367,12 @@ async function startServer() {
         The signer consented to do business electronically and indicated intent to sign.
       </p>
       ${signature.drawnPng ? `<img src="${signature.drawnPng}" alt="Signature" style="max-width:320px;display:block;margin:0 0 10px;border-bottom:1px solid #94a3b8;"/>` : ''}
-      <p style="margin:0;font-size:18px;font-family:Georgia,'Times New Roman',serif;font-style:italic;color:#0f172a;">${escapeConsentHtml(signature.typedName)}</p>
+      <p style="margin:0;font-size:13px;color:#475569;">Printed name: <strong>${escapeConsentHtml(signature.typedName)}</strong></p>
+      <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;">${
+        signature.mode === 'draw'
+          ? 'Signature drawn by the signer.'
+          : 'Signature adopted by the signer from the offered styles.'
+      }</p>
       <p style="margin:6px 0 0;font-size:12px;color:#64748b;">
         Signed ${escapeConsentHtml(new Date(signature.signedAt).toLocaleString('en-US'))}
         ${signature.ip ? ' &bull; IP ' + escapeConsentHtml(signature.ip) : ''}
