@@ -88,7 +88,8 @@ export const ConsentFormModal: React.FC<{
     ? template.fields.filter(f => f.required && !(fields[f.key] || '').trim())
     : [];
 
-  const cost = computeConsentCost(fields);
+  const cost = computeConsentCost(fields, template?.pricingModel);
+  const isFlat = template?.pricingModel === 'flat';
 
   /**
    * Fills round-trip miles and the travel fee from the appointment address.
@@ -261,23 +262,27 @@ export const ConsentFormModal: React.FC<{
                         </span>
                         <textarea rows={2} value={value} onChange={e => set(e.target.value)} placeholder={f.placeholder} className={cls} />
                       </label>
-                      <div className="flex items-center gap-2 mt-2">
-                        <button
-                          type="button"
-                          onClick={lookupMiles}
-                          disabled={lookingUp}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
-                        >
-                          {lookingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
-                          {lookingUp ? 'Calculating…' : 'Look up address & miles'}
-                        </button>
-                        <span className="text-[11px] text-slate-400">
-                          Fills round-trip miles and travel fee at ${MILEAGE_RATE.toFixed(3)}/mile.
-                        </span>
-                      </div>
-                      {lookupError && <p className="mt-1.5 text-[11px] text-rose-600">{lookupError}</p>}
-                      {matchedAddress && !lookupError && (
-                        <p className="mt-1.5 text-[11px] text-emerald-700">Matched: {matchedAddress}</p>
+                      {!isFlat && (
+                        <>
+                          <div className="flex items-center gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={lookupMiles}
+                              disabled={lookingUp}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+                            >
+                              {lookingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+                              {lookingUp ? 'Calculating…' : 'Look up address & miles'}
+                            </button>
+                            <span className="text-[11px] text-slate-400">
+                              Fills round-trip miles and travel fee at ${MILEAGE_RATE.toFixed(3)}/mile.
+                            </span>
+                          </div>
+                          {lookupError && <p className="mt-1.5 text-[11px] text-rose-600">{lookupError}</p>}
+                          {matchedAddress && !lookupError && (
+                            <p className="mt-1.5 text-[11px] text-emerald-700">Matched: {matchedAddress}</p>
+                          )}
+                        </>
                       )}
                     </div>
                   );
@@ -351,8 +356,12 @@ export const ConsentFormModal: React.FC<{
                 Client total: ${cost.total.toFixed(2)}
               </p>
               <p className="text-xs text-slate-500">
-                {cost.signatureCount} × ${cost.feePerSignature.toFixed(2)} = ${cost.notarialSubtotal.toFixed(2)}
-                {cost.travelWaived ? ' · travel waived' : ` + $${cost.travelFee.toFixed(2)} travel`}
+                {isFlat
+                  ? 'Flat signing fee'
+                  : <>
+                      {cost.signatureCount} × ${cost.feePerSignature.toFixed(2)} = ${cost.notarialSubtotal.toFixed(2)}
+                      {cost.travelWaived ? ' · travel waived' : ` + $${cost.travelFee.toFixed(2)} travel`}
+                    </>}
                 {missingRequired.length > 0 && ` · ${missingRequired.length} required field(s) empty`}
               </p>
             </div>

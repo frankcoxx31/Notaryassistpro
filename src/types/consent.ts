@@ -46,6 +46,8 @@ export interface ConsentAcknowledgement {
   required: boolean;
 }
 
+export type ConsentPricingModel = 'per-signature' | 'flat';
+
 export interface ConsentTemplate {
   id: ConsentTemplateId;
   name: string;
@@ -53,6 +55,8 @@ export interface ConsentTemplate {
   /** Matches the drip segment this template belongs to. */
   segment: string;
   documentTitle: string;
+  /** How this template is priced. Defaults to per-signature when omitted. */
+  pricingModel?: ConsentPricingModel;
   fields: ConsentField[];
   clauses: ConsentClause[];
   acknowledgements: ConsentAcknowledgement[];
