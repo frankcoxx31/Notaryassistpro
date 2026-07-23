@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { X, FileSignature, Send, Eye, Loader2, ChevronLeft, AlertCircle, Home, Scale, HeartPulse, Stamp, MapPin } from 'lucide-react';
-import { MILEAGE_RATE, milesForAddress } from '../../lib/quoteCalculator';
+import { MILEAGE_RATE, lookupAddress, milesForAddress } from '../../lib/quoteCalculator';
 import { CONSENT_TEMPLATES, computeConsentCost, renderConsentDocument } from '../../lib/consentTemplates';
 import { consentService } from '../../services/consentService';
 import type { ConsentTemplate, ConsentTemplateId } from '../../types/consent';
@@ -111,6 +111,34 @@ export const ConsentFormModal: React.FC<{
         travelFee: (miles * MILEAGE_RATE).toFixed(2),
       }));
       setMatchedAddress(matched);
+    } catch (e: any) {
+      setLookupError(e.message || 'Could not look up that address.');
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  /**
+   * Flat-fee forms have no mileage, but still want the location cleaned up and
+   * validated. Resolves the address and writes the formatted match back into
+   * the appointment location field, without touching any fee.
+   */
+  const lookupAddressOnly = async () => {
+    const address = (fields.appointmentLocation || '').trim();
+    if (!address) {
+      setLookupError('Enter the appointment location first.');
+      return;
+    }
+    setLookingUp(true);
+    setLookupError('');
+    try {
+      const matches = await lookupAddress(address, 1);
+      if (!matches.length) {
+        setLookupError('Address not found. Try adding a city or ZIP code.');
+        return;
+      }
+      setFields(prev => ({ ...prev, appointmentLocation: matches[0].label }));
+      setMatchedAddress(matches[0].label);
     } catch (e: any) {
       setLookupError(e.message || 'Could not look up that address.');
     } finally {
@@ -262,27 +290,27 @@ export const ConsentFormModal: React.FC<{
                         </span>
                         <textarea rows={2} value={value} onChange={e => set(e.target.value)} placeholder={f.placeholder} className={cls} />
                       </label>
-                      {!isFlat && (
-                        <>
-                          <div className="flex items-center gap-2 mt-2">
-                            <button
-                              type="button"
-                              onClick={lookupMiles}
-                              disabled={lookingUp}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
-                            >
-                              {lookingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
-                              {lookingUp ? 'Calculating…' : 'Look up address & miles'}
-                            </button>
-                            <span className="text-[11px] text-slate-400">
-                              Fills round-trip miles and travel fee at ${MILEAGE_RATE.toFixed(3)}/mile.
-                            </span>
-                          </div>
-                          {lookupError && <p className="mt-1.5 text-[11px] text-rose-600">{lookupError}</p>}
-                          {matchedAddress && !lookupError && (
-                            <p className="mt-1.5 text-[11px] text-emerald-700">Matched: {matchedAddress}</p>
-                          )}
-                        </>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={isFlat ? lookupAddressOnly : lookupMiles}
+                          disabled={lookingUp}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+                        >
+                          {lookingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+                          {lookingUp
+                            ? (isFlat ? 'Looking up…' : 'Calculating…')
+                            : (isFlat ? 'Look up address' : 'Look up address & miles')}
+                        </button>
+                        <span className="text-[11px] text-slate-400">
+                          {isFlat
+                            ? 'Fills the verified appointment address.'
+                            : `Fills round-trip miles and travel fee at $${MILEAGE_RATE.toFixed(3)}/mile.`}
+                        </span>
+                      </div>
+                      {lookupError && <p className="mt-1.5 text-[11px] text-rose-600">{lookupError}</p>}
+                      {matchedAddress && !lookupError && (
+                        <p className="mt-1.5 text-[11px] text-emerald-700">Matched: {matchedAddress}</p>
                       )}
                     </div>
                   );
