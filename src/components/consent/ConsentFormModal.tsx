@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { X, FileSignature, Send, Eye, Loader2, ChevronLeft, AlertCircle, Home, Scale, HeartPulse, Stamp } from 'lucide-react';
-import { CONSENT_TEMPLATES, renderConsentDocument } from '../../lib/consentTemplates';
+import { CONSENT_TEMPLATES, computeConsentCost, renderConsentDocument } from '../../lib/consentTemplates';
 import { consentService } from '../../services/consentService';
 import type { ConsentTemplate, ConsentTemplateId } from '../../types/consent';
 import type { BusinessProfile, Customer } from '../../types';
@@ -83,6 +83,8 @@ export const ConsentFormModal: React.FC<{
   const missingRequired = template
     ? template.fields.filter(f => f.required && !(fields[f.key] || '').trim())
     : [];
+
+  const cost = computeConsentCost(fields);
 
   const handleSend = async () => {
     if (!template) return;
@@ -255,11 +257,15 @@ export const ConsentFormModal: React.FC<{
 
         {step !== 'template' && (
           <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-            <p className="text-xs text-slate-500">
-              {missingRequired.length > 0
-                ? `${missingRequired.length} required field(s) still empty`
-                : 'Ready to send'}
-            </p>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900">
+                Client total: ${cost.total.toFixed(2)}
+              </p>
+              <p className="text-xs text-slate-500">
+                {cost.signatureCount} × ${cost.feePerSignature.toFixed(2)} = ${cost.notarialSubtotal.toFixed(2)} + ${cost.travelFee.toFixed(2)} travel
+                {missingRequired.length > 0 && ` · ${missingRequired.length} required field(s) empty`}
+              </p>
+            </div>
             <div className="flex items-center gap-2">
               {step === 'fields' ? (
                 <button

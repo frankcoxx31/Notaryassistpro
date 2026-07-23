@@ -36,7 +36,7 @@ var BASE_ACKNOWLEDGEMENTS = [
   },
   {
     key: "feesUnderstood",
-    label: "I have reviewed the fees listed above and I understand travel fees are separate from statutory notarial fees.",
+    label: "I have reviewed the Cost of Services total above, I agree to that amount, and I understand travel reimbursement is separate from the statutory notarial fee.",
     required: true
   }
 ];
@@ -47,8 +47,8 @@ var COMMON_FIELDS = [
   { key: "appointmentDate", label: "Appointment Date", type: "date", required: true },
   { key: "appointmentTime", label: "Appointment Time", type: "time", required: true },
   { key: "appointmentLocation", label: "Appointment Location", type: "textarea", required: true, placeholder: "Street, city, state, ZIP", prefillFrom: "address" },
-  { key: "notarialFee", label: "Notarial Fee (per act)", type: "currency", required: true, help: "North Carolina caps most acknowledgments at $10.00 per principal signature." },
-  { key: "actCount", label: "Estimated Notarial Acts", type: "number" },
+  { key: "notarialFee", label: "Fee per Notarized Signature", type: "currency", required: true, help: "North Carolina caps most acknowledgments at $10.00 per principal signature." },
+  { key: "actCount", label: "Number of Notarized Signatures", type: "number", required: true, help: "Fee per signature times this count is shown to the client as a line item." },
   { key: "travelFee", label: "Travel / Convenience Fee", type: "currency", help: "Must be disclosed and agreed to in advance, separately from the notarial fee." }
 ];
 var BASE_CLAUSES = [
@@ -62,7 +62,7 @@ var BASE_CLAUSES = [
   },
   {
     heading: "Fees",
-    body: "The notarial fee is {{notarialFee}} per notarial act, with approximately {{actCount}} act(s) anticipated. A travel/convenience fee of {{travelFee}} applies to this appointment. Travel fees are charged for the time and expense of traveling to you and are separate from, and clearly distinguishable from, the statutory notarial fee. Fees are due at the time of service unless other arrangements are made in writing."
+    body: "The notarial fee is {{notarialFee}} per notarized signature, with {{actCount}} signature(s) anticipated, plus travel reimbursement of {{travelFee}}. The itemised total shown in the Cost of Services table above is what is due at the time of service. Travel reimbursement is charged for the time and expense of traveling to you and is separate from, and clearly distinguishable from, the statutory notarial fee. If the number of signatures turns out to be different on the day, the notarial fee changes accordingly and is confirmed with you before it is charged."
   },
   {
     heading: "Mileage and Travel Reimbursement",
@@ -364,6 +364,26 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 var CURRENCY_FIELDS = /* @__PURE__ */ new Set(["notarialFee", "travelFee"]);
+function toNumber(raw) {
+  const n = Number(String(raw ?? "").replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+function money(n) {
+  return `$${n.toFixed(2)}`;
+}
+function computeConsentCost(fields) {
+  const feePerSignature = toNumber(fields.notarialFee);
+  const signatureCount = Math.max(0, Math.floor(toNumber(fields.actCount)));
+  const travelFee = toNumber(fields.travelFee);
+  const notarialSubtotal = Math.round(feePerSignature * signatureCount * 100) / 100;
+  return {
+    feePerSignature,
+    signatureCount,
+    notarialSubtotal,
+    travelFee,
+    total: Math.round((notarialSubtotal + travelFee) * 100) / 100
+  };
+}
 function formatFieldValue(key, raw) {
   const value = (raw ?? "").trim();
   if (!value) return CURRENCY_FIELDS.has(key) ? "$0.00" : "not specified";
@@ -393,12 +413,11 @@ function interpolate(text, fields, business) {
 }
 function renderConsentDocument(opts) {
   const { template, fields, business } = opts;
+  const cost = computeConsentCost(fields);
   const summaryRows = [
     ["Client / Signer", formatFieldValue("clientName", fields.clientName)],
     ["Appointment", `${formatFieldValue("appointmentDate", fields.appointmentDate)} at ${formatFieldValue("appointmentTime", fields.appointmentTime)}`],
     ["Location", formatFieldValue("appointmentLocation", fields.appointmentLocation)],
-    ["Notarial Fee", formatFieldValue("notarialFee", fields.notarialFee)],
-    ["Travel Fee", formatFieldValue("travelFee", fields.travelFee)],
     ["Notary", business.name]
   ];
   if (business.commissionNumber) {
@@ -421,6 +440,33 @@ function renderConsentDocument(opts) {
       <p style="margin:0;font-size:14px;line-height:1.75;color:#334155;">${escapeHtml(interpolate(c.body, fields, business))}</p>
     </section>`
   ).join("");
+  const costRow = (label, detail, amount, bold = false) => `
+      <tr>
+        <td style="padding:10px 16px 10px 0;vertical-align:top;">
+          <div style="font-size:${bold ? "15" : "14"}px;font-weight:${bold ? "700" : "600"};color:#0f172a;">${escapeHtml(label)}</div>
+          ${detail ? `<div style="font-size:12px;color:#64748b;margin-top:2px;">${escapeHtml(detail)}</div>` : ""}
+        </td>
+        <td style="padding:10px 0;text-align:right;vertical-align:top;white-space:nowrap;font-size:${bold ? "18" : "14"}px;font-weight:${bold ? "800" : "600"};color:${bold ? "#1e3a5f" : "#0f172a"};">${escapeHtml(amount)}</td>
+      </tr>`;
+  const costTable = `
+  <section style="margin:0 0 24px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+    <div style="background:#1e3a5f;padding:10px 16px;">
+      <h2 style="margin:0;font-size:13px;font-weight:700;color:#ffffff;letter-spacing:0.04em;text-transform:uppercase;">Cost of Services</h2>
+    </div>
+    <table style="border-collapse:collapse;width:100%;padding:0 16px;">
+      ${costRow(
+    "Notarial fee",
+    `${cost.signatureCount} notarized signature${cost.signatureCount === 1 ? "" : "s"} \xD7 ${money(cost.feePerSignature)} each`,
+    money(cost.notarialSubtotal)
+  )}
+      ${costRow("Travel reimbursement", "Round-trip mileage, agreed in advance", money(cost.travelFee))}
+      <tr><td colspan="2" style="border-top:1px solid #e2e8f0;padding:0;"></td></tr>
+      ${costRow("Total due at appointment", "", money(cost.total), true)}
+    </table>
+    <p style="margin:0;padding:0 16px 14px;font-size:11px;line-height:1.6;color:#64748b;">
+      Payable at the time of service. If the number of signatures changes on the day, the notarial fee changes with it at ${money(cost.feePerSignature)} per signature, and any change is confirmed with you before it is charged.
+    </p>
+  </section>`;
   return `
 <article style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#0f172a;">
   <header style="border-bottom:2px solid #1e3a5f;padding-bottom:16px;margin-bottom:20px;">
@@ -428,9 +474,11 @@ function renderConsentDocument(opts) {
     <p style="margin:0;font-size:13px;color:#64748b;">${escapeHtml(business.name)}${business.location ? " &bull; " + escapeHtml(business.location) : ""}${business.phone ? " &bull; " + escapeHtml(business.phone) : ""}</p>
   </header>
 
-  <table style="border-collapse:collapse;width:100%;margin:0 0 24px;background:#f8fafc;border-radius:10px;padding:8px;">
+  <table style="border-collapse:collapse;width:100%;margin:0 0 20px;background:#f8fafc;border-radius:10px;padding:8px;">
     ${summary}
   </table>
+
+  ${costTable}
 
   ${clauses}
 </article>`.trim();
