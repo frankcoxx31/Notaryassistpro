@@ -109,6 +109,27 @@ export const publicConsentApi = {
   },
 };
 
+export interface IntakeBranding {
+  name: string;
+  phone: string;
+  website: string;
+  logoUrl: string;
+  location: string;
+}
+
+/** Public branding for the intake page (the notary's own business identity). */
+export async function fetchIntakeBranding(ownerId?: string): Promise<IntakeBranding | null> {
+  const qs = ownerId ? `?to=${encodeURIComponent(ownerId)}` : '';
+  try {
+    const res = await fetch(`/api/public/intake-branding${qs}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.branding && data.branding.name ? data.branding : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Public website intake submission. */
 export async function submitWebsiteIntake(payload: {
   fullName: string;

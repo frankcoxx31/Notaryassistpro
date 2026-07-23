@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle2, AlertCircle, Loader2, Send, Calculator, MapPin } from 'lucide-react';
-import { submitWebsiteIntake } from '../../services/consentService';
+import { IntakeBranding, fetchIntakeBranding, submitWebsiteIntake } from '../../services/consentService';
 import {
   AddressMatch,
   LOCATION_TYPES,
@@ -44,6 +44,19 @@ export const PublicIntakePage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+
+  // Business identity, so this page reads as the notary's own even though it is
+  // hosted on the app domain. Falls back to a neutral header if unavailable.
+  const [branding, setBranding] = useState<IntakeBranding | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetchIntakeBranding(ownerId).then(b => {
+      if (!active || !b) return;
+      setBranding(b);
+      if (b.name) document.title = `Request a Notary — ${b.name}`;
+    });
+    return () => { active = false; };
+  }, [ownerId]);
 
   // Quote estimate. Sent with the lead so the CRM shows what the client was quoted.
   const [signatures, setSignatures] = useState('1');
@@ -132,6 +145,9 @@ export const PublicIntakePage: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-sm p-10 max-w-md text-center">
           <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-slate-900 mb-2">Request received</h1>
+          {branding?.name && (
+            <p className="text-sm font-semibold text-slate-700 mb-2">{branding.name}</p>
+          )}
           <p className="text-sm text-slate-500 leading-relaxed">
             Thank you. You'll hear back shortly to confirm the appointment. Watch your email for a short
             consent and disclosure form to review before we meet.
@@ -148,6 +164,18 @@ export const PublicIntakePage: React.FC = () => {
     <div className="min-h-screen bg-slate-100 py-10 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-gradient-to-br from-[#1e3a5f] to-blue-600 rounded-t-2xl px-7 py-8 text-white">
+          {branding?.logoUrl && (
+            <img
+              src={branding.logoUrl}
+              alt={branding.name}
+              className="h-10 mb-3 object-contain"
+            />
+          )}
+          {branding?.name && (
+            <p className="text-blue-100 text-sm font-semibold tracking-wide uppercase mb-1">
+              {branding.name}
+            </p>
+          )}
           <h1 className="text-xl font-bold">Request a Notary</h1>
           <p className="text-blue-100 text-sm mt-1">
             Tell us what you need notarized and when. We'll confirm by email.
@@ -352,6 +380,22 @@ export const PublicIntakePage: React.FC = () => {
             and complete your appointment.
           </p>
         </form>
+
+        {branding && (branding.name || branding.phone) && (
+          <div className="text-center mt-6 text-xs text-slate-500">
+            <p className="font-semibold text-slate-600">{branding.name}</p>
+            <p className="mt-0.5">
+              {branding.location}
+              {branding.location && branding.phone ? ' · ' : ''}
+              {branding.phone && <a href={`tel:${branding.phone}`} className="hover:underline">{branding.phone}</a>}
+            </p>
+            {branding.website && (
+              <a href={branding.website} className="text-indigo-600 hover:underline">
+                {branding.website.replace(/^https?:\/\//, '')}
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

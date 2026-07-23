@@ -1416,6 +1416,36 @@ async function startServer() {
     res.sendStatus(204);
   });
 
+  /**
+   * Public branding for the intake page, so it can present the notary's own
+   * business name and contact details even though it is hosted here. Returns
+   * only fields that are already public on the notary's website — never email,
+   * calendar tokens, or anything sensitive.
+   */
+  app.get("/api/public/intake-branding", async (req, res) => {
+    applyIntakeCors(req, res);
+    if (!adminDb) return res.status(503).json({ error: "Service unavailable" });
+    const uid = (typeof req.query.to === 'string' && req.query.to.trim()) || INTAKE_OWNER_UID;
+    if (!uid) return res.json({ branding: null });
+    try {
+      const doc = await adminDb.collection('profiles').doc(uid).get();
+      const d = doc.data() || {};
+      const parts = [d.city, d.state].filter(Boolean);
+      res.json({
+        branding: {
+          name: d.companyName || d.name || '',
+          phone: d.phone || '',
+          website: d.website || '',
+          logoUrl: d.logoUrl || '',
+          location: parts.join(', '),
+        },
+      });
+    } catch (error: any) {
+      console.error("[Intake] Branding fetch failed:", error.message);
+      res.json({ branding: null });
+    }
+  });
+
   app.post("/api/public/intake", async (req, res) => {
     applyIntakeCors(req, res);
     if (!adminDb) return res.status(503).json({ error: "Service unavailable" });

@@ -1667,6 +1667,29 @@ async function startServer() {
     applyIntakeCors(req, res);
     res.sendStatus(204);
   });
+  app.get("/api/public/intake-branding", async (req, res) => {
+    applyIntakeCors(req, res);
+    if (!adminDb) return res.status(503).json({ error: "Service unavailable" });
+    const uid = typeof req.query.to === "string" && req.query.to.trim() || INTAKE_OWNER_UID;
+    if (!uid) return res.json({ branding: null });
+    try {
+      const doc = await adminDb.collection("profiles").doc(uid).get();
+      const d = doc.data() || {};
+      const parts = [d.city, d.state].filter(Boolean);
+      res.json({
+        branding: {
+          name: d.companyName || d.name || "",
+          phone: d.phone || "",
+          website: d.website || "",
+          logoUrl: d.logoUrl || "",
+          location: parts.join(", ")
+        }
+      });
+    } catch (error) {
+      console.error("[Intake] Branding fetch failed:", error.message);
+      res.json({ branding: null });
+    }
+  });
   app.post("/api/public/intake", async (req, res) => {
     applyIntakeCors(req, res);
     if (!adminDb) return res.status(503).json({ error: "Service unavailable" });
