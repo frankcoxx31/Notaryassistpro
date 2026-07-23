@@ -135,6 +135,15 @@ export interface WebsiteLead {
   message?: string;
   consentToContact: boolean;
   source: string;
+  /** Estimate the client generated on the intake form, recomputed server-side. */
+  quote?: {
+    signatures: number;
+    roundTripMiles: number;
+    notaryFee: number;
+    travelFee: number;
+    locationType: string;
+    total: number;
+  };
   ip?: string;
   userAgent?: string;
   customerId?: string;

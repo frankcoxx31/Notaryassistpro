@@ -119,6 +119,12 @@ export async function submitWebsiteIntake(payload: {
   consentToContact: boolean;
   company?: string;
   ownerId?: string;
+  quoteSignatures?: number;
+  quoteRoundTripMiles?: number;
+  quoteNotaryFee?: number;
+  quoteTravelFee?: number;
+  quoteTotal?: number;
+  quoteLocationType?: string;
 }) {
   const res = await fetch('/api/public/intake', {
     method: 'POST',

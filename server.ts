@@ -1410,6 +1410,8 @@ async function startServer() {
     const {
       fullName, email, phone, serviceType, preferredDate,
       location, message, consentToContact, ownerId, company,
+      quoteSignatures, quoteRoundTripMiles, quoteNotaryFee,
+      quoteTravelFee, quoteTotal, quoteLocationType,
     } = req.body || {};
 
     // `company` is a honeypot: it is hidden from real users, so anything in it
@@ -1441,6 +1443,26 @@ async function startServer() {
     try {
       const nowIso = new Date().toISOString();
       const parts = name.split(/\s+/);
+
+      // The estimate the client saw, recomputed server-side so a tampered
+      // payload cannot record a price that was never quoted.
+      const num = (v: any, max: number) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 ? Math.min(n, max) : 0;
+      };
+      const sigs = Math.floor(num(quoteSignatures, 999));
+      const miles = num(quoteRoundTripMiles, 10000);
+      const quote = {
+        signatures: sigs,
+        roundTripMiles: miles,
+        notaryFee: Math.round(sigs * 10 * 100) / 100,
+        travelFee: Math.round(miles * 0.725 * 100) / 100,
+        locationType: String(quoteLocationType || '').slice(0, 40),
+        total: 0,
+      };
+      quote.total = Math.round((quote.notaryFee + quote.travelFee) * 100) / 100;
+      const quoteLine = `Website estimate: ${quote.signatures} signature(s) $${quote.notaryFee.toFixed(2)} + ${quote.roundTripMiles} mi travel $${quote.travelFee.toFixed(2)} = $${quote.total.toFixed(2)}`;
+
       const lead = {
         userId: uid,
         fullName: name,
@@ -1452,6 +1474,7 @@ async function startServer() {
         message: String(message || '').trim().slice(0, 2000),
         consentToContact: true,
         source: 'website',
+        quote,
         ip,
         userAgent: (req.get('user-agent') || '').slice(0, 400),
         createdAt: nowIso,
@@ -1467,7 +1490,7 @@ async function startServer() {
         customerId = existing.docs[0].id;
         await existing.docs[0].ref.update({
           phone: lead.phone || existing.docs[0].data().phone || '',
-          notes: [existing.docs[0].data().notes, `Website request ${nowIso.slice(0, 10)}: ${lead.serviceType} — ${lead.message}`].filter(Boolean).join('\n'),
+          notes: [existing.docs[0].data().notes, `Website request ${nowIso.slice(0, 10)}: ${lead.serviceType} — ${lead.message}`, quoteLine].filter(Boolean).join('\n'),
           updatedAt: nowIso,
         });
       } else {
@@ -1488,7 +1511,8 @@ async function startServer() {
           tags: ['website-lead'],
           notes: [lead.serviceType && `Service requested: ${lead.serviceType}`,
                   lead.preferredDate && `Preferred date: ${lead.preferredDate}`,
-                  lead.message].filter(Boolean).join('\n'),
+                  lead.message,
+                  quoteLine].filter(Boolean).join('\n'),
           createdAt: nowIso,
           updatedAt: nowIso,
         });
@@ -1515,7 +1539,8 @@ async function startServer() {
                   <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Phone</td><td>${escapeConsentHtml(lead.phone)}</td></tr>
                   <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Service</td><td>${escapeConsentHtml(lead.serviceType)}</td></tr>
                   <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Preferred date</td><td>${escapeConsentHtml(lead.preferredDate)}</td></tr>
-                  <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Location</td><td>${escapeConsentHtml(lead.location)}</td></tr>
+                  <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Location</td><td>${escapeConsentHtml(lead.location)}${quote.locationType ? ' (' + escapeConsentHtml(quote.locationType) + ')' : ''}</td></tr>
+                  <tr><td style="padding:4px 16px 4px 0;color:#64748b;">Their estimate</td><td>${escapeConsentHtml(quoteLine.replace('Website estimate: ', ''))}</td></tr>
                 </table>
                 <p style="margin:18px 0 0;font-size:14px;line-height:1.7;color:#334155;white-space:pre-wrap;">${escapeConsentHtml(lead.message)}</p>
                 <p style="margin:18px 0 0;font-size:13px;color:#64748b;">They are already in your CRM. Open Consent Forms to send them a consent and disclosure form.</p>

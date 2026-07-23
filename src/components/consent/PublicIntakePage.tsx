@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle2, AlertCircle, Loader2, Send } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2, Send, Calculator } from 'lucide-react';
 import { submitWebsiteIntake } from '../../services/consentService';
+import {
+  LOCATION_TYPES,
+  MILEAGE_DISCLAIMER,
+  MILEAGE_RATE,
+  NOTARY_FEE_PER_SIGNATURE,
+  computeQuote,
+  formatCurrency,
+} from '../../lib/quoteCalculator';
 
 const SERVICE_TYPES = [
   'Real estate / loan signing',
@@ -32,6 +40,16 @@ export const PublicIntakePage: React.FC = () => {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
+  // Quote estimate. Sent with the lead so the CRM shows what the client was quoted.
+  const [signatures, setSignatures] = useState('1');
+  const [roundTripMiles, setRoundTripMiles] = useState('10');
+  const [locationType, setLocationType] = useState<string>('Home');
+
+  const quote = useMemo(
+    () => computeQuote({ signatures: Number(signatures), roundTripMiles: Number(roundTripMiles) }),
+    [signatures, roundTripMiles],
+  );
+
   const set = (key: keyof typeof values) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setValues(prev => ({ ...prev, [key]: e.target.value }));
 
@@ -40,7 +58,17 @@ export const PublicIntakePage: React.FC = () => {
     setBusy(true);
     setError('');
     try {
-      await submitWebsiteIntake({ ...values, consentToContact: consent, ownerId });
+      await submitWebsiteIntake({
+        ...values,
+        consentToContact: consent,
+        ownerId,
+        quoteSignatures: quote.signatures,
+        quoteRoundTripMiles: quote.roundTripMiles,
+        quoteNotaryFee: quote.notaryFee,
+        quoteTravelFee: quote.travelFee,
+        quoteTotal: quote.total,
+        quoteLocationType: locationType,
+      });
       setDone(true);
     } catch (err: any) {
       setError(err.message || 'Could not submit your request.');
@@ -129,6 +157,82 @@ export const PublicIntakePage: React.FC = () => {
             </label>
           </div>
 
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200">
+              <Calculator className="w-4 h-4 text-indigo-600" />
+              <h2 className="text-sm font-bold text-slate-900">Estimate your cost</h2>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <label className="block">
+                  <span className={label}>Notarized signatures</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
+                    value={signatures}
+                    onChange={e => setSignatures(e.target.value)}
+                    className={input}
+                  />
+                </label>
+                <label className="block">
+                  <span className={label}>Round-trip miles</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="decimal"
+                    value={roundTripMiles}
+                    onChange={e => setRoundTripMiles(e.target.value)}
+                    className={input}
+                  />
+                </label>
+                <label className="block">
+                  <span className={label}>Location type</span>
+                  <select value={locationType} onChange={e => setLocationType(e.target.value)} className={input}>
+                    {LOCATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <p className="text-xs text-slate-400">
+                Location type is informational only and does not change the price.
+              </p>
+
+              <div className="rounded-xl bg-slate-50 p-4 space-y-2">
+                <div className="flex items-baseline justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-700">Notary fee</p>
+                    <p className="text-xs text-slate-500">
+                      {quote.signatures} signature{quote.signatures === 1 ? '' : 's'} × {formatCurrency(NOTARY_FEE_PER_SIGNATURE)}
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-900 shrink-0">{formatCurrency(quote.notaryFee)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-700">Travel reimbursement</p>
+                    <p className="text-xs text-slate-500">
+                      {quote.roundTripMiles} miles × ${MILEAGE_RATE.toFixed(3)}
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-900 shrink-0">{formatCurrency(quote.travelFee)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-4 pt-2 border-t border-slate-200">
+                  <p className="text-sm font-bold text-slate-900">Estimated total</p>
+                  <span className="text-xl font-bold text-indigo-600 shrink-0">{formatCurrency(quote.total)}</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                <span className="font-bold text-slate-600">Mileage &amp; travel disclaimer: </span>
+                {MILEAGE_DISCLAIMER}
+              </p>
+            </div>
+          </div>
+
           <label className="flex gap-3 items-start p-3 rounded-xl bg-slate-50 cursor-pointer">
             <input
               type="checkbox"
@@ -137,8 +241,10 @@ export const PublicIntakePage: React.FC = () => {
               className="mt-0.5 w-5 h-5 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
             />
             <span className="text-sm text-slate-700 leading-relaxed">
-              I agree to be contacted by email, phone, or text about this request, and I understand a consent and
-              disclosure form will be emailed to me to review before the appointment.<span className="text-rose-500"> *</span>
+              I agree to be contacted by email, phone, or text about this request. I understand the total above is an
+              estimate that includes travel reimbursement, that the final amount is confirmed when the appointment is
+              booked, and that a consent and disclosure form will be emailed to me to review before we
+              meet.<span className="text-rose-500"> *</span>
             </span>
           </label>
 
