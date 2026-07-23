@@ -75,7 +75,6 @@ const PER_SIGNATURE_FEE_FIELDS = [
  */
 const FLAT_FEE_FIELDS = [
   { key: 'flatFee',     label: 'Flat Signing Fee', type: 'currency' as const, required: true, help: 'The single agreed fee for this signing, based on the loan document package. Covers notarizations, travel, and printing.' },
-  { key: 'feeIncludes', label: 'What the Fee Covers', type: 'text' as const, placeholder: 'e.g. bedside notarizations, travel, printing, and package return', help: 'Shown to the client under the fee line.' },
 ];
 
 /** The common field set most templates use (appointment + per-signature pricing). */
@@ -256,16 +255,13 @@ export const CONSENT_TEMPLATES: ConsentTemplate[] = [
       { key: 'propertyAddress', label: 'Property Address',   type: 'textarea', required: true, prefillFrom: 'propertyAddress' },
       { key: 'transactionType', label: 'Transaction Type',   type: 'select', required: true, options: ['Purchase', 'Refinance', 'HELOC', 'Seller Package', 'Reverse Mortgage', 'Loan Modification', 'Other'] },
       { key: 'lenderName',      label: 'Lender',             type: 'text' },
-      { key: 'titleCompany',    label: 'Title / Escrow Company', type: 'text' },
-      { key: 'escrowNumber',    label: 'Loan / Escrow Number', type: 'text' },
       { key: 'coSignerName',    label: 'Co-Signer Name',     type: 'text', prefillFrom: 'spouseName', help: 'Every signer must be present with their own valid ID.' },
-      { key: 'docReturnMethod', label: 'Document Return Method', type: 'select', options: ['Prepaid overnight label', 'Drop at shipping location', 'Scan-back then ship', 'Hand delivery', 'Other'] },
     ],
     clauses: [
       {
         heading: 'Nature of This Appointment',
         body:
-          'This appointment is a {{transactionType}} signing for the property at {{propertyAddress}}, arranged through {{titleCompany}} for {{lenderName}} under loan/escrow number {{escrowNumber}}. The notary acts as a signing agent: presenting your closing package, directing you to each signature, date, and initial line, notarizing the documents that require it, and returning the executed package.',
+          'This appointment is a {{transactionType}} signing for the property at {{propertyAddress}} for {{lenderName}}. The notary acts as a signing agent: presenting your closing package, directing you to each signature, date, and initial line, notarizing the documents that require it, and returning the executed package.',
       },
       {
         heading: 'The Notary Cannot Explain Your Loan',
@@ -280,7 +276,7 @@ export const CONSENT_TEMPLATES: ConsentTemplate[] = [
       {
         heading: 'Document Handling and Return',
         body:
-          'Your executed package will be returned by: {{docReturnMethod}}. The notary handles your package as confidential, keeps it secure from the time it is printed to the time it is returned, and does not retain copies of your loan documents beyond what is required for the journal entry.',
+          'The notary handles your package as confidential, keeps it secure from the time it is printed to the time it is returned to the lender or title company, and does not retain copies of your loan documents beyond what is required for the journal entry.',
       },
       {
         heading: 'Incomplete or Late Packages',
