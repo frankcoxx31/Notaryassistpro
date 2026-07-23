@@ -17,7 +17,7 @@
 
 export type ConsentFormStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'declined' | 'voided' | 'expired';
 
-export type ConsentTemplateId = 'real-estate' | 'estate-planning' | 'hospital-facility';
+export type ConsentTemplateId = 'real-estate' | 'estate-planning' | 'hospital-facility' | 'general-notary';
 
 export type ConsentFieldType = 'text' | 'textarea' | 'date' | 'time' | 'currency' | 'number' | 'select';
 

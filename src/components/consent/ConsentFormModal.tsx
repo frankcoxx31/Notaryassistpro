@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { X, FileSignature, Send, Eye, Loader2, ChevronLeft, AlertCircle, Home, Scale, HeartPulse } from 'lucide-react';
+import { X, FileSignature, Send, Eye, Loader2, ChevronLeft, AlertCircle, Home, Scale, HeartPulse, Stamp } from 'lucide-react';
 import { CONSENT_TEMPLATES, renderConsentDocument } from '../../lib/consentTemplates';
 import { consentService } from '../../services/consentService';
 import type { ConsentTemplate, ConsentTemplateId } from '../../types/consent';
 import type { BusinessProfile, Customer } from '../../types';
 
 const TEMPLATE_ICONS: Record<ConsentTemplateId, React.ElementType> = {
+  'general-notary': Stamp,
   'real-estate': Home,
   'estate-planning': Scale,
   'hospital-facility': HeartPulse,

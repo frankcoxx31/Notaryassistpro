@@ -99,6 +99,74 @@ var BASE_CLAUSES = [
 ];
 var CONSENT_TEMPLATES = [
   {
+    id: "general-notary",
+    name: "General Notary Work",
+    description: "Vehicle titles, powers of attorney, affidavits, bills of sale, and single documents.",
+    segment: "General",
+    documentTitle: "Client Consent & Disclosure \u2014 General Notary Services",
+    fields: [
+      ...COMMON_FIELDS,
+      { key: "documentTypes", label: "Documents to Be Notarized", type: "textarea", required: true, placeholder: "e.g. NC vehicle title (seller signature), durable power of attorney, affidavit of residency, bill of sale" },
+      { key: "signerNames", label: "All Signers", type: "textarea", required: true, placeholder: "Everyone whose signature must be notarized. Each needs their own valid photo ID.", prefillFrom: "fullName" },
+      { key: "vehicleInfo", label: "Vehicle / VIN", type: "text", help: "Title work only. Leave blank otherwise." },
+      { key: "witnessesNeeded", label: "Witnesses Required", type: "select", options: ["None", "One (1)", "Two (2)", "Unsure \u2014 please advise"] },
+      { key: "apostilleNeeded", label: "Apostille Requested", type: "select", options: ["No", "Yes"], help: "The notary cannot issue an apostille; it is obtained from the Secretary of State afterward." }
+    ],
+    clauses: [
+      {
+        heading: "Nature of This Appointment",
+        body: "This appointment is to notarize the following for {{signerNames}}: {{documentTypes}}. The notary will verify identity, confirm each signer is signing willingly and knowingly, witness the signature, and complete the notarial certificate."
+      },
+      {
+        heading: "Documents Must Not Be Signed in Advance",
+        body: "Do not sign your documents before the appointment. The notary must personally witness each signature that is being notarized. A document already bearing a signature cannot be notarized, and the signer would have to sign a fresh copy. This applies to vehicle titles, which are frequently spoiled this way."
+      },
+      {
+        heading: "Vehicle Titles and Transfer Documents",
+        body: "For title work on {{vehicleInfo}}, please understand what the notary can and cannot do. The notary witnesses the signature only. The notary does not verify who owns the vehicle, does not confirm the odometer reading, does not check for liens, and cannot tell you which boxes to complete, how to state the sale price, or what to write on the odometer or damage disclosure. Those entries are your statements, and questions about them belong with the NCDMV, a license plate agency, or your attorney. Titles with erasures, correction fluid, cross-outs, or the wrong name in a field are commonly rejected by the DMV, and the notary may decline a title that appears altered."
+      },
+      {
+        heading: "Every Signer Must Appear in Person",
+        body: "Each person whose signature is being notarized must be physically present with their own valid, unexpired, government-issued photo identification. One person cannot sign for another without properly executed authority presented at the appointment, and a signer cannot be added by phone or video."
+      },
+      {
+        heading: "Complete Documents Only",
+        body: "The notary cannot notarize a document with blank spaces in the areas being certified, and cannot notarize a photocopy of a signature or a document you have not read. Please bring the complete document, including any pages the notarial certificate refers to."
+      },
+      {
+        heading: "Choosing the Notarial Act",
+        body: "The notary cannot choose the type of notarial act for you. If your document does not state whether it needs an acknowledgment, a jurat, or an oath, you must ask the receiving agency \u2014 the DMV, the court, the bank, or the requesting party \u2014 before the appointment. Selecting it for you would be the unauthorized practice of law."
+      },
+      {
+        heading: "Witnesses",
+        body: "Witnesses required for this appointment: {{witnessesNeeded}}. If witnesses are needed, please arrange them in advance. Witnesses must be adults with identification, and the notary cannot serve as a witness to a document they are notarizing."
+      },
+      {
+        heading: "Apostille and Authentication",
+        body: "Apostille requested: {{apostilleNeeded}}. An apostille is issued by the Secretary of State, not by the notary. The notary can complete a notarization in the form the Secretary of State requires, but obtaining, paying for, and submitting for the apostille is a separate step handled after this appointment."
+      },
+      ...BASE_CLAUSES
+    ],
+    acknowledgements: [
+      ...BASE_ACKNOWLEDGEMENTS,
+      {
+        key: "notPreSigned",
+        label: "My documents will be unsigned when we meet, and I understand a signature made before the appointment cannot be notarized.",
+        required: true
+      },
+      {
+        key: "signersPresent",
+        label: "Every person whose signature must be notarized will be present with their own valid photo ID.",
+        required: true
+      },
+      {
+        key: "actChosen",
+        label: "I understand the notary cannot decide which notarial act my document needs, or tell me how to fill it out \u2014 including on a vehicle title.",
+        required: true
+      }
+    ]
+  },
+  {
     id: "real-estate",
     name: "Real Estate / Loan Signing",
     description: "Closings, refinances, HELOCs, and seller packages handled as a signing agent.",

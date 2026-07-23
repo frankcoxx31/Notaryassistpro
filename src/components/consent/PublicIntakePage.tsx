@@ -15,6 +15,8 @@ const SERVICE_TYPES = [
   'Real estate / loan signing',
   'Estate planning documents (will, trust, POA)',
   'Hospital or nursing home signing',
+  'Vehicle title transfer',
+  'Power of attorney or affidavit',
   'Single document notarization',
   'Apostille / document authentication',
   'Something else',
