@@ -49,7 +49,9 @@ var COMMON_FIELDS = [
   { key: "appointmentLocation", label: "Appointment Location", type: "textarea", required: true, placeholder: "Street, city, state, ZIP", prefillFrom: "address" },
   { key: "notarialFee", label: "Fee per Notarized Signature", type: "currency", required: true, help: "North Carolina caps most acknowledgments at $10.00 per principal signature." },
   { key: "actCount", label: "Number of Notarized Signatures", type: "number", required: true, help: "Fee per signature times this count is shown to the client as a line item." },
-  { key: "travelFee", label: "Travel / Convenience Fee", type: "currency", help: "Must be disclosed and agreed to in advance, separately from the notarial fee." }
+  { key: "travelMiles", label: "Round-Trip Miles", type: "number", help: "Use the address lookup above to fill this from the appointment location." },
+  { key: "travelFee", label: "Travel / Convenience Fee", type: "currency", help: "Must be disclosed and agreed to in advance, separately from the notarial fee." },
+  { key: "travelWaived", label: "Waive travel reimbursement", type: "checkbox", help: "Charges $0.00 for travel and says so on the client\u2019s form." }
 ];
 var BASE_CLAUSES = [
   {
@@ -371,16 +373,24 @@ function toNumber(raw) {
 function money(n) {
   return `$${n.toFixed(2)}`;
 }
+function isChecked(raw) {
+  return raw === "true" || raw === "yes" || raw === "1";
+}
 function computeConsentCost(fields) {
   const feePerSignature = toNumber(fields.notarialFee);
   const signatureCount = Math.max(0, Math.floor(toNumber(fields.actCount)));
-  const travelFee = toNumber(fields.travelFee);
+  const travelFeeBeforeWaiver = toNumber(fields.travelFee);
+  const travelWaived = isChecked(fields.travelWaived);
+  const travelFee = travelWaived ? 0 : travelFeeBeforeWaiver;
   const notarialSubtotal = Math.round(feePerSignature * signatureCount * 100) / 100;
   return {
     feePerSignature,
     signatureCount,
     notarialSubtotal,
     travelFee,
+    travelFeeBeforeWaiver,
+    travelWaived,
+    travelMiles: toNumber(fields.travelMiles),
     total: Math.round((notarialSubtotal + travelFee) * 100) / 100
   };
 }
@@ -433,11 +443,12 @@ function renderConsentDocument(opts) {
         <td style="padding:8px 0;color:#0f172a;font-size:14px;vertical-align:top;">${escapeHtml(value)}</td>
       </tr>`
   ).join("");
+  const clauseFields = { ...fields, travelFee: String(cost.travelFee) };
   const clauses = template.clauses.map(
     (c, i) => `
     <section style="margin:0 0 22px;">
       <h3 style="margin:0 0 6px;font-size:14px;font-weight:700;color:#1e3a5f;">${i + 1}. ${escapeHtml(c.heading)}</h3>
-      <p style="margin:0;font-size:14px;line-height:1.75;color:#334155;">${escapeHtml(interpolate(c.body, fields, business))}</p>
+      <p style="margin:0;font-size:14px;line-height:1.75;color:#334155;">${escapeHtml(interpolate(c.body, clauseFields, business))}</p>
     </section>`
   ).join("");
   const costRow = (label, detail, amount, bold = false) => `
@@ -459,12 +470,20 @@ function renderConsentDocument(opts) {
     `${cost.signatureCount} notarized signature${cost.signatureCount === 1 ? "" : "s"} \xD7 ${money(cost.feePerSignature)} each`,
     money(cost.notarialSubtotal)
   )}
-      ${costRow("Travel reimbursement", "Round-trip mileage, agreed in advance", money(cost.travelFee))}
+      ${cost.travelWaived ? costRow(
+    "Travel reimbursement \u2014 waived",
+    cost.travelFeeBeforeWaiver > 0 ? `${money(cost.travelFeeBeforeWaiver)} waived by ${business.name}` : `No travel charge for this appointment`,
+    money(0)
+  ) : costRow(
+    "Travel reimbursement",
+    cost.travelMiles > 0 ? `${cost.travelMiles} round-trip miles, agreed in advance` : "Round-trip mileage, agreed in advance",
+    money(cost.travelFee)
+  )}
       <tr><td colspan="2" style="border-top:1px solid #e2e8f0;padding:0;"></td></tr>
       ${costRow("Total due at appointment", "", money(cost.total), true)}
     </table>
     <p style="margin:0;padding:0 16px 14px;font-size:11px;line-height:1.6;color:#64748b;">
-      Payable at the time of service. If the number of signatures changes on the day, the notarial fee changes with it at ${money(cost.feePerSignature)} per signature, and any change is confirmed with you before it is charged.
+      Payable at the time of service. If the number of signatures changes on the day, the notarial fee changes with it at ${money(cost.feePerSignature)} per signature, and any change is confirmed with you before it is charged.${cost.travelWaived ? " Travel reimbursement has been waived for this appointment and will not be charged." : ""}
     </p>
   </section>`;
   return `

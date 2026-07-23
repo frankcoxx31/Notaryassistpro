@@ -1,14 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle2, AlertCircle, Loader2, Send, Calculator } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2, Send, Calculator, MapPin } from 'lucide-react';
 import { submitWebsiteIntake } from '../../services/consentService';
 import {
+  AddressMatch,
   LOCATION_TYPES,
   MILEAGE_DISCLAIMER,
   MILEAGE_RATE,
   NOTARY_FEE_PER_SIGNATURE,
   computeQuote,
   formatCurrency,
+  lookupAddress,
+  roundTripMilesTo,
 } from '../../lib/quoteCalculator';
 
 const SERVICE_TYPES = [
@@ -51,6 +54,51 @@ export const PublicIntakePage: React.FC = () => {
     () => computeQuote({ signatures: Number(signatures), roundTripMiles: Number(roundTripMiles) }),
     [signatures, roundTripMiles],
   );
+
+  // Address lookup. Suggestions come from Nominatim; picking one routes it
+  // through OSRM to get real round-trip driving miles, which then drives the
+  // quote. Manual mileage entry still works if lookup fails or is skipped.
+  const [suggestions, setSuggestions] = useState<AddressMatch[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [routing, setRouting] = useState(false);
+  const [addressError, setAddressError] = useState('');
+  const [milesFromAddress, setMilesFromAddress] = useState(false);
+
+  const searchAddress = async () => {
+    const q = values.location.trim();
+    if (q.length < 4) {
+      setAddressError('Enter a street address, city, or ZIP first.');
+      return;
+    }
+    setSearching(true);
+    setAddressError('');
+    setSuggestions([]);
+    try {
+      const matches = await lookupAddress(q);
+      if (!matches.length) setAddressError('No match found. Try adding a city or ZIP code.');
+      setSuggestions(matches);
+    } catch (e: any) {
+      setAddressError(e.message || 'Address lookup is unavailable right now.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const chooseAddress = async (match: AddressMatch) => {
+    setValues(prev => ({ ...prev, location: match.label }));
+    setSuggestions([]);
+    setRouting(true);
+    setAddressError('');
+    try {
+      const miles = await roundTripMilesTo(match.lat, match.lon);
+      setRoundTripMiles(String(miles));
+      setMilesFromAddress(true);
+    } catch (e: any) {
+      setAddressError(e.message || 'Could not calculate the driving distance. Enter miles manually.');
+    } finally {
+      setRouting(false);
+    }
+  };
 
   const set = (key: keyof typeof values) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setValues(prev => ({ ...prev, [key]: e.target.value }));
@@ -143,16 +191,56 @@ export const PublicIntakePage: React.FC = () => {
                 {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
-            <label className="block sm:col-span-2">
+            <div className="block sm:col-span-2">
               <span className={label}>Where should we meet?</span>
-              <input
-                type="text"
-                placeholder="Address, hospital, or facility name"
-                value={values.location}
-                onChange={set('location')}
-                className={input}
-              />
-            </label>
+              <div className="flex gap-2 mt-1.5">
+                <input
+                  type="text"
+                  placeholder="Address, hospital, or facility name"
+                  value={values.location}
+                  onChange={e => { set('location')(e); setMilesFromAddress(false); }}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); searchAddress(); } }}
+                  className={`${input} mt-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={searchAddress}
+                  disabled={searching || routing}
+                  className="shrink-0 flex items-center gap-1.5 px-4 rounded-xl text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+                >
+                  {searching || routing ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+                  {routing ? 'Measuring…' : searching ? 'Searching…' : 'Find'}
+                </button>
+              </div>
+
+              {suggestions.length > 0 && (
+                <ul className="mt-2 rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                  {suggestions.map((m, i) => (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        onClick={() => chooseAddress(m)}
+                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 transition-colors"
+                      >
+                        {m.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {addressError && <p className="mt-1.5 text-xs text-rose-600">{addressError}</p>}
+              {milesFromAddress && !addressError && (
+                <p className="mt-1.5 text-xs text-emerald-700">
+                  Round-trip distance calculated from this address — {roundTripMiles} miles.
+                </p>
+              )}
+              {!addressError && !milesFromAddress && (
+                <p className="mt-1.5 text-xs text-slate-400">
+                  Search your address and we'll work out the mileage for you.
+                </p>
+              )}
+            </div>
             <label className="block sm:col-span-2">
               <span className={label}>Anything else we should know?</span>
               <textarea rows={3} value={values.message} onChange={set('message')} className={input} />

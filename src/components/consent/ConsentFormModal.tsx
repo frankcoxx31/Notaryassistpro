@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { X, FileSignature, Send, Eye, Loader2, ChevronLeft, AlertCircle, Home, Scale, HeartPulse, Stamp } from 'lucide-react';
+import { X, FileSignature, Send, Eye, Loader2, ChevronLeft, AlertCircle, Home, Scale, HeartPulse, Stamp, MapPin } from 'lucide-react';
+import { MILEAGE_RATE, milesForAddress } from '../../lib/quoteCalculator';
 import { CONSENT_TEMPLATES, computeConsentCost, renderConsentDocument } from '../../lib/consentTemplates';
 import { consentService } from '../../services/consentService';
 import type { ConsentTemplate, ConsentTemplateId } from '../../types/consent';
@@ -45,6 +46,9 @@ export const ConsentFormModal: React.FC<{
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [matchedAddress, setMatchedAddress] = useState('');
 
   const template = useMemo(() => CONSENT_TEMPLATES.find(t => t.id === templateId) || null, [templateId]);
   const activeCustomer = useMemo(
@@ -85,6 +89,33 @@ export const ConsentFormModal: React.FC<{
     : [];
 
   const cost = computeConsentCost(fields);
+
+  /**
+   * Fills round-trip miles and the travel fee from the appointment address.
+   * The notary can still override either afterwards — this only seeds them.
+   */
+  const lookupMiles = async () => {
+    const address = (fields.appointmentLocation || '').trim();
+    if (!address) {
+      setLookupError('Enter the appointment location first.');
+      return;
+    }
+    setLookingUp(true);
+    setLookupError('');
+    try {
+      const { miles, matched } = await milesForAddress(address);
+      setFields(prev => ({
+        ...prev,
+        travelMiles: String(miles),
+        travelFee: (miles * MILEAGE_RATE).toFixed(2),
+      }));
+      setMatchedAddress(matched);
+    } catch (e: any) {
+      setLookupError(e.message || 'Could not look up that address.');
+    } finally {
+      setLookingUp(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!template) return;
@@ -197,6 +228,63 @@ export const ConsentFormModal: React.FC<{
                 const value = fields[f.key] ?? '';
                 const set = (v: string) => setFields(prev => ({ ...prev, [f.key]: v }));
                 const cls = 'mt-1.5 w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500';
+
+                // Waiving travel zeroes the charge, so the amount and mileage
+                // inputs are disabled rather than silently ignored.
+                if (f.type === 'checkbox') {
+                  const checked = value === 'true';
+                  return (
+                    <label
+                      key={f.key}
+                      className="sm:col-span-2 flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => set(e.target.checked ? 'true' : '')}
+                        className="mt-0.5 w-5 h-5 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-slate-800">{f.label}</span>
+                        {f.help && <span className="block text-[11px] text-slate-500 leading-relaxed mt-0.5">{f.help}</span>}
+                      </span>
+                    </label>
+                  );
+                }
+
+                if (f.key === 'appointmentLocation') {
+                  return (
+                    <div key={f.key} className="sm:col-span-2">
+                      <label className="block">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          {f.label}{f.required && <span className="text-rose-500"> *</span>}
+                        </span>
+                        <textarea rows={2} value={value} onChange={e => set(e.target.value)} placeholder={f.placeholder} className={cls} />
+                      </label>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={lookupMiles}
+                          disabled={lookingUp}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+                        >
+                          {lookingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+                          {lookingUp ? 'Calculating…' : 'Look up address & miles'}
+                        </button>
+                        <span className="text-[11px] text-slate-400">
+                          Fills round-trip miles and travel fee at ${MILEAGE_RATE.toFixed(3)}/mile.
+                        </span>
+                      </div>
+                      {lookupError && <p className="mt-1.5 text-[11px] text-rose-600">{lookupError}</p>}
+                      {matchedAddress && !lookupError && (
+                        <p className="mt-1.5 text-[11px] text-emerald-700">Matched: {matchedAddress}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                const disabledByWaiver = cost.travelWaived && (f.key === 'travelFee' || f.key === 'travelMiles');
+
                 return (
                   <label key={f.key} className={f.type === 'textarea' ? 'sm:col-span-2 block' : 'block'}>
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -213,10 +301,11 @@ export const ConsentFormModal: React.FC<{
                       <input
                         type={f.type === 'date' ? 'date' : f.type === 'time' ? 'time' : f.type === 'number' ? 'number' : 'text'}
                         inputMode={f.type === 'currency' ? 'decimal' : undefined}
-                        value={value}
+                        value={disabledByWaiver ? '' : value}
+                        disabled={disabledByWaiver}
                         onChange={e => set(e.target.value)}
-                        placeholder={f.placeholder || (f.type === 'currency' ? '0.00' : '')}
-                        className={cls}
+                        placeholder={disabledByWaiver ? 'Waived' : (f.placeholder || (f.type === 'currency' ? '0.00' : ''))}
+                        className={`${cls} disabled:opacity-50 disabled:cursor-not-allowed`}
                       />
                     )}
                     {f.help && <span className="block mt-1 text-[11px] text-slate-400 leading-relaxed">{f.help}</span>}
@@ -262,7 +351,8 @@ export const ConsentFormModal: React.FC<{
                 Client total: ${cost.total.toFixed(2)}
               </p>
               <p className="text-xs text-slate-500">
-                {cost.signatureCount} × ${cost.feePerSignature.toFixed(2)} = ${cost.notarialSubtotal.toFixed(2)} + ${cost.travelFee.toFixed(2)} travel
+                {cost.signatureCount} × ${cost.feePerSignature.toFixed(2)} = ${cost.notarialSubtotal.toFixed(2)}
+                {cost.travelWaived ? ' · travel waived' : ` + $${cost.travelFee.toFixed(2)} travel`}
                 {missingRequired.length > 0 && ` · ${missingRequired.length} required field(s) empty`}
               </p>
             </div>

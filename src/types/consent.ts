@@ -19,7 +19,7 @@ export type ConsentFormStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'declin
 
 export type ConsentTemplateId = 'real-estate' | 'estate-planning' | 'hospital-facility' | 'general-notary';
 
-export type ConsentFieldType = 'text' | 'textarea' | 'date' | 'time' | 'currency' | 'number' | 'select';
+export type ConsentFieldType = 'text' | 'textarea' | 'date' | 'time' | 'currency' | 'number' | 'select' | 'checkbox';
 
 export interface ConsentField {
   key: string;
