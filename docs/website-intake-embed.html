@@ -1,0 +1,202 @@
+<!--
+  Client intake form — paste-anywhere embed
+  =========================================
+  Drop this whole block into any "Custom HTML" / "Embed code" area on your
+  client-facing website (Wix, Squarespace, WordPress, Webflow, plain HTML).
+  It has no dependencies and posts directly to the NotaryPro API.
+
+  Before it works:
+
+  1. Set PUBLIC_INTAKE_UID in the server environment so leads are assigned to
+     you. Yours is n3I1KimZW6cw3sy0GrXC73yQny62. Alternatively, uncomment the
+     ownerId line in the script below to name the tenant per-form.
+
+  2. Set INTAKE_ALLOWED_ORIGINS to the origin this page is served from, e.g.
+     INTAKE_ALLOWED_ORIGINS=https://www.yoursite.com
+     Without it the browser blocks the cross-origin POST. Origin only — no
+     path, no trailing slash. Multiple origins are comma-separated.
+
+  Not needed if the form is served from the app itself — in that case just
+  link people to /intake, which renders the same form as a full page.
+
+  Submissions create (or update) a customer in the CRM plus a websiteLeads
+  record, and email you a notification. From there, open Consent Forms in the
+  CRM to send that client a consent and disclosure form to sign.
+-->
+
+<div id="notary-intake-root">
+  <style>
+    #notary-intake-root { --np-accent: #4f46e5; --np-border: #e2e8f0; --np-muted: #64748b; }
+    #notary-intake-root * { box-sizing: border-box; }
+    .np-form { max-width: 560px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; color: #0f172a; }
+    .np-form h2 { margin: 0 0 6px; font-size: 22px; font-weight: 700; }
+    .np-form .np-sub { margin: 0 0 20px; font-size: 14px; color: var(--np-muted); line-height: 1.6; }
+    .np-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 520px) { .np-row { grid-template-columns: 1fr; } }
+    .np-field { display: block; margin-bottom: 14px; }
+    .np-field.np-full { grid-column: 1 / -1; }
+    .np-label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--np-muted); margin-bottom: 6px; }
+    .np-input, .np-select, .np-textarea {
+      width: 100%; padding: 12px 14px; font-size: 15px; font-family: inherit; color: #0f172a;
+      background: #f8fafc; border: 1px solid var(--np-border); border-radius: 10px; outline: none;
+    }
+    .np-input:focus, .np-select:focus, .np-textarea:focus { border-color: var(--np-accent); background: #fff; box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
+    .np-textarea { min-height: 88px; resize: vertical; }
+    .np-consent { display: flex; gap: 12px; align-items: flex-start; padding: 12px; background: #f8fafc; border-radius: 10px; margin: 4px 0 18px; cursor: pointer; }
+    .np-consent input { width: 18px; height: 18px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--np-accent); }
+    .np-consent span { font-size: 13px; line-height: 1.6; color: #334155; }
+    .np-button {
+      width: 100%; padding: 15px; font-size: 16px; font-weight: 700; font-family: inherit; color: #fff;
+      background: var(--np-accent); border: 0; border-radius: 10px; cursor: pointer;
+    }
+    .np-button:hover:not(:disabled) { filter: brightness(0.93); }
+    .np-button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .np-note { margin: 14px 0 0; font-size: 12px; line-height: 1.6; color: #94a3b8; text-align: center; }
+    .np-alert { padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
+    .np-alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+    .np-done { text-align: center; padding: 40px 20px; }
+    .np-done h2 { margin: 0 0 10px; }
+    .np-done p { margin: 0; font-size: 15px; line-height: 1.7; color: var(--np-muted); }
+    .np-required { color: #e11d48; }
+    /* Honeypot: hidden from people, visible to bots that fill every field. */
+    .np-hp { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  </style>
+
+  <form class="np-form" id="np-intake-form" novalidate>
+    <h2>Request a Notary</h2>
+    <p class="np-sub">Tell us what you need notarized and when. We'll confirm by email.</p>
+
+    <div id="np-error" class="np-alert np-alert-error" style="display:none;"></div>
+
+    <div class="np-hp" aria-hidden="true">
+      <label>Company <input type="text" name="company" tabindex="-1" autocomplete="off"></label>
+    </div>
+
+    <div class="np-row">
+      <label class="np-field">
+        <span class="np-label">Full name <span class="np-required">*</span></span>
+        <input class="np-input" type="text" name="fullName" autocomplete="name" required>
+      </label>
+      <label class="np-field">
+        <span class="np-label">Email <span class="np-required">*</span></span>
+        <input class="np-input" type="email" name="email" autocomplete="email" required>
+      </label>
+      <label class="np-field">
+        <span class="np-label">Phone</span>
+        <input class="np-input" type="tel" name="phone" autocomplete="tel">
+      </label>
+      <label class="np-field">
+        <span class="np-label">Preferred date</span>
+        <input class="np-input" type="date" name="preferredDate">
+      </label>
+      <label class="np-field np-full">
+        <span class="np-label">What do you need notarized? <span class="np-required">*</span></span>
+        <select class="np-select" name="serviceType" required>
+          <option value="">— Select —</option>
+          <option>Real estate / loan signing</option>
+          <option>Estate planning documents (will, trust, POA)</option>
+          <option>Hospital or nursing home signing</option>
+          <option>Single document notarization</option>
+          <option>Apostille / document authentication</option>
+          <option>Something else</option>
+        </select>
+      </label>
+      <label class="np-field np-full">
+        <span class="np-label">Where should we meet?</span>
+        <input class="np-input" type="text" name="location" placeholder="Address, hospital, or facility name">
+      </label>
+      <label class="np-field np-full">
+        <span class="np-label">Anything else we should know?</span>
+        <textarea class="np-textarea" name="message"></textarea>
+      </label>
+    </div>
+
+    <label class="np-consent">
+      <input type="checkbox" name="consentToContact" required>
+      <span>
+        I agree to be contacted by email, phone, or text about this request, and I understand a consent
+        and disclosure form will be emailed to me to review before the appointment. <span class="np-required">*</span>
+      </span>
+    </label>
+
+    <button class="np-button" type="submit" id="np-submit" disabled>Send request</button>
+
+    <p class="np-note">
+      A notary public cannot give legal advice or explain documents. Your information is used only to
+      schedule and complete your appointment.
+    </p>
+  </form>
+
+  <script>
+    (function () {
+      // Point this at wherever the NotaryPro server runs.
+      var API_BASE = 'https://www.notaryproapp.com';
+      // Multi-tenant only: name the notary who should receive these leads.
+      // Leave commented out to use the server's PUBLIC_INTAKE_UID.
+      // var OWNER_ID = 'n3I1KimZW6cw3sy0GrXC73yQny62';
+
+      var form = document.getElementById('np-intake-form');
+      var button = document.getElementById('np-submit');
+      var errorBox = document.getElementById('np-error');
+      var consent = form.elements.consentToContact;
+
+      // The consent checkbox gates submission, mirroring the server's own check.
+      consent.addEventListener('change', function () { button.disabled = !consent.checked; });
+
+      function showError(message) {
+        errorBox.textContent = message;
+        errorBox.style.display = 'block';
+      }
+
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        errorBox.style.display = 'none';
+
+        var payload = {
+          fullName: form.elements.fullName.value.trim(),
+          email: form.elements.email.value.trim(),
+          phone: form.elements.phone.value.trim(),
+          serviceType: form.elements.serviceType.value,
+          preferredDate: form.elements.preferredDate.value,
+          location: form.elements.location.value.trim(),
+          message: form.elements.message.value.trim(),
+          company: form.elements.company.value,
+          consentToContact: consent.checked
+        };
+        if (typeof OWNER_ID !== 'undefined') payload.ownerId = OWNER_ID;
+
+        if (!payload.fullName) return showError('Please enter your name.');
+        if (!payload.email) return showError('Please enter your email address.');
+        if (!payload.serviceType) return showError('Please tell us what you need notarized.');
+
+        button.disabled = true;
+        button.textContent = 'Sending…';
+
+        fetch(API_BASE + '/api/public/intake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+          .then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (data) {
+              if (!response.ok) throw new Error(data.error || 'Could not submit your request.');
+              return data;
+            });
+          })
+          .then(function () {
+            form.innerHTML =
+              '<div class="np-done">' +
+              '<h2>Request received</h2>' +
+              "<p>Thank you. You'll hear back shortly to confirm the appointment. Watch your email for a " +
+              'short consent and disclosure form to review before we meet.</p>' +
+              '</div>';
+          })
+          .catch(function (err) {
+            showError(err.message || 'Could not submit your request. Please try again.');
+            button.disabled = false;
+            button.textContent = 'Send request';
+          });
+      });
+    })();
+  </script>
+</div>
