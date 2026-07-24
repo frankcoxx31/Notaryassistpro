@@ -254,14 +254,13 @@ export const CONSENT_TEMPLATES: ConsentTemplate[] = [
       ...FLAT_FEE_FIELDS,
       { key: 'propertyAddress', label: 'Property Address',   type: 'textarea', required: true, prefillFrom: 'propertyAddress' },
       { key: 'transactionType', label: 'Transaction Type',   type: 'select', required: true, options: ['Purchase', 'Refinance', 'HELOC', 'Seller Package', 'Reverse Mortgage', 'Loan Modification', 'Other'] },
-      { key: 'lenderName',      label: 'Lender',             type: 'text' },
       { key: 'coSignerName',    label: 'Co-Signer Name',     type: 'text', prefillFrom: 'spouseName', help: 'Every signer must be present with their own valid ID.' },
     ],
     clauses: [
       {
         heading: 'Nature of This Appointment',
         body:
-          'This appointment is a {{transactionType}} signing for the property at {{propertyAddress}} for {{lenderName}}. The notary acts as a signing agent: presenting your closing package, directing you to each signature, date, and initial line, notarizing the documents that require it, and returning the executed package.',
+          'This appointment is a {{transactionType}} signing for the property at {{propertyAddress}}. The notary acts as a signing agent: presenting your closing package, directing you to each signature, date, and initial line, notarizing the documents that require it, and returning the executed package.',
       },
       {
         heading: 'The Notary Cannot Explain Your Loan',
